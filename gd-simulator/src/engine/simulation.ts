@@ -58,6 +58,7 @@ export function runSimulation(project: Project): SimulationResult {
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: true,
     });
+
   }
 
   // --- COM scenario (with CS3 credits) ---
