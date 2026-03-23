@@ -1,5 +1,6 @@
 import type { Distributor } from '../engine/types';
 import { computeDerivedTariffs } from '../engine/tariff';
+import bundledTariffs from './aneel-tariffs.json';
 
 // --- ICMS by state (state legislation, not ANEEL) ---
 export const ICMS_BY_STATE: Record<string, number> = {
@@ -230,6 +231,29 @@ export async function fetchANEELTariffs(forceRefresh = false): Promise<{
         fromCache: true,
         fetchedAt: entry.fetchedAt,
         error: 'ANEEL API indisponível — usando dados em cache',
+      };
+    }
+  } catch { /* empty */ }
+
+  // Bundled fallback — pre-fetched tariff snapshot included in the build
+  return loadBundledTariffs();
+}
+
+function loadBundledTariffs(): {
+  distributors: ANEELDistributor[];
+  fromCache: boolean;
+  fetchedAt: string;
+  error?: string;
+} {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const bundled = bundledTariffs as { fetchedAt: string; distributors: ANEELDistributor[] };
+    if (bundled.distributors.length > 0) {
+      return {
+        distributors: bundled.distributors,
+        fromCache: true,
+        fetchedAt: bundled.fetchedAt,
+        error: `Usando tarifas pré-carregadas (${new Date(bundled.fetchedAt).toLocaleDateString('pt-BR')})`,
       };
     }
   } catch { /* empty */ }
