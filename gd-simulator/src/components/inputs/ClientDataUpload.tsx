@@ -247,14 +247,41 @@ function generateTemplate(contractStart: string): XLSX.WorkBook {
   ws4['!cols'] = [{ wch: 20 }, { wch: 16 }, { wch: 35 }];
   XLSX.utils.book_append_sheet(wb, ws4, 'Banco_Stranded');
 
-  // Sheet 5: Instruções
+  // Sheet 5: Grupos Tarifários (reference)
+  const gruposData = [
+    ['Grupo_Tarifario', 'Descrição', 'Grupo A?', 'Consumo PT?'],
+    ['B1', 'Residencial', 'Não', 'Não'],
+    ['B2', 'Rural', 'Não', 'Não'],
+    ['B3', 'Comercial / Industrial', 'Não', 'Não'],
+    ['A4_VERDE', 'A4 Verde — tensão < 13.8 kV', 'Sim', 'Sim'],
+    ['A4_AZUL', 'A4 Azul — tensão < 13.8 kV', 'Sim', 'Sim'],
+    ['A3A', 'A3a — tensão 13.8 kV (sem modalidade)', 'Sim', 'Sim'],
+    ['A3A_VERDE', 'A3a Verde — tensão 13.8 kV', 'Sim', 'Sim'],
+    ['A3A_AZUL', 'A3a Azul — tensão 13.8 kV', 'Sim', 'Sim'],
+    ['A3', 'A3 — tensão 30 kV (sem modalidade)', 'Sim', 'Sim'],
+    ['A3_VERDE', 'A3 Verde — tensão 30 kV', 'Sim', 'Sim'],
+    ['A3_AZUL', 'A3 Azul — tensão 30 kV', 'Sim', 'Sim'],
+    ['A2', 'A2 — tensão 88 kV (sem modalidade)', 'Sim', 'Sim'],
+    ['A2_VERDE', 'A2 Verde — tensão 88 kV', 'Sim', 'Sim'],
+    ['A2_AZUL', 'A2 Azul — tensão 88 kV', 'Sim', 'Sim'],
+    ['A1', 'A1 — tensão 230 kV+ (sem modalidade)', 'Sim', 'Sim'],
+    ['A1_VERDE', 'A1 Verde — tensão 230 kV+', 'Sim', 'Sim'],
+    ['A1_AZUL', 'A1 Azul — tensão 230 kV+', 'Sim', 'Sim'],
+  ];
+  const ws5 = XLSX.utils.aoa_to_sheet(gruposData);
+  ws5['!cols'] = [{ wch: 18 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws5, 'Grupos_Tarifarios');
+
+  // Sheet 6: Instruções
   const instrData = [
     ['INSTRUÇÕES — Template de Dados do Cliente'],
     [''],
     ['Sheet "UCs_Consumo":'],
     ['- Uma linha por mês por UC (24 linhas por UC)'],
     ['- UC_ID: código curto único (ex: NHS, AMD, FILIAL1)'],
-    ['- Grupo_Tarifario: B1, B2, B3, A4_VERDE, A4_AZUL, A3A, A3, A2, A1'],
+    ['- Grupo_Tarifario: ver aba "Grupos_Tarifarios" para valores válidos'],
+    ['  Grupo B: B1, B2, B3'],
+    ['  Grupo A: A4_VERDE, A4_AZUL, A3A, A3A_VERDE, A3A_AZUL, A3, A3_VERDE, A3_AZUL, A2, A2_VERDE, A2_AZUL, A1, A1_VERDE, A1_AZUL'],
     ['- Consumo_PT_kWh: somente para Grupo A — deixe vazio para Grupo B'],
     ['- Banco_Inicial_kWh: preencher apenas na primeira linha de cada UC'],
     [''],
@@ -270,9 +297,9 @@ function generateTemplate(contractStart: string): XLSX.WorkBook {
     ['- Somente se existe banco de créditos stranded para redistribuir'],
     ['- Deixe vazio se não aplicável'],
   ];
-  const ws5 = XLSX.utils.aoa_to_sheet(instrData);
-  ws5['!cols'] = [{ wch: 70 }];
-  XLSX.utils.book_append_sheet(wb, ws5, 'Instruções');
+  const ws6 = XLSX.utils.aoa_to_sheet(instrData);
+  ws6['!cols'] = [{ wch: 80 }];
+  XLSX.utils.book_append_sheet(wb, ws6, 'Instruções');
 
   return wb;
 }
