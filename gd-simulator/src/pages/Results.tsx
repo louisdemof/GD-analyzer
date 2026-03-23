@@ -12,6 +12,8 @@ import { SensitivityAnalysis } from '../components/results/SensitivityAnalysis';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
+import { generatePDF, downloadPDF } from '../engine/pdf';
+import { exportResultsExcel } from '../engine/excel';
 
 type ResultTab = 'resumo' | 'mensal' | 'banco' | 'rateio' | 'sensibilidades' | 'sensibilidade-geracao';
 
@@ -27,6 +29,18 @@ export function Results() {
   const [toast, setToast] = useState<string | null>(null);
   const [previousRateio, setPreviousRateio] = useState<RateioAllocation | null>(null);
   const previousEconomia = useRef<number>(0);
+  const workerRef = useRef<Worker | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  // Cleanup worker and timeout on unmount
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (id) runForProject(id);
@@ -39,18 +53,48 @@ export function Results() {
     if (result) previousEconomia.current = result.summary.economiaLiquida;
   }, [result?.summary.economiaLiquida]);
 
+  const cancelOptimisation = useCallback(() => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    setIsOptimising(false);
+    setOptimProgress(null);
+    setToast('Optimização cancelada');
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
   const handleOptimise = useCallback(() => {
     if (!project) return;
+
+    // Terminate any existing worker
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+
     setIsOptimising(true);
     setPreviousRateio({ ...project.rateio });
     const beforeEconomia = previousEconomia.current;
 
     const worker = new OptimiserWorker();
+    workerRef.current = worker;
+
+    // 60-second timeout
+    timeoutRef.current = setTimeout(() => {
+      worker.terminate();
+      workerRef.current = null;
+      setIsOptimising(false);
+      setOptimProgress(null);
+      setToast('Optimização excedeu 60 segundos. Tente reduzir o número de UCs.');
+      setTimeout(() => setToast(null), 8000);
+    }, 60000);
 
     worker.onmessage = (e: MessageEvent) => {
       if (e.data.type === 'progress') {
         setOptimProgress(e.data as OptimiserProgress);
       } else if (e.data.type === 'done') {
+        if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
         const { allocation, bestEconomia } = e.data.result;
         updateRateio(project.id, allocation);
 
@@ -64,15 +108,18 @@ export function Results() {
 
         setIsOptimising(false);
         setOptimProgress(null);
+        workerRef.current = null;
         worker.terminate();
       }
     };
 
     worker.onerror = () => {
+      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
       setToast('Erro na optimização');
       setTimeout(() => setToast(null), 5000);
       setIsOptimising(false);
       setOptimProgress(null);
+      workerRef.current = null;
       worker.terminate();
     };
 
@@ -150,6 +197,40 @@ export function Results() {
           >
             Exportar JSON
           </button>
+          <button
+            onClick={async () => {
+              setIsExportingPDF(true);
+              try {
+                const blob = await generatePDF(project, result);
+                downloadPDF(blob, project.clientName);
+              } catch (e) {
+                setToast('Erro ao gerar PDF: ' + (e instanceof Error ? e.message : 'desconhecido'));
+                setTimeout(() => setToast(null), 5000);
+              }
+              setIsExportingPDF(false);
+            }}
+            disabled={isExportingPDF}
+            className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-60"
+            style={{ backgroundColor: '#004B70' }}
+          >
+            {isExportingPDF ? 'Gerando PDF...' : 'Exportar PDF'}
+          </button>
+          <button
+            onClick={() => {
+              setIsExportingExcel(true);
+              try {
+                exportResultsExcel(project, result);
+              } catch (e) {
+                setToast('Erro ao gerar Excel: ' + (e instanceof Error ? e.message : 'desconhecido'));
+                setTimeout(() => setToast(null), 5000);
+              }
+              setIsExportingExcel(false);
+            }}
+            disabled={isExportingExcel}
+            className="px-4 py-2 text-sm border border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50 disabled:opacity-60"
+          >
+            Exportar Excel
+          </button>
         </div>
       </div>
 
@@ -199,6 +280,15 @@ export function Results() {
                   : 'Optimizar Rateio (Maximizar Economia)'
                 }
               </button>
+
+              {isOptimising && (
+                <button
+                  onClick={cancelOptimisation}
+                  className="px-4 py-2.5 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
+                >
+                  Cancelar
+                </button>
+              )}
 
               {previousRateio && !isOptimising && (
                 <button

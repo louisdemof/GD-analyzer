@@ -33,6 +33,17 @@ export function runSimulation(project: Project): SimulationResult {
   // Ensure derived tariffs are computed
   const distributor = computeDerivedTariffs(project.distributor);
 
+  // Validate tariffs
+  if (!distributor.T_B3 || distributor.T_B3 <= 0 || isNaN(distributor.T_B3)) {
+    throw new Error(`Tarifa B3 invalida para ${distributor.name}. Verifique os dados da distribuidora.`);
+  }
+  if (project.ucs.some(uc => uc.isGrupoA) && (!distributor.T_AFP || distributor.T_AFP <= 0)) {
+    throw new Error(`Tarifa A FP invalida para ${distributor.name}. Necessaria para UCs Grupo A.`);
+  }
+  if (project.ucs.length === 0) {
+    throw new Error('Nenhuma UC cadastrada. Adicione pelo menos uma UC ao projeto.');
+  }
+
   const generation = getGeneration(project);
   const ppaRate = project.plant.ppaRateRsBRLkWh;
 

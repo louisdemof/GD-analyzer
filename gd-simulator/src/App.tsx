@@ -5,25 +5,36 @@ import { Dashboard } from './pages/Dashboard';
 import { NewProject } from './pages/NewProject';
 import { ProjectEditor } from './pages/ProjectEditor';
 import { Results } from './pages/Results';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 
 function App() {
   return (
-    <BrowserRouter>
-      <div className="flex min-h-screen bg-slate-50">
-        <Sidebar />
-        <div className="flex-1 flex flex-col">
-          <TopBar />
-          <main className="flex-1 overflow-auto">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/new" element={<NewProject />} />
-              <Route path="/project/:id" element={<ProjectEditor />} />
-              <Route path="/results/:id" element={<Results />} />
-            </Routes>
-          </main>
+    <ErrorBoundary fallbackTitle="Erro na aplicacao">
+      <BrowserRouter basename="/GD-analyzer">
+        <div className="flex min-h-screen bg-slate-50">
+          <Sidebar />
+          <div className="flex-1 flex flex-col">
+            <TopBar />
+            <main className="flex-1 overflow-auto">
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/new" element={<NewProject />} />
+                <Route path="/project/:id" element={
+                  <ErrorBoundary fallbackTitle="Erro no editor de projeto">
+                    <ProjectEditor />
+                  </ErrorBoundary>
+                } />
+                <Route path="/results/:id" element={
+                  <ErrorBoundary fallbackTitle="Erro nos resultados">
+                    <Results />
+                  </ErrorBoundary>
+                } />
+              </Routes>
+            </main>
+          </div>
         </div>
-      </div>
-    </BrowserRouter>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
