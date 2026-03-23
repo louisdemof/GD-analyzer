@@ -1,28 +1,29 @@
 // Parse raw ANEEL API response into compact pre-processed tariff data
+// Only includes concessionárias (not permissionárias/cooperatives)
 import { readFileSync, writeFileSync } from 'fs';
 
 const raw = JSON.parse(readFileSync('src/data/aneel-tariffs-raw.json', 'utf8'));
 const records = raw.result.records;
 
-// Same parsing logic as aneelService.ts
-const AGENT_STATE: Record<string, string> = {
-  AME: 'AM', 'BOA VISTA': 'RR', CEA: 'AP', 'CEEE-D': 'RS',
-  CELESC: 'SC', 'CEMIG-D': 'MG', CPFL: 'SP', 'CPFL JAGUARI': 'SP',
-  'CPFL LESTE PAULISTA': 'SP', 'CPFL MOCOCA': 'SP', 'CPFL PAULISTA': 'SP',
-  'CPFL PIRATININGA': 'SP', 'CPFL SANTA CRUZ': 'SP', 'CPFL SUL PAULISTA': 'SP',
-  DMED: 'MG', EAC: 'AC', EBO: 'BA', EDEVP: 'SP',
-  'EDP ES': 'ES', 'EDP SP': 'SP', EEB: 'SP', EFLJC: 'SC',
-  EFLUL: 'SC', ELEKTRO: 'SP', ELETROCAR: 'RS', ELETROPAULO: 'SP',
-  ELFSM: 'RS', EMR: 'MS', EMS: 'MS', EMT: 'MT',
-  'ENEL CE': 'CE', 'ENEL RJ': 'RJ', ENF: 'RJ', EPB: 'PB',
-  'EQUATORIAL AL': 'AL', 'EQUATORIAL GO': 'GO', 'EQUATORIAL MA': 'MA',
-  'EQUATORIAL PA': 'PA', 'EQUATORIAL PI': 'PI', ERO: 'RO',
-  ESE: 'SE', ESS: 'ES', ETO: 'TO', HIDROPAN: 'RS',
-  'LIGHT SESA': 'RJ', MUXENERGIA: 'RS', 'Neoenergia Brasília': 'DF',
-  'Neoenergia PE': 'PE', RGE: 'RS', 'RGE SUL': 'RS', SULGIPE: 'SE',
-  UHENPAL: 'RS', COCEL: 'PR', COPEL: 'PR', COSERN: 'RN',
-  COELBA: 'BA', CELPE: 'PE', CEMAR: 'MA', CEAL: 'AL',
-  CEPISA: 'PI', CELPA: 'PA',
+// Concessionárias only — must match CONCESSIONARIAS in aneelService.ts
+const CONCESSIONARIAS: Record<string, string> = {
+  AME: 'AM', 'BOA VISTA': 'RR', CEA: 'AP',
+  EAC: 'AC', ERO: 'RO', ETO: 'TO',
+  'EQUATORIAL PA': 'PA',
+  'ENEL CE': 'CE', 'EQUATORIAL MA': 'MA', 'EQUATORIAL PI': 'PI',
+  'EQUATORIAL AL': 'AL', EPB: 'PB', COSERN: 'RN',
+  'Neoenergia PE': 'PE', COELBA: 'BA', ESE: 'SE',
+  EMT: 'MT', EMS: 'MS', EMR: 'MS',
+  'EQUATORIAL GO': 'GO', 'Neoenergia Brasília': 'DF',
+  'CEMIG-D': 'MG', DMED: 'MG',
+  'EDP ES': 'ES', ESS: 'ES',
+  'ENEL RJ': 'RJ', 'LIGHT SESA': 'RJ',
+  ELETROPAULO: 'SP', 'EDP SP': 'SP', ELEKTRO: 'SP',
+  'CPFL-PAULISTA': 'SP', 'CPFL-PIRATINING': 'SP', 'CPFL Santa Cruz': 'SP',
+  'CPFL PAULISTA': 'SP', 'CPFL PIRATININGA': 'SP', 'CPFL SANTA CRUZ': 'SP',
+  'COPEL-DIS': 'PR', COPEL: 'PR',
+  CELESC: 'SC',
+  'CEEE-D': 'RS', RGE: 'RS',
 };
 
 function parseNumber(val: string): number {
@@ -40,6 +41,7 @@ const agents = new Map<string, {
 
 for (const r of records) {
   const sig = r.SigAgente;
+  if (!CONCESSIONARIAS[sig]) continue; // Skip permissionárias
   if (!agents.has(sig)) {
     agents.set(sig, {
       resolution: r.DscREH || '',
@@ -70,7 +72,7 @@ const result = [];
 for (const [sig, a] of agents) {
   result.push({
     sigAgente: sig,
-    state: AGENT_STATE[sig] || '',
+    state: CONCESSIONARIAS[sig],
     resolution: a.resolution,
     B_TUSD: +a.B_TUSD.toFixed(6),
     B_TE: +a.B_TE.toFixed(6),
@@ -88,4 +90,4 @@ const output = {
 };
 
 writeFileSync('src/data/aneel-tariffs.json', JSON.stringify(output, null, 2));
-console.log(`Wrote ${result.length} distributors to src/data/aneel-tariffs.json`);
+console.log(`Wrote ${result.length} concessionárias to src/data/aneel-tariffs.json`);

@@ -15,25 +15,46 @@ export const ICMS_BY_STATE: Record<string, number> = {
 export const DEFAULT_PIS = 0.0153;
 export const DEFAULT_COFINS = 0.0703;
 
-// --- SigAgente → state mapping ---
+// --- Concessionárias: SigAgente → state mapping ---
+// Only main concessionárias (not permissionárias/cooperatives).
+// Agents not listed here are filtered out of the dropdown.
+const CONCESSIONARIAS: Record<string, string> = {
+  // Norte
+  AME: 'AM', 'BOA VISTA': 'RR', CEA: 'AP',
+  EAC: 'AC', ERO: 'RO', ETO: 'TO',
+  'EQUATORIAL PA': 'PA',
+  // Nordeste
+  'ENEL CE': 'CE', 'EQUATORIAL MA': 'MA', 'EQUATORIAL PI': 'PI',
+  'EQUATORIAL AL': 'AL', EPB: 'PB', COSERN: 'RN',
+  'Neoenergia PE': 'PE', COELBA: 'BA', ESE: 'SE',
+  // Centro-Oeste
+  EMT: 'MT', EMS: 'MS', EMR: 'MS',
+  'EQUATORIAL GO': 'GO', 'Neoenergia Brasília': 'DF',
+  // Sudeste
+  'CEMIG-D': 'MG', DMED: 'MG',
+  'EDP ES': 'ES', ESS: 'ES',
+  'ENEL RJ': 'RJ', 'LIGHT SESA': 'RJ',
+  ELETROPAULO: 'SP', 'EDP SP': 'SP', ELEKTRO: 'SP',
+  'CPFL-PAULISTA': 'SP', 'CPFL-PIRATINING': 'SP', 'CPFL Santa Cruz': 'SP',
+  // Aliases for different SigAgente formats
+  'CPFL PAULISTA': 'SP', 'CPFL PIRATININGA': 'SP', 'CPFL SANTA CRUZ': 'SP',
+  // Sul
+  'COPEL-DIS': 'PR', COPEL: 'PR',
+  CELESC: 'SC',
+  'CEEE-D': 'RS', RGE: 'RS',
+};
+
+// Legacy alias mapping (old names → new names in ANEEL data)
 const AGENT_STATE: Record<string, string> = {
-  AME: 'AM', 'BOA VISTA': 'RR', CEA: 'AP', 'CEEE-D': 'RS',
-  CELESC: 'SC', 'CEMIG-D': 'MG', CPFL: 'SP', 'CPFL JAGUARI': 'SP',
-  'CPFL LESTE PAULISTA': 'SP', 'CPFL MOCOCA': 'SP', 'CPFL PAULISTA': 'SP',
-  'CPFL PIRATININGA': 'SP', 'CPFL SANTA CRUZ': 'SP', 'CPFL SUL PAULISTA': 'SP',
-  DMED: 'MG', EAC: 'AC', EBO: 'BA', EDEVP: 'SP',
-  'EDP ES': 'ES', 'EDP SP': 'SP', EEB: 'SP', EFLJC: 'SC',
-  EFLUL: 'SC', ELEKTRO: 'SP', ELETROCAR: 'RS', ELETROPAULO: 'SP',
-  ELFSM: 'RS', EMR: 'MS', EMS: 'MS', EMT: 'MT',
-  'ENEL CE': 'CE', 'ENEL RJ': 'RJ', ENF: 'RJ', EPB: 'PB',
-  'EQUATORIAL AL': 'AL', 'EQUATORIAL GO': 'GO', 'EQUATORIAL MA': 'MA',
-  'EQUATORIAL PA': 'PA', 'EQUATORIAL PI': 'PI', ERO: 'RO',
-  ESE: 'SE', ESS: 'ES', ETO: 'TO', HIDROPAN: 'RS',
-  'LIGHT SESA': 'RJ', MUXENERGIA: 'RS', 'Neoenergia Brasília': 'DF',
-  'Neoenergia PE': 'PE', RGE: 'RS', 'RGE SUL': 'RS', SULGIPE: 'SE',
-  UHENPAL: 'RS', COCEL: 'PR', COPEL: 'PR', COSERN: 'RN',
-  COELBA: 'BA', CELPE: 'PE', CEMAR: 'MA', CEAL: 'AL',
-  CEPISA: 'PI', CELPA: 'PA',
+  ...CONCESSIONARIAS,
+  // Additional aliases for backward compatibility with existing projects
+  CPFL: 'SP', 'CPFL JAGUARI': 'SP', 'CPFL LESTE PAULISTA': 'SP',
+  'CPFL MOCOCA': 'SP', 'CPFL SUL PAULISTA': 'SP',
+  EBO: 'BA', EDEVP: 'SP', EEB: 'SP', ENF: 'RJ',
+  EFLJC: 'SC', EFLUL: 'SC', ELETROCAR: 'RS', ELFSM: 'RS',
+  HIDROPAN: 'RS', MUXENERGIA: 'RS', 'RGE SUL': 'RS',
+  SULGIPE: 'SE', UHENPAL: 'RS', COCEL: 'PR',
+  CELPE: 'PE', CEMAR: 'MA', CEAL: 'AL', CEPISA: 'PI', CELPA: 'PA',
 };
 
 // --- Types ---
@@ -169,9 +190,11 @@ function parseRecords(records: ANEELRecord[]): ANEELDistributor[] {
 
   const result: ANEELDistributor[] = [];
   for (const [sig, a] of agents) {
+    // Only include concessionárias (skip permissionárias/cooperatives)
+    if (!CONCESSIONARIAS[sig]) continue;
     result.push({
       sigAgente: sig,
-      state: AGENT_STATE[sig] || '',
+      state: CONCESSIONARIAS[sig],
       resolution: a.resolution,
       B_TUSD: a.B_TUSD,
       B_TE: a.B_TE,

@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-03-23T16:41:06.313Z",
+  "fetchedAt": "2026-03-23T17:30:19.736Z",
   "distributors": [
     {
       "sigAgente": "AME",
@@ -24,17 +24,6 @@
       "A_TE_PT": 0.52553
     },
     {
-      "sigAgente": "CASTRO-DIS",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.491, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.42482,
-      "B_TE": 0.25688,
-      "A_FP_TUSD_TE": 0.36591,
-      "A_PT_TUSD_TE": 1.79867,
-      "A_TE_FP": 0.25104,
-      "A_TE_PT": 0.25104
-    },
-    {
       "sigAgente": "CEA",
       "state": "AP",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.430, DE 10 DE DEZEMBRO DE 2024",
@@ -44,28 +33,6 @@
       "A_PT_TUSD_TE": 2.64311,
       "A_TE_FP": 0.19381,
       "A_TE_PT": 0.35981
-    },
-    {
-      "sigAgente": "CEDRAP",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.549, DE 25 DE NOVEMBRO DE 2025",
-      "B_TUSD": 0.82544,
-      "B_TE": 0.2654,
-      "A_FP_TUSD_TE": 0.36626,
-      "A_PT_TUSD_TE": 3.35622,
-      "A_TE_FP": 0.25988,
-      "A_TE_PT": 0.25988
-    },
-    {
-      "sigAgente": "CEDRI",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.531, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.58947,
-      "B_TE": 0.29646,
-      "A_FP_TUSD_TE": 0.40213,
-      "A_PT_TUSD_TE": 3.53049,
-      "A_TE_FP": 0.29095,
-      "A_TE_PT": 0.29095
     },
     {
       "sigAgente": "CEEE-D",
@@ -79,28 +46,6 @@
       "A_TE_PT": 0.50961
     },
     {
-      "sigAgente": "CEGERO",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.520, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.3441,
-      "B_TE": 0.19082,
-      "A_FP_TUSD_TE": 0.30091,
-      "A_PT_TUSD_TE": 1.34369,
-      "A_TE_FP": 0.18375,
-      "A_TE_PT": 0.18375
-    },
-    {
-      "sigAgente": "CEJAMA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.536, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.55529,
-      "B_TE": 0.23525,
-      "A_FP_TUSD_TE": 0.33756,
-      "A_PT_TUSD_TE": 2.59023,
-      "A_TE_FP": 0.22945,
-      "A_TE_PT": 0.22945
-    },
-    {
       "sigAgente": "CELESC",
       "state": "SC",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.511, DE 19 DE AGOSTO DE 2025",
@@ -110,17 +55,6 @@
       "A_PT_TUSD_TE": 1.55304,
       "A_TE_FP": 0.30123,
       "A_TE_PT": 0.48363
-    },
-    {
-      "sigAgente": "CELETRO",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.492, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.4904,
-      "B_TE": 0.26093,
-      "A_FP_TUSD_TE": 0.36825,
-      "A_PT_TUSD_TE": 1.78769,
-      "A_TE_FP": 0.25596,
-      "A_TE_PT": 0.25596
     },
     {
       "sigAgente": "CEMIG-D",
@@ -134,413 +68,6 @@
       "A_TE_PT": 0.47591
     },
     {
-      "sigAgente": "CEMIRIM",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.455, DE 20 DE MAIO DE 2025",
-      "B_TUSD": 0.4458,
-      "B_TE": 0.25037,
-      "A_FP_TUSD_TE": 0.36767,
-      "A_PT_TUSD_TE": 1.08475,
-      "A_TE_FP": 0.24493,
-      "A_TE_PT": 0.24493
-    },
-    {
-      "sigAgente": "CEPRAG",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.563, DE 9 DE DEZEMBRO DE 2025",
-      "B_TUSD": 0.64208,
-      "B_TE": 0.22177,
-      "A_FP_TUSD_TE": 0.33835,
-      "A_PT_TUSD_TE": 2.90394,
-      "A_TE_FP": 0.2165,
-      "A_TE_PT": 0.2165
-    },
-    {
-      "sigAgente": "Ceraçá",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.537, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.5678,
-      "B_TE": 0.2277,
-      "A_FP_TUSD_TE": 0.34385,
-      "A_PT_TUSD_TE": 2.81516,
-      "A_TE_FP": 0.22226,
-      "A_TE_PT": 0.22226
-    },
-    {
-      "sigAgente": "CERAL ANITÁPOLIS",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.550, DE 25 DE NOVEMBRO DE 2025",
-      "B_TUSD": 0.78093,
-      "B_TE": 0.22097,
-      "A_FP_TUSD_TE": 0.34574,
-      "A_PT_TUSD_TE": 3.65789,
-      "A_TE_FP": 0.21541,
-      "A_TE_PT": 0.21541
-    },
-    {
-      "sigAgente": "CERAL ARARUAMA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.446, DE 29 DE ABRIL DE 2025",
-      "B_TUSD": 0.98155,
-      "B_TE": 0.23231,
-      "A_FP_TUSD_TE": 0.3429,
-      "A_PT_TUSD_TE": 5.35163,
-      "A_TE_FP": 0.23025,
-      "A_TE_PT": 0.23025
-    },
-    {
-      "sigAgente": "CERAL-DIS",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.493, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.47601,
-      "B_TE": 0.16039,
-      "A_FP_TUSD_TE": 0.26505,
-      "A_PT_TUSD_TE": 2.06154,
-      "A_TE_FP": 0.15512,
-      "A_TE_PT": 0.15512
-    },
-    {
-      "sigAgente": "CERBRANORTE",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.538, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.40254,
-      "B_TE": 0.22886,
-      "A_FP_TUSD_TE": 0.34701,
-      "A_PT_TUSD_TE": 1.62045,
-      "A_TE_FP": 0.22331,
-      "A_TE_PT": 0.22331
-    },
-    {
-      "sigAgente": "CERCI",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.447, DE 29 DE ABRIL DE 2025",
-      "B_TUSD": 0.99202,
-      "B_TE": 0.39134,
-      "A_FP_TUSD_TE": 0.51945,
-      "A_PT_TUSD_TE": 4.78579,
-      "A_TE_FP": 0.38941,
-      "A_TE_PT": 0.38941
-    },
-    {
-      "sigAgente": "CERCOS",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.456, DE 20 DE MAIO DE 2025",
-      "B_TUSD": 0.74185,
-      "B_TE": 0.30197,
-      "A_FP_TUSD_TE": 0.38458,
-      "A_PT_TUSD_TE": 3.57285,
-      "A_TE_FP": 0.29866,
-      "A_TE_PT": 0.29866
-    },
-    {
-      "sigAgente": "CEREJ",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.532, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.72469,
-      "B_TE": 0.23717,
-      "A_FP_TUSD_TE": 0.35558,
-      "A_PT_TUSD_TE": 3.75594,
-      "A_TE_FP": 0.23154,
-      "A_TE_PT": 0.23154
-    },
-    {
-      "sigAgente": "CERES",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.448, DE 29 DE ABRIL DE 2025",
-      "B_TUSD": 1.07752,
-      "B_TE": 0.40654,
-      "A_FP_TUSD_TE": 0.515,
-      "A_PT_TUSD_TE": 5.27619,
-      "A_TE_FP": 0.40461,
-      "A_TE_PT": 0.40461
-    },
-    {
-      "sigAgente": "CERFOX",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.501, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.55949,
-      "B_TE": 0.24291,
-      "A_FP_TUSD_TE": 0.34944,
-      "A_PT_TUSD_TE": 3.00571,
-      "A_TE_FP": 0.23757,
-      "A_TE_PT": 0.23757
-    },
-    {
-      "sigAgente": "CERGAL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.539, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.58092,
-      "B_TE": 0.19262,
-      "A_FP_TUSD_TE": 0.29995,
-      "A_PT_TUSD_TE": 2.59546,
-      "A_TE_FP": 0.18717,
-      "A_TE_PT": 0.18717
-    },
-    {
-      "sigAgente": "CERGAPA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.521, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.51408,
-      "B_TE": 0.20092,
-      "A_FP_TUSD_TE": 0.32523,
-      "A_PT_TUSD_TE": 2.16545,
-      "A_TE_FP": 0.19564,
-      "A_TE_PT": 0.19564
-    },
-    {
-      "sigAgente": "CERGRAL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.540, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.69172,
-      "B_TE": 0.24258,
-      "A_FP_TUSD_TE": 0.3573,
-      "A_PT_TUSD_TE": 3.21582,
-      "A_TE_FP": 0.23688,
-      "A_TE_PT": 0.23688
-    },
-    {
-      "sigAgente": "CERILUZ",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.494, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.35615,
-      "B_TE": 0.19553,
-      "A_FP_TUSD_TE": 0.29789,
-      "A_PT_TUSD_TE": 1.2431,
-      "A_TE_FP": 0.19032,
-      "A_TE_PT": 0.19032
-    },
-    {
-      "sigAgente": "CERIM",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.551, DE 25 DE NOVEMBRO DE 2025",
-      "B_TUSD": 0.62306,
-      "B_TE": 0.2592,
-      "A_FP_TUSD_TE": 0.36143,
-      "A_PT_TUSD_TE": 2.30045,
-      "A_TE_FP": 0.25389,
-      "A_TE_PT": 0.25389
-    },
-    {
-      "sigAgente": "CERIPa",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.449, DE 29 DE ABRIL DE 2025",
-      "B_TUSD": 0.60554,
-      "B_TE": 0.18992,
-      "A_FP_TUSD_TE": 0.30928,
-      "A_PT_TUSD_TE": 2.66519,
-      "A_TE_FP": 0.18797,
-      "A_TE_PT": 0.18797
-    },
-    {
-      "sigAgente": "CERIS",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.502, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.67915,
-      "B_TE": 0.30088,
-      "A_FP_TUSD_TE": 0.41701,
-      "A_PT_TUSD_TE": 2.06614,
-      "A_TE_FP": 0.29546,
-      "A_TE_PT": 0.29546
-    },
-    {
-      "sigAgente": "CERMC",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.552, DE 25 DE NOVEMBRO DE 2025",
-      "B_TUSD": 0.62317,
-      "B_TE": 0.34591,
-      "A_FP_TUSD_TE": 0.45812,
-      "A_PT_TUSD_TE": 2.25981,
-      "A_TE_FP": 0.33934,
-      "A_TE_PT": 0.33934
-    },
-    {
-      "sigAgente": "CERMISSÕES",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.495, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.49317,
-      "B_TE": 0.22081,
-      "A_FP_TUSD_TE": 0.3258,
-      "A_PT_TUSD_TE": 1.85827,
-      "A_TE_FP": 0.21598,
-      "A_TE_PT": 0.21598
-    },
-    {
-      "sigAgente": "CERMOFUL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.522, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.59251,
-      "B_TE": 0.12319,
-      "A_FP_TUSD_TE": 0.22728,
-      "A_PT_TUSD_TE": 2.62363,
-      "A_TE_FP": 0.11686,
-      "A_TE_PT": 0.11686
-    },
-    {
-      "sigAgente": "CERNHE",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.503, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.58676,
-      "B_TE": 0.17941,
-      "A_FP_TUSD_TE": 0.28354,
-      "A_PT_TUSD_TE": 2.6329,
-      "A_TE_FP": 0.17424,
-      "A_TE_PT": 0.17424
-    },
-    {
-      "sigAgente": "CERPALO",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.523, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.71082,
-      "B_TE": 0.3044,
-      "A_FP_TUSD_TE": 0.4167,
-      "A_PT_TUSD_TE": 3.75144,
-      "A_TE_FP": 0.29898,
-      "A_TE_PT": 0.29898
-    },
-    {
-      "sigAgente": "CERPRO",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.457, DE 20 DE MAIO DE 2025",
-      "B_TUSD": 0.56416,
-      "B_TE": 0.22984,
-      "A_FP_TUSD_TE": 0.32238,
-      "A_PT_TUSD_TE": 2.58078,
-      "A_TE_FP": 0.22452,
-      "A_TE_PT": 0.22452
-    },
-    {
-      "sigAgente": "CERRP",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.458, DE 20 DE MAIO DE 2025",
-      "B_TUSD": 0.50814,
-      "B_TE": 0.22668,
-      "A_FP_TUSD_TE": 0.32428,
-      "A_PT_TUSD_TE": 2.28552,
-      "A_TE_FP": 0.22144,
-      "A_TE_PT": 0.22144
-    },
-    {
-      "sigAgente": "CERSAD DISTRIBUI",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.524, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.5033,
-      "B_TE": 0.15754,
-      "A_FP_TUSD_TE": 0.25628,
-      "A_PT_TUSD_TE": 2.26973,
-      "A_TE_FP": 0.15199,
-      "A_TE_PT": 0.15199
-    },
-    {
-      "sigAgente": "CERSUL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.525, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.42426,
-      "B_TE": 0.15637,
-      "A_FP_TUSD_TE": 0.26555,
-      "A_PT_TUSD_TE": 1.6322,
-      "A_TE_FP": 0.151,
-      "A_TE_PT": 0.151
-    },
-    {
-      "sigAgente": "CERTAJA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.496, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.37924,
-      "B_TE": 0.25407,
-      "A_FP_TUSD_TE": 0.35845,
-      "A_PT_TUSD_TE": 1.17673,
-      "A_TE_FP": 0.24864,
-      "A_TE_PT": 0.24864
-    },
-    {
-      "sigAgente": "CERTEL ENERGIA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.504, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.50847,
-      "B_TE": 0.22785,
-      "A_FP_TUSD_TE": 0.33996,
-      "A_PT_TUSD_TE": 1.86198,
-      "A_TE_FP": 0.22253,
-      "A_TE_PT": 0.22253
-    },
-    {
-      "sigAgente": "CERTHIL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.497, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.37331,
-      "B_TE": 0.23308,
-      "A_FP_TUSD_TE": 0.34511,
-      "A_PT_TUSD_TE": 1.18806,
-      "A_TE_FP": 0.22794,
-      "A_TE_PT": 0.22794
-    },
-    {
-      "sigAgente": "CERTREL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.526, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.92082,
-      "B_TE": 0.20647,
-      "A_FP_TUSD_TE": 0.33905,
-      "A_PT_TUSD_TE": 4.17801,
-      "A_TE_FP": 0.20048,
-      "A_TE_PT": 0.20048
-    },
-    {
-      "sigAgente": "CERVAM",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.527, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.60921,
-      "B_TE": 0.25437,
-      "A_FP_TUSD_TE": 0.36438,
-      "A_PT_TUSD_TE": 3.3965,
-      "A_TE_FP": 0.24869,
-      "A_TE_PT": 0.24869
-    },
-    {
-      "sigAgente": "CETRIL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.553, DE 25 DE NOVEMBRO DE 2025",
-      "B_TUSD": 0.6521,
-      "B_TE": 0.25788,
-      "A_FP_TUSD_TE": 0.36517,
-      "A_PT_TUSD_TE": 2.26999,
-      "A_TE_FP": 0.25249,
-      "A_TE_PT": 0.25249
-    },
-    {
-      "sigAgente": "CHESP",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.545, DE 11 DE NOVEMBRO DE 2025",
-      "B_TUSD": 0.52906,
-      "B_TE": 0.29069,
-      "A_FP_TUSD_TE": 0.42212,
-      "A_PT_TUSD_TE": 2.08726,
-      "A_TE_FP": 0.27251,
-      "A_TE_PT": 0.4311
-    },
-    {
-      "sigAgente": "COCEL",
-      "state": "PR",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.476, DE 24 DE JUNHO DE 2025",
-      "B_TUSD": 0.36667,
-      "B_TE": 0.27575,
-      "A_FP_TUSD_TE": 0.362,
-      "A_PT_TUSD_TE": 1.50723,
-      "A_TE_FP": 0.25411,
-      "A_TE_PT": 0.40263
-    },
-    {
-      "sigAgente": "CODESAM",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.528, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.32359,
-      "B_TE": 0.21057,
-      "A_FP_TUSD_TE": 0.30822,
-      "A_PT_TUSD_TE": 1.50669,
-      "A_TE_FP": 0.20356,
-      "A_TE_PT": 0.20356
-    },
-    {
       "sigAgente": "COELBA",
       "state": "BA",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.443, DE 15 DE ABRIL DE 2025",
@@ -552,107 +79,8 @@
       "A_TE_PT": 0.42776
     },
     {
-      "sigAgente": "COOPERA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.533, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.5197,
-      "B_TE": 0.14462,
-      "A_FP_TUSD_TE": 0.24926,
-      "A_PT_TUSD_TE": 2.11416,
-      "A_TE_FP": 0.13927,
-      "A_TE_PT": 0.13927
-    },
-    {
-      "sigAgente": "COOPERALIANÇA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.514, DE 26 DE AGOSTO DE 2025",
-      "B_TUSD": 0.37375,
-      "B_TE": 0.32193,
-      "A_FP_TUSD_TE": 0.39474,
-      "A_PT_TUSD_TE": 1.45726,
-      "A_TE_FP": 0.25039,
-      "A_TE_PT": 0.38785
-    },
-    {
-      "sigAgente": "COOPERCOCAL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.534, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.40566,
-      "B_TE": 0.16442,
-      "A_FP_TUSD_TE": 0.2525,
-      "A_PT_TUSD_TE": 1.73763,
-      "A_TE_FP": 0.15829,
-      "A_TE_PT": 0.15829
-    },
-    {
-      "sigAgente": "COOPERLUZ",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.498, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.246,
-      "B_TE": 0.23132,
-      "A_FP_TUSD_TE": 0.34498,
-      "A_PT_TUSD_TE": 0.67441,
-      "A_TE_FP": 0.22618,
-      "A_TE_PT": 0.22618
-    },
-    {
-      "sigAgente": "COOPERMILA",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.535, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.39423,
-      "B_TE": 0.24181,
-      "A_FP_TUSD_TE": 0.34931,
-      "A_PT_TUSD_TE": 1.92959,
-      "A_TE_FP": 0.23625,
-      "A_TE_PT": 0.23625
-    },
-    {
-      "sigAgente": "COOPERNORTE",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.561, DE 9 DE DEZEMBRO DE 2025",
-      "B_TUSD": 0.97426,
-      "B_TE": 0.39687,
-      "A_FP_TUSD_TE": 0.51984,
-      "A_PT_TUSD_TE": 4.06807,
-      "A_TE_FP": 0.39148,
-      "A_TE_PT": 0.39148
-    },
-    {
-      "sigAgente": "COOPERSUL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.562, DE 9 DE DEZEMBRO DE 2025",
-      "B_TUSD": 0.55908,
-      "B_TE": 0.17863,
-      "A_FP_TUSD_TE": 0.28258,
-      "A_PT_TUSD_TE": 2.84865,
-      "A_TE_FP": 0.17343,
-      "A_TE_PT": 0.17343
-    },
-    {
-      "sigAgente": "COOPERZEM",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.529, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.55803,
-      "B_TE": 0.23577,
-      "A_FP_TUSD_TE": 0.36214,
-      "A_PT_TUSD_TE": 2.47284,
-      "A_TE_FP": 0.23043,
-      "A_TE_PT": 0.23043
-    },
-    {
-      "sigAgente": "COORSEL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.530, DE 23 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.52609,
-      "B_TE": 0.22083,
-      "A_FP_TUSD_TE": 0.33112,
-      "A_PT_TUSD_TE": 2.35441,
-      "A_TE_FP": 0.21529,
-      "A_TE_PT": 0.21529
-    },
-    {
       "sigAgente": "COPEL-DIS",
-      "state": "",
+      "state": "PR",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.472, DE 17 DE JUNHO DE 2025",
       "B_TUSD": 0.36667,
       "B_TE": 0.27575,
@@ -660,17 +88,6 @@
       "A_PT_TUSD_TE": 1.62525,
       "A_TE_FP": 0.25751,
       "A_TE_PT": 0.41369
-    },
-    {
-      "sigAgente": "COPREL",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.499, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.34449,
-      "B_TE": 0.25969,
-      "A_FP_TUSD_TE": 0.36503,
-      "A_PT_TUSD_TE": 1.68941,
-      "A_TE_FP": 0.25454,
-      "A_TE_PT": 0.25454
     },
     {
       "sigAgente": "COSERN",
@@ -685,7 +102,7 @@
     },
     {
       "sigAgente": "CPFL Santa Cruz",
-      "state": "",
+      "state": "SP",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.460, DE 20 DE MAIO DE 2025",
       "B_TUSD": 0.44266,
       "B_TE": 0.24605,
@@ -696,7 +113,7 @@
     },
     {
       "sigAgente": "CPFL-PAULISTA",
-      "state": "",
+      "state": "SP",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.452, DE 29 DE ABRIL DE 2025",
       "B_TUSD": 0.38815,
       "B_TE": 0.28738,
@@ -707,7 +124,7 @@
     },
     {
       "sigAgente": "CPFL-PIRATINING",
-      "state": "",
+      "state": "SP",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.543, DE 21 DE OUTUBRO DE 2025",
       "B_TUSD": 0.39564,
       "B_TE": 0.34405,
@@ -715,39 +132,6 @@
       "A_PT_TUSD_TE": 1.45735,
       "A_TE_FP": 0.32277,
       "A_TE_PT": 0.51345
-    },
-    {
-      "sigAgente": "CRELUZ-D",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.505, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.44034,
-      "B_TE": 0.20818,
-      "A_FP_TUSD_TE": 0.30403,
-      "A_PT_TUSD_TE": 1.45994,
-      "A_TE_FP": 0.20297,
-      "A_TE_PT": 0.20297
-    },
-    {
-      "sigAgente": "DCELT",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.515, DE 26 DE AGOSTO DE 2025",
-      "B_TUSD": 0.37377,
-      "B_TE": 0.30977,
-      "A_FP_TUSD_TE": 0.40362,
-      "A_PT_TUSD_TE": 1.53779,
-      "A_TE_FP": 0.28998,
-      "A_TE_PT": 0.47266
-    },
-    {
-      "sigAgente": "DEMEI",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.486, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.41198,
-      "B_TE": 0.27949,
-      "A_FP_TUSD_TE": 0.36156,
-      "A_PT_TUSD_TE": 2.04389,
-      "A_TE_FP": 0.26157,
-      "A_TE_PT": 0.42094
     },
     {
       "sigAgente": "DMED",
@@ -794,28 +178,6 @@
       "A_TE_PT": 0.48903
     },
     {
-      "sigAgente": "EFLJC",
-      "state": "SC",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.516, DE 26 DE AGOSTO DE 2025",
-      "B_TUSD": 0.37375,
-      "B_TE": 0.32193,
-      "A_FP_TUSD_TE": 0.42552,
-      "A_PT_TUSD_TE": 1.54184,
-      "A_TE_FP": 0.28117,
-      "A_TE_PT": 0.47243
-    },
-    {
-      "sigAgente": "EFLUL",
-      "state": "SC",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.517, DE 26 DE AGOSTO DE 2025",
-      "B_TUSD": 0.47273,
-      "B_TE": 0.17822,
-      "A_FP_TUSD_TE": 0.27614,
-      "A_PT_TUSD_TE": 1.32012,
-      "A_TE_FP": 0.16502,
-      "A_TE_PT": 0.26515
-    },
-    {
       "sigAgente": "ELEKTRO",
       "state": "SP",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.510, DE 19 DE AGOSTO DE 2025",
@@ -827,17 +189,6 @@
       "A_TE_PT": 0.48004
     },
     {
-      "sigAgente": "ELETROCAR",
-      "state": "RS",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.487, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.42085,
-      "B_TE": 0.26387,
-      "A_FP_TUSD_TE": 0.34196,
-      "A_PT_TUSD_TE": 1.66981,
-      "A_TE_FP": 0.24659,
-      "A_TE_PT": 0.40104
-    },
-    {
       "sigAgente": "ELETROPAULO",
       "state": "SP",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.477, DE 1 DE JULHO DE 2025",
@@ -847,17 +198,6 @@
       "A_PT_TUSD_TE": 1.2762,
       "A_TE_FP": 0.27354,
       "A_TE_PT": 0.43913
-    },
-    {
-      "sigAgente": "ELFSM",
-      "state": "RS",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.519, DE 16 DE SETEMBRO DE 2025",
-      "B_TUSD": 0.44198,
-      "B_TE": 0.30339,
-      "A_FP_TUSD_TE": 0.4216,
-      "A_PT_TUSD_TE": 1.98906,
-      "A_TE_FP": 0.28405,
-      "A_TE_PT": 0.45844
     },
     {
       "sigAgente": "EMR",
@@ -1025,17 +365,6 @@
       "A_TE_PT": 0.44315
     },
     {
-      "sigAgente": "HIDROPAN",
-      "state": "RS",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.488, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.39449,
-      "B_TE": 0.2107,
-      "A_FP_TUSD_TE": 0.29948,
-      "A_PT_TUSD_TE": 1.05236,
-      "A_TE_FP": 0.19678,
-      "A_TE_PT": 0.31213
-    },
-    {
       "sigAgente": "LIGHT SESA",
       "state": "RJ",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.571, DE 10 DE MARÇO DE 2026",
@@ -1045,28 +374,6 @@
       "A_PT_TUSD_TE": 1.61374,
       "A_TE_FP": 0.28537,
       "A_TE_PT": 0.43742
-    },
-    {
-      "sigAgente": "MUXENERGIA",
-      "state": "RS",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.489, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.43921,
-      "B_TE": 0.26259,
-      "A_FP_TUSD_TE": 0.35322,
-      "A_PT_TUSD_TE": 1.57777,
-      "A_TE_FP": 0.24525,
-      "A_TE_PT": 0.3977
-    },
-    {
-      "sigAgente": "Não Informado",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.500, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.64873,
-      "B_TE": 0.27193,
-      "A_FP_TUSD_TE": 0.3755,
-      "A_PT_TUSD_TE": 2.61092,
-      "A_TE_FP": 0.26654,
-      "A_TE_PT": 0.26654
     },
     {
       "sigAgente": "Neoenergia Brasília",
@@ -1091,17 +398,6 @@
       "A_TE_PT": 0.43671
     },
     {
-      "sigAgente": "PACTO ENERGIA PR",
-      "state": "",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.509, DE 19 DE AGOSTO DE 2025",
-      "B_TUSD": 0.36667,
-      "B_TE": 0.27575,
-      "A_FP_TUSD_TE": 0.36159,
-      "A_PT_TUSD_TE": 1.70259,
-      "A_TE_FP": 0.25287,
-      "A_TE_PT": 0.40038
-    },
-    {
       "sigAgente": "RGE",
       "state": "RS",
       "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.473, DE 17 DE JUNHO DE 2025",
@@ -1111,28 +407,6 @@
       "A_PT_TUSD_TE": 2.15126,
       "A_TE_FP": 0.28504,
       "A_TE_PT": 0.45822
-    },
-    {
-      "sigAgente": "SULGIPE",
-      "state": "SE",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.453, DE 20 DE MAIO DE 2025",
-      "B_TUSD": 0.44753,
-      "B_TE": 0.2318,
-      "A_FP_TUSD_TE": 0.30244,
-      "A_PT_TUSD_TE": 2.05529,
-      "A_TE_FP": 0.21751,
-      "A_TE_PT": 0.35235
-    },
-    {
-      "sigAgente": "UHENPAL",
-      "state": "RS",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.490, DE 22 DE JULHO DE 2025",
-      "B_TUSD": 0.47232,
-      "B_TE": 0.26204,
-      "A_FP_TUSD_TE": 0.3635,
-      "A_PT_TUSD_TE": 2.09183,
-      "A_TE_FP": 0.24412,
-      "A_TE_PT": 0.39879
     }
   ]
 }
