@@ -28,7 +28,7 @@ export function MonthlyChart({ months }: Props) {
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey="label" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(value: number, name: string) => [fmtBRL(value), name]} />
+            <Tooltip formatter={(value, name) => [fmtBRL(value as number), name as string]} />
             <Legend />
             <Bar dataKey="custoSEM" name="Custo SEM" fill="#004B70" opacity={0.6} />
             <Bar dataKey="custoRede" name="Custo Rede COM" stackId="com" fill="#6692A8" />
@@ -48,7 +48,7 @@ export function MonthlyChart({ months }: Props) {
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey="label" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
-            <Tooltip formatter={(value: number) => fmtBRL(value)} />
+            <Tooltip formatter={(value) => fmtBRL(value as number)} />
             <Line dataKey="economiaAcum" name="Economia Acumulada" stroke="#2F927B" strokeWidth={3} dot={false} />
           </LineChart>
         </ResponsiveContainer>

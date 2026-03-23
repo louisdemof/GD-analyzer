@@ -65,15 +65,7 @@ export function ProjectEditor() {
     const latestProject = useProjectStore.getState().projects.find(p => p.id === project.id);
     if (latestProject && latestProject.ucs.length > 0) {
       try {
-        const { allocation } = await optimiseRateioAsync(latestProject, {
-          nPeriods: 4,
-          nUCs: latestProject.ucs.length,
-          lockedUCs: latestProject.batBank ? ['bat'] : [],
-          nStarts: 4,
-          maxIterations: 200,
-          learningRate: 0.01,
-          tolerance: 1e-5,
-        });
+        const { allocation } = await optimiseRateioAsync(latestProject);
         updateRateio(project.id, allocation);
       } catch { /* ignore optimiser errors */ }
     }

@@ -24,7 +24,7 @@ export function BankChart({ bankPerUC, ppaRate }: Props) {
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
           <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
-          <Tooltip formatter={(value: number) => value.toLocaleString('pt-BR') + ' kWh'} />
+          <Tooltip formatter={(value) => (value as number).toLocaleString('pt-BR') + ' kWh'} />
           <Legend />
           <Bar dataKey="bancoCOM" name="Banco COM" fill="#2F927B" />
           <Bar dataKey="bancoSEM" name="Banco SEM" fill="#6692A8" />

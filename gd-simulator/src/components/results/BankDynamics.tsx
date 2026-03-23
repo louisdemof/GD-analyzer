@@ -112,8 +112,8 @@ export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip
-                formatter={(value: number, name: string) => [
-                  fmtKWh(value),
+                formatter={(value, name) => [
+                  fmtKWh(value as number),
                   name === 'bankCOM' ? 'Banco COM' : 'Banco SEM',
                 ]}
               />
