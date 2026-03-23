@@ -133,50 +133,50 @@ export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
             <table className="w-full text-[10px]">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-1.5 px-2 text-slate-500">Mês</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Cons. FP</th>
-                  {selUC.isGrupoA && <th className="text-right py-1.5 px-2 text-slate-500">Cons. PT</th>}
-                  <th className="text-right py-1.5 px-2 text-slate-500">Créditos Recebidos</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Gen Própria</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Draw Banco</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Banco Início</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500 font-semibold">Banco Fim COM</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Banco Fim SEM</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Δ Helexia</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Custo SEM</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500">Custo COM</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500 font-semibold">Economia</th>
+                  <th className="text-left py-1.5 px-2 text-slate-500" rowSpan={2}>Mês</th>
+                  <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Cons. FP</th>
+                  {selUC.isGrupoA && <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Cons. PT</th>}
+                  <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Gen Própria</th>
+                  <th className="text-center py-1 px-2 text-blue-600 font-semibold border-b border-blue-200" colSpan={3}>SEM Helexia</th>
+                  <th className="text-center py-1 px-2 text-teal-600 font-semibold border-b border-teal-200" colSpan={3}>COM Helexia</th>
+                  <th className="text-right py-1.5 px-2 text-slate-500 font-semibold" rowSpan={2}>Economia</th>
+                </tr>
+                <tr className="border-b border-slate-200">
+                  <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Início</th>
+                  <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Fim</th>
+                  <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Custo Rede</th>
+                  <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Início</th>
+                  <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Fim</th>
+                  <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Custo Rede</th>
                 </tr>
               </thead>
               <tbody>
                 {comDetails.map((cd, i) => {
                   const sd = semDetails[i];
-                  const bankDelta = cd.bankEnd - (sd?.bankEnd ?? 0);
                   const economia = (sd?.costRede ?? 0) - cd.costRede;
                   const isLast = i === 23;
-                  const bankGrew = cd.bankEnd > cd.bankStart;
+                  const semBankDepleted = (sd?.bankEnd ?? 0) === 0;
 
                   return (
                     <tr
                       key={i}
                       className={`border-b border-slate-50 ${
                         isLast ? 'font-bold bg-slate-50' : ''
-                      } ${bankGrew ? 'bg-green-50/50' : cd.bankEnd < (selUC.openingBank * 0.5) ? 'bg-red-50/30' : ''}`}
+                      } ${semBankDepleted && (sd?.costRede ?? 0) > 0 ? 'bg-red-50/30' : ''}`}
                     >
                       <td className="py-1 px-2">{months[i]?.label}</td>
                       <td className="py-1 px-2 text-right font-mono">{(selUC.consumptionFP[i] || 0).toLocaleString('pt-BR')}</td>
                       {selUC.isGrupoA && <td className="py-1 px-2 text-right font-mono">{(selUC.consumptionPT[i] || 0).toLocaleString('pt-BR')}</td>}
-                      <td className="py-1 px-2 text-right font-mono">{Math.round(cd.creditsReceived).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono">{cd.ownGenerationUsed > 0 ? Math.round(cd.ownGenerationUsed).toLocaleString('pt-BR') : '—'}</td>
-                      <td className="py-1 px-2 text-right font-mono">{cd.bankDraw > 0 ? Math.round(cd.bankDraw).toLocaleString('pt-BR') : '—'}</td>
-                      <td className="py-1 px-2 text-right font-mono">{Math.round(cd.bankStart).toLocaleString('pt-BR')}</td>
-                      <td className="py-1 px-2 text-right font-mono font-semibold">{Math.round(cd.bankEnd).toLocaleString('pt-BR')}</td>
-                      <td className="py-1 px-2 text-right font-mono text-slate-500">{Math.round(sd?.bankEnd ?? 0).toLocaleString('pt-BR')}</td>
-                      <td className={`py-1 px-2 text-right font-mono ${bankDelta >= 0 ? 'text-teal-700' : 'text-red-600'}`}>
-                        {Math.round(bankDelta).toLocaleString('pt-BR')}
-                      </td>
-                      <td className="py-1 px-2 text-right font-mono">{fmtBRL(sd?.costRede ?? 0)}</td>
-                      <td className="py-1 px-2 text-right font-mono">{fmtBRL(cd.costRede)}</td>
+                      {/* SEM columns */}
+                      <td className="py-1 px-2 text-right font-mono text-blue-700">{Math.round(sd?.bankStart ?? 0).toLocaleString('pt-BR')}</td>
+                      <td className={`py-1 px-2 text-right font-mono ${semBankDepleted ? 'text-red-600 font-semibold' : 'text-blue-700'}`}>{Math.round(sd?.bankEnd ?? 0).toLocaleString('pt-BR')}</td>
+                      <td className={`py-1 px-2 text-right font-mono ${(sd?.costRede ?? 0) > 0 ? 'text-red-600 font-semibold' : 'text-blue-700'}`}>{fmtBRL(sd?.costRede ?? 0)}</td>
+                      {/* COM columns */}
+                      <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankStart).toLocaleString('pt-BR')}</td>
+                      <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankEnd).toLocaleString('pt-BR')}</td>
+                      <td className="py-1 px-2 text-right font-mono text-teal-700">{fmtBRL(cd.costRede)}</td>
+                      {/* Economia */}
                       <td className={`py-1 px-2 text-right font-mono font-semibold ${economia >= 0 ? 'text-teal-700' : 'text-red-600'}`}>
                         {fmtBRL(economia)}
                       </td>
@@ -186,15 +186,12 @@ export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-slate-300 font-semibold text-xs">
-                  <td className="py-2 px-2" colSpan={selUC.isGrupoA ? 3 : 2}>TOTAL</td>
-                  <td className="py-2 px-2 text-right font-mono">{fmtKWh(comDetails.reduce((s, d) => s + d.creditsReceived, 0))}</td>
+                  <td className="py-2 px-2" colSpan={selUC.isGrupoA ? 3 : 2}>TOTAL 24m</td>
                   <td className="py-2 px-2 text-right font-mono">{comDetails.reduce((s, d) => s + d.ownGenerationUsed, 0) > 0 ? fmtKWh(comDetails.reduce((s, d) => s + d.ownGenerationUsed, 0)) : '—'}</td>
-                  <td colSpan={3}></td>
-                  <td className="py-2 px-2 text-right font-mono">{fmtKWh(comDetails[23]?.bankEnd ?? 0)}</td>
-                  <td className="py-2 px-2 text-right font-mono">{fmtKWh(semDetails[23]?.bankEnd ?? 0)}</td>
-                  <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtKWh((comDetails[23]?.bankEnd ?? 0) - (semDetails[23]?.bankEnd ?? 0))}</td>
-                  <td className="py-2 px-2 text-right font-mono">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0))}</td>
-                  <td className="py-2 px-2 text-right font-mono">{fmtBRL(comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
+                  <td colSpan={2}></td>
+                  <td className="py-2 px-2 text-right font-mono text-blue-700">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0))}</td>
+                  <td colSpan={2}></td>
+                  <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
                   <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0) - comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
                 </tr>
               </tfoot>
