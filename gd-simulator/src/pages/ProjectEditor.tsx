@@ -8,7 +8,6 @@ import { UCTable } from '../components/inputs/UCTable';
 import { ConsumptionUpload } from '../components/inputs/ConsumptionUpload';
 import { GenerationUpload } from '../components/inputs/GenerationUpload';
 import { ClientDataUpload, type ImportedData } from '../components/inputs/ClientDataUpload';
-import { optimiseRateioAsync } from '../engine/optimiser';
 import { createDefaultRateio } from '../engine/optimiser';
 
 type Tab = 'distributor' | 'plant' | 'ucs';
@@ -20,7 +19,6 @@ export function ProjectEditor() {
   const { runForProject } = useSimulationStore();
   const project = projects.find(p => p.id === id);
   const [tab, setTab] = useState<Tab>('distributor');
-  const [isAutoOptimising, setIsAutoOptimising] = useState(false);
 
   const handleImport = useCallback(async (data: ImportedData) => {
     if (!project) return;
@@ -57,21 +55,7 @@ export function ProjectEditor() {
       updateRateio(project.id, defaultRateio);
     }
 
-    // Auto-run simulation
-    runForProject(project.id);
-
-    // Auto-optimise in background
-    setIsAutoOptimising(true);
-    const latestProject = useProjectStore.getState().projects.find(p => p.id === project.id);
-    if (latestProject && latestProject.ucs.length > 0) {
-      try {
-        const { allocation } = await optimiseRateioAsync(latestProject);
-        updateRateio(project.id, allocation);
-      } catch { /* ignore optimiser errors */ }
-    }
-    setIsAutoOptimising(false);
-
-    // Navigate to results
+    // Navigate to results — user can optimise from there
     navigate(`/results/${id}`);
   }, [project, id, navigate, removeUC, addUC, updatePlant, updateProject, updateRateio, runForProject]);
 
@@ -87,16 +71,6 @@ export function ProjectEditor() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      {/* Auto-optimising overlay */}
-      {isAutoOptimising && (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 shadow-xl flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm text-slate-700">Calculando rateio ótimo...</span>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-800">{project.clientName}</h1>
