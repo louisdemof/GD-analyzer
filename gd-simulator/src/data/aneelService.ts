@@ -1,0 +1,263 @@
+import type { Distributor } from '../engine/types';
+import { computeDerivedTariffs } from '../engine/tariff';
+
+// --- ICMS by state (state legislation, not ANEEL) ---
+export const ICMS_BY_STATE: Record<string, number> = {
+  AC: 0.17, AL: 0.25, AM: 0.25, AP: 0.25, BA: 0.27,
+  CE: 0.25, DF: 0.25, ES: 0.27, GO: 0.14, MA: 0.22,
+  MG: 0.25, MS: 0.17, MT: 0.17, PA: 0.25, PB: 0.25,
+  PE: 0.29, PI: 0.25, PR: 0.29, RJ: 0.18, RN: 0.25,
+  RO: 0.25, RR: 0.25, RS: 0.25, SC: 0.25, SE: 0.27,
+  SP: 0.18, TO: 0.25,
+};
+
+export const DEFAULT_PIS = 0.0153;
+export const DEFAULT_COFINS = 0.0703;
+
+// --- SigAgente → state mapping ---
+const AGENT_STATE: Record<string, string> = {
+  AME: 'AM', 'BOA VISTA': 'RR', CEA: 'AP', 'CEEE-D': 'RS',
+  CELESC: 'SC', 'CEMIG-D': 'MG', CPFL: 'SP', 'CPFL JAGUARI': 'SP',
+  'CPFL LESTE PAULISTA': 'SP', 'CPFL MOCOCA': 'SP', 'CPFL PAULISTA': 'SP',
+  'CPFL PIRATININGA': 'SP', 'CPFL SANTA CRUZ': 'SP', 'CPFL SUL PAULISTA': 'SP',
+  DMED: 'MG', EAC: 'AC', EBO: 'BA', EDEVP: 'SP',
+  'EDP ES': 'ES', 'EDP SP': 'SP', EEB: 'SP', EFLJC: 'SC',
+  EFLUL: 'SC', ELEKTRO: 'SP', ELETROCAR: 'RS', ELETROPAULO: 'SP',
+  ELFSM: 'RS', EMR: 'MS', EMS: 'MS', EMT: 'MT',
+  'ENEL CE': 'CE', 'ENEL RJ': 'RJ', ENF: 'RJ', EPB: 'PB',
+  'EQUATORIAL AL': 'AL', 'EQUATORIAL GO': 'GO', 'EQUATORIAL MA': 'MA',
+  'EQUATORIAL PA': 'PA', 'EQUATORIAL PI': 'PI', ERO: 'RO',
+  ESE: 'SE', ESS: 'ES', ETO: 'TO', HIDROPAN: 'RS',
+  'LIGHT SESA': 'RJ', MUXENERGIA: 'RS', 'Neoenergia Brasília': 'DF',
+  'Neoenergia PE': 'PE', RGE: 'RS', 'RGE SUL': 'RS', SULGIPE: 'SE',
+  UHENPAL: 'RS', COCEL: 'PR', COPEL: 'PR', COSERN: 'RN',
+  COELBA: 'BA', CELPE: 'PE', CEMAR: 'MA', CEAL: 'AL',
+  CEPISA: 'PI', CELPA: 'PA',
+};
+
+// --- Types ---
+interface ANEELRecord {
+  SigAgente: string;
+  DscREH: string;
+  DscSubGrupo: string;
+  DscModalidadeTarifaria: string;
+  DscDetalhe: string;
+  NomPostoTarifario: string;
+  VlrTUSD: string;
+  VlrTE: string;
+  DatInicioVigencia: string;
+  DatFimVigencia: string | null;
+}
+
+export interface ANEELDistributor {
+  sigAgente: string;
+  state: string;
+  resolution: string;
+  B_TUSD: number;
+  B_TE: number;
+  A_FP_TUSD_TE: number;
+  A_PT_TUSD_TE: number;
+  A_TE_FP: number;
+  A_TE_PT: number;
+}
+
+interface CacheEntry {
+  distributors: ANEELDistributor[];
+  fetchedAt: string;
+}
+
+const CACHE_KEY = 'aneel_tariffs_cache';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const RESOURCE_ID = 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
+
+// SQL query: get B3 Convencional + A4 Verde (FP & Ponta) tariffs,
+// "Tarifa de Aplicação" in MWh, only "Não se aplica" detail (excludes SCEE/APE),
+// from 2024 onwards, sorted by agent + latest date first
+const SQL = `SELECT "SigAgente", "DscREH", "DscSubGrupo", "DscModalidadeTarifaria", "NomPostoTarifario", "VlrTUSD", "VlrTE", "DatInicioVigencia" FROM "${RESOURCE_ID}" WHERE "DscBaseTarifaria"='Tarifa de Aplicação' AND "DscUnidadeTerciaria"='MWh' AND "DscDetalhe"='Não se aplica' AND (("DscSubGrupo"='B3' AND "DscModalidadeTarifaria"='Convencional') OR ("DscSubGrupo"='A4' AND "DscModalidadeTarifaria"='Verde')) AND "DatInicioVigencia" >= '2024-01-01' ORDER BY "SigAgente", "DatInicioVigencia" DESC`;
+
+// --- Cache ---
+function getCache(): CacheEntry | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const entry: CacheEntry = JSON.parse(raw);
+    if (Date.now() - new Date(entry.fetchedAt).getTime() > CACHE_TTL_MS) return null;
+    return entry;
+  } catch { return null; }
+}
+
+function setCache(entry: CacheEntry): void {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(entry)); } catch { /* full */ }
+}
+
+export function getCacheFetchedAt(): string | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return (JSON.parse(raw) as CacheEntry).fetchedAt;
+  } catch { return null; }
+}
+
+export function clearCache(): void {
+  localStorage.removeItem(CACHE_KEY);
+}
+
+// --- Fetch ---
+function parseNumber(val: string): number {
+  // ANEEL returns "592,08" format (R$/MWh, comma decimal)
+  const n = parseFloat(val.replace('.', '').replace(',', '.'));
+  return isNaN(n) ? 0 : n / 1000; // Convert R$/MWh → R$/kWh
+}
+
+async function fetchSQL(baseUrl: string): Promise<ANEELRecord[]> {
+  const url = `${baseUrl}?sql=${encodeURIComponent(SQL)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  if (!json.success || !json.result?.records) throw new Error('Invalid response');
+  return json.result.records;
+}
+
+function parseRecords(records: ANEELRecord[]): ANEELDistributor[] {
+  // Group by SigAgente — records are sorted by agent + date desc,
+  // so first occurrence per agent+subgroup+posto is the latest
+  const agents = new Map<string, {
+    resolution: string;
+    B_TUSD: number; B_TE: number;
+    A_FP_TUSD: number; A_FP_TE: number;
+    A_PT_TUSD: number; A_PT_TE: number;
+    seen: Set<string>;
+  }>();
+
+  for (const r of records) {
+    const sig = r.SigAgente;
+    if (!agents.has(sig)) {
+      agents.set(sig, {
+        resolution: r.DscREH || '',
+        B_TUSD: 0, B_TE: 0,
+        A_FP_TUSD: 0, A_FP_TE: 0,
+        A_PT_TUSD: 0, A_PT_TE: 0,
+        seen: new Set(),
+      });
+    }
+    const a = agents.get(sig)!;
+
+    // Dedup key: subgroup + posto — take only first (latest date) per combo
+    const key = `${r.DscSubGrupo}|${r.NomPostoTarifario}`;
+    if (a.seen.has(key)) continue;
+    a.seen.add(key);
+
+    const tusd = parseNumber(r.VlrTUSD);
+    const te = parseNumber(r.VlrTE);
+
+    if (r.DscSubGrupo === 'B3') {
+      a.B_TUSD = tusd;
+      a.B_TE = te;
+    } else if (r.DscSubGrupo === 'A4') {
+      const posto = r.NomPostoTarifario.toLowerCase();
+      if (posto.includes('fora')) {
+        a.A_FP_TUSD = tusd;
+        a.A_FP_TE = te;
+      } else if (posto === 'ponta' || (posto.includes('ponta') && !posto.includes('fora'))) {
+        a.A_PT_TUSD = tusd;
+        a.A_PT_TE = te;
+      }
+    }
+  }
+
+  const result: ANEELDistributor[] = [];
+  for (const [sig, a] of agents) {
+    result.push({
+      sigAgente: sig,
+      state: AGENT_STATE[sig] || '',
+      resolution: a.resolution,
+      B_TUSD: a.B_TUSD,
+      B_TE: a.B_TE,
+      A_FP_TUSD_TE: a.A_FP_TUSD + a.A_FP_TE,
+      A_PT_TUSD_TE: a.A_PT_TUSD + a.A_PT_TE,
+      A_TE_FP: a.A_FP_TE,
+      A_TE_PT: a.A_PT_TE,
+    });
+  }
+
+  result.sort((a, b) => a.sigAgente.localeCompare(b.sigAgente));
+  return result;
+}
+
+export async function fetchANEELTariffs(forceRefresh = false): Promise<{
+  distributors: ANEELDistributor[];
+  fromCache: boolean;
+  fetchedAt: string;
+  error?: string;
+}> {
+  if (!forceRefresh) {
+    const cached = getCache();
+    if (cached) {
+      return { distributors: cached.distributors, fromCache: true, fetchedAt: cached.fetchedAt };
+    }
+  }
+
+  // Try: 1) Vite dev proxy (SQL endpoint), 2) direct, 3) CORS proxy
+  const urls = [
+    '/api/aneel/datastore_search_sql',
+    'https://dadosabertos.aneel.gov.br/api/3/action/datastore_search_sql',
+    'https://corsproxy.io/?' + encodeURIComponent('https://dadosabertos.aneel.gov.br/api/3/action/datastore_search_sql'),
+  ];
+
+  let records: ANEELRecord[] | null = null;
+  for (const url of urls) {
+    try {
+      records = await fetchSQL(url);
+      break;
+    } catch { /* try next */ }
+  }
+
+  if (records && records.length > 0) {
+    const distributors = parseRecords(records);
+    const fetchedAt = new Date().toISOString();
+    setCache({ distributors, fetchedAt });
+    return { distributors, fromCache: false, fetchedAt };
+  }
+
+  // Expired cache fallback
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const entry: CacheEntry = JSON.parse(raw);
+      return {
+        distributors: entry.distributors,
+        fromCache: true,
+        fetchedAt: entry.fetchedAt,
+        error: 'ANEEL API indisponível — usando dados em cache',
+      };
+    }
+  } catch { /* empty */ }
+
+  return {
+    distributors: [],
+    fromCache: false,
+    fetchedAt: '',
+    error: 'ANEEL API indisponível — usando distribuidoras pré-cadastradas',
+  };
+}
+
+// --- Convert to Distributor type ---
+export function aneelToDistributor(aneel: ANEELDistributor): Distributor {
+  const icms = ICMS_BY_STATE[aneel.state] ?? 0.25;
+  return computeDerivedTariffs({
+    id: aneel.sigAgente,
+    name: aneel.sigAgente, // Will be displayed alongside state
+    state: aneel.state,
+    resolution: aneel.resolution,
+    tariffs: {
+      B_TUSD: aneel.B_TUSD,
+      B_TE: aneel.B_TE,
+      A_FP_TUSD_TE: aneel.A_FP_TUSD_TE,
+      A_PT_TUSD_TE: aneel.A_PT_TUSD_TE,
+      A_TE_FP: aneel.A_TE_FP,
+      A_TE_PT: aneel.A_TE_PT,
+    },
+    taxes: { ICMS: icms, PIS: DEFAULT_PIS, COFINS: DEFAULT_COFINS },
+  });
+}
