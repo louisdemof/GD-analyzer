@@ -143,10 +143,34 @@ export function Results() {
     return <div className="p-6 text-slate-500">Projeto não encontrado.</div>;
   }
 
+  const simError = useSimulationStore.getState().error;
+
   if (!result) {
     return (
-      <div className="p-6 text-center text-slate-500">
-        {isRunning ? 'Calculando simulação...' : 'Erro ao calcular. Verifique os dados do projeto.'}
+      <div className="p-6 text-center">
+        {isRunning ? (
+          <p className="text-slate-500">Calculando simulacao...</p>
+        ) : (
+          <div className="max-w-md mx-auto mt-8 p-6 rounded-xl border border-red-200 bg-red-50">
+            <p className="text-red-800 font-medium mb-2">Erro ao calcular simulacao</p>
+            {simError && <p className="text-sm text-red-600 mb-4">{simError}</p>}
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => navigate(`/project/${id}`)}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg"
+                style={{ backgroundColor: '#004B70' }}
+              >
+                Editar Projeto
+              </button>
+              <button
+                onClick={() => { if (id) runForProject(id); }}
+                className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

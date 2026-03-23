@@ -33,15 +33,14 @@ export function runSimulation(project: Project): SimulationResult {
   // Ensure derived tariffs are computed
   const distributor = computeDerivedTariffs(project.distributor);
 
-  // Validate tariffs
-  if (!distributor.T_B3 || distributor.T_B3 <= 0 || isNaN(distributor.T_B3)) {
+  // Validate — skip validation for incomplete projects (still being set up)
+  const hasGrupoB = project.ucs.some(uc => !uc.isGrupoA);
+  const hasGrupoA = project.ucs.some(uc => uc.isGrupoA);
+  if (project.ucs.length > 0 && hasGrupoB && (!distributor.T_B3 || isNaN(distributor.T_B3))) {
     throw new Error(`Tarifa B3 invalida para ${distributor.name}. Verifique os dados da distribuidora.`);
   }
-  if (project.ucs.some(uc => uc.isGrupoA) && (!distributor.T_AFP || distributor.T_AFP <= 0)) {
+  if (project.ucs.length > 0 && hasGrupoA && (!distributor.T_AFP || isNaN(distributor.T_AFP))) {
     throw new Error(`Tarifa A FP invalida para ${distributor.name}. Necessaria para UCs Grupo A.`);
-  }
-  if (project.ucs.length === 0) {
-    throw new Error('Nenhuma UC cadastrada. Adicione pelo menos uma UC ao projeto.');
   }
 
   const generation = getGeneration(project);
