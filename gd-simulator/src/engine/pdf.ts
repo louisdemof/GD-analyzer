@@ -11,7 +11,7 @@ const LIGHT_GREY = '#f1f5f9';
 
 const s = StyleSheet.create({
   page: { padding: 40, fontSize: 9, fontFamily: 'Helvetica', color: '#1e293b' },
-  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, borderBottom: 1, borderColor: '#e2e8f0', paddingBottom: 10 },
+  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 10 },
   pageHeaderText: { fontSize: 7, color: '#94a3b8' },
   // Cover
   coverCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -20,10 +20,10 @@ const s = StyleSheet.create({
   coverTag: { fontSize: 11, color: TEAL, marginTop: 20 },
   coverDate: { position: 'absolute', bottom: 40, left: 40, fontSize: 8, color: '#94a3b8' },
   // Section
-  sectionTitle: { fontSize: 14, fontWeight: 'bold', color: NAVY, marginBottom: 12, borderBottom: 2, borderColor: TEAL, paddingBottom: 4 },
+  sectionTitle: { fontSize: 14, fontWeight: 'bold', color: NAVY, marginBottom: 12, borderBottomWidth: 2, borderBottomColor: TEAL, paddingBottom: 4 },
   // KPI row
   kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  kpiCard: { flex: 1, padding: 10, borderRadius: 6, border: 1, borderColor: '#e2e8f0' },
+  kpiCard: { flex: 1, padding: 10, borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0' },
   kpiLabel: { fontSize: 7, color: '#64748b', marginBottom: 2 },
   kpiValue: { fontSize: 13, fontWeight: 'bold', color: NAVY },
   kpiSub: { fontSize: 7, color: '#94a3b8', marginTop: 2 },
@@ -31,12 +31,12 @@ const s = StyleSheet.create({
   table: { marginBottom: 12 },
   tableHeader: { flexDirection: 'row', backgroundColor: NAVY, padding: 6, borderRadius: 3 },
   tableHeaderCell: { color: 'white', fontSize: 7, fontWeight: 'bold' },
-  tableRow: { flexDirection: 'row', padding: 5, borderBottom: 0.5, borderColor: '#e2e8f0' },
-  tableRowAlt: { flexDirection: 'row', padding: 5, borderBottom: 0.5, borderColor: '#e2e8f0', backgroundColor: LIGHT_GREY },
+  tableRow: { flexDirection: 'row', padding: 5, borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0' },
+  tableRowAlt: { flexDirection: 'row', padding: 5, borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', backgroundColor: LIGHT_GREY },
   tableCell: { fontSize: 8 },
   tableCellBold: { fontSize: 8, fontWeight: 'bold' },
   // Premissas
-  premissaRow: { flexDirection: 'row', paddingVertical: 4, borderBottom: 0.5, borderColor: '#e2e8f0' },
+  premissaRow: { flexDirection: 'row', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0' },
   premissaLabel: { width: '40%', fontSize: 8, color: '#64748b' },
   premissaValue: { width: '60%', fontSize: 8, fontWeight: 'bold' },
   // Notes
@@ -251,7 +251,7 @@ function NotesPage({ project }: { project: Project }) {
       React.createElement(Text, { style: { ...s.noteTitle, color: '#dc2626' } }, 'Risco ICMS (Art. 23-A RICMS)'),
       React.createElement(Text, { style: s.noteText }, 'ATENCAO: A isencao de ICMS nao esta ativada para esta simulacao. Caso o estado aplique ICMS sobre a energia compensada, os custos adicionais estimados estao refletidos no campo "Risco ICMS" do resumo executivo.')
     ),
-    React.createElement(View, { style: { marginTop: 30, borderTop: 1, borderColor: '#e2e8f0', paddingTop: 10 } },
+    React.createElement(View, { style: { marginTop: 30, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 10 } },
       React.createElement(Text, { style: { fontSize: 7, color: '#94a3b8' } }, 'Este documento e uma estimativa baseada em dados fornecidos e projecoes de geracao P50. Os valores reais podem variar conforme condicoes climaticas, alteracoes tarifarias e disponibilidade da usina. Helexia Brasil nao garante os valores apresentados.'),
     )
   );
