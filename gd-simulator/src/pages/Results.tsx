@@ -178,6 +178,8 @@ export function Results() {
             ucs={project.ucs}
             months={result.months}
             ppaRate={project.plant.ppaRateRsBRLkWh}
+            rateio={project.rateio}
+            generation={result.months.map(m => m.generation)}
           />
         )}
         {tab === 'rateio' && (

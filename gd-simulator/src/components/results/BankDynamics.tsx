@@ -1,18 +1,30 @@
 import { useState, useMemo } from 'react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import type { SimulationResult, UCMonthlyDetail, MonthlyResult, ConsumptionUnit } from '../../engine/types';
+import type { SimulationResult, UCMonthlyDetail, MonthlyResult, ConsumptionUnit, RateioAllocation } from '../../engine/types';
 
 interface Props {
   result: SimulationResult;
   ucs: ConsumptionUnit[];
   months: MonthlyResult[];
   ppaRate: number;
+  rateio: RateioAllocation;
+  generation: number[];
 }
 
 function fmtKWh(v: number) { return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' kWh'; }
 function fmtBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
 
-export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
+function getRateioFraction(rateio: RateioAllocation, ucId: string, monthIndex: number): number {
+  for (const period of rateio.periods) {
+    if (monthIndex >= period.start && monthIndex <= period.end) {
+      const alloc = period.allocations.find(a => a.ucId === ucId);
+      return alloc ? alloc.fraction : 0;
+    }
+  }
+  return 0;
+}
+
+export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation }: Props) {
   const activeUCs = ucs.filter(uc => uc.id !== 'bat');
   const [selectedUC, setSelectedUC] = useState(activeUCs[0]?.id || '');
 
@@ -138,13 +150,14 @@ export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
                   {selUC.isGrupoA && <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Cons. PT</th>}
                   <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Gen Própria</th>
                   <th className="text-center py-1 px-2 text-blue-600 font-semibold border-b border-blue-200" colSpan={3}>SEM Helexia</th>
-                  <th className="text-center py-1 px-2 text-teal-600 font-semibold border-b border-teal-200" colSpan={3}>COM Helexia</th>
+                  <th className="text-center py-1 px-2 text-teal-600 font-semibold border-b border-teal-200" colSpan={4}>COM Helexia</th>
                   <th className="text-right py-1.5 px-2 text-slate-500 font-semibold" rowSpan={2}>Economia</th>
                 </tr>
                 <tr className="border-b border-slate-200">
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Início</th>
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Fim</th>
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Custo Rede</th>
+                  <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Injeção CS3</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Início</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Fim</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Custo Rede</th>
@@ -173,6 +186,7 @@ export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
                       <td className={`py-1 px-2 text-right font-mono ${semBankDepleted ? 'text-red-600 font-semibold' : 'text-blue-700'}`}>{Math.round(sd?.bankEnd ?? 0).toLocaleString('pt-BR')}</td>
                       <td className={`py-1 px-2 text-right font-mono ${(sd?.costRede ?? 0) > 0 ? 'text-red-600 font-semibold' : 'text-blue-700'}`}>{fmtBRL(sd?.costRede ?? 0)}</td>
                       {/* COM columns */}
+                      <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(generation[i] * getRateioFraction(rateio, selectedUC, i)).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankStart).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankEnd).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{fmtBRL(cd.costRede)}</td>
@@ -190,6 +204,7 @@ export function BankDynamics({ result, ucs, months, ppaRate }: Props) {
                   <td className="py-2 px-2 text-right font-mono">{comDetails.reduce((s, d) => s + d.ownGenerationUsed, 0) > 0 ? fmtKWh(comDetails.reduce((s, d) => s + d.ownGenerationUsed, 0)) : '—'}</td>
                   <td colSpan={2}></td>
                   <td className="py-2 px-2 text-right font-mono text-blue-700">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0))}</td>
+                  <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtKWh(generation.reduce((s, g, i) => s + g * getRateioFraction(rateio, selectedUC, i), 0))}</td>
                   <td colSpan={2}></td>
                   <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
                   <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0) - comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
