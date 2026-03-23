@@ -75,6 +75,11 @@ export interface Project {
     nhsUCId: string;
     amdUCId: string;
   };
+  // Generation source
+  generationSource?: 'manual' | 'helexia_plant';
+  helexiaPlantCode?: string;
+  degradationPct?: number;
+  lossPct?: number;
   // Scenario toggles
   scenarios: {
     icmsExempt: boolean;         // true = isenção applies (base case)

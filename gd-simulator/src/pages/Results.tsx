@@ -8,11 +8,12 @@ import { MonthlyChart } from '../components/results/MonthlyChart';
 import { BankDynamics } from '../components/results/BankDynamics';
 import { RateioTable } from '../components/results/RateioTable';
 import { ScenarioPanel } from '../components/results/ScenarioPanel';
+import { SensitivityAnalysis } from '../components/results/SensitivityAnalysis';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
 
-type ResultTab = 'resumo' | 'mensal' | 'banco' | 'rateio' | 'sensibilidades';
+type ResultTab = 'resumo' | 'mensal' | 'banco' | 'rateio' | 'sensibilidades' | 'sensibilidade-geracao';
 
 export function Results() {
   const { id } = useParams<{ id: string }>();
@@ -109,6 +110,7 @@ export function Results() {
     { key: 'banco', label: 'Banco de Créditos' },
     { key: 'rateio', label: 'Rateio' },
     { key: 'sensibilidades', label: 'Sensibilidades' },
+    { key: 'sensibilidade-geracao', label: 'Sensibilidade Geracao' },
   ];
 
   return (
@@ -239,6 +241,9 @@ export function Results() {
             onOptimise={handleOptimise}
             isOptimising={isOptimising}
           />
+        )}
+        {tab === 'sensibilidade-geracao' && (
+          <SensitivityAnalysis project={project} result={result} />
         )}
       </div>
     </div>

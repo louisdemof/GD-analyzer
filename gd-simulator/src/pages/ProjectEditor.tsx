@@ -140,6 +140,11 @@ export function ProjectEditor() {
             <PlantForm
               plant={project.plant}
               onChange={p => updatePlant(project.id, p)}
+              generationSource={project.generationSource}
+              helexiaPlantCode={project.helexiaPlantCode}
+              degradationPct={project.degradationPct ?? 0.5}
+              lossPct={project.lossPct ?? 0}
+              onProjectFieldChange={updates => updateProject(project.id, updates)}
             />
             <div>
               <h4 className="text-sm font-medium text-slate-700 mb-2">Upload Perfil de Geração</h4>
