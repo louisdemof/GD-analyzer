@@ -1,5 +1,5 @@
 // Tariff group
-export type TariffGroup = 'B1' | 'B2' | 'B3' | 'A4_VERDE' | 'A4_AZUL' | 'A3A' | 'A3' | 'A2' | 'A1';
+export type TariffGroup = 'B1' | 'B2' | 'B3' | 'A4_VERDE' | 'A4_AZUL' | 'A3A' | 'A3A_VERDE' | 'A3A_AZUL' | 'A3' | 'A3_VERDE' | 'A3_AZUL' | 'A2' | 'A2_VERDE' | 'A2_AZUL' | 'A1' | 'A1_VERDE' | 'A1_AZUL';
 
 // A distributor with its tariff structure
 export interface Distributor {

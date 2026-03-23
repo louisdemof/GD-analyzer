@@ -26,7 +26,7 @@ interface ValidationResult {
   data: ImportedData | null;
 }
 
-const VALID_GROUPS: TariffGroup[] = ['B1', 'B2', 'B3', 'A4_VERDE', 'A4_AZUL', 'A3A', 'A3', 'A2', 'A1'];
+const VALID_GROUPS: TariffGroup[] = ['B1', 'B2', 'B3', 'A4_VERDE', 'A4_AZUL', 'A3A', 'A3A_VERDE', 'A3A_AZUL', 'A3', 'A3_VERDE', 'A3_AZUL', 'A2', 'A2_VERDE', 'A2_AZUL', 'A1', 'A1_VERDE', 'A1_AZUL'];
 
 function isGrupoA(tg: string): boolean {
   return tg.startsWith('A');

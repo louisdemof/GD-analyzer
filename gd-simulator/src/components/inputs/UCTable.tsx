@@ -8,7 +8,14 @@ interface Props {
   onRemove: (ucId: string) => void;
 }
 
-const TARIFF_GROUPS: TariffGroup[] = ['B1', 'B2', 'B3', 'A4_VERDE', 'A4_AZUL', 'A3A', 'A3', 'A2', 'A1'];
+const TARIFF_GROUPS: TariffGroup[] = [
+  'B1', 'B2', 'B3',
+  'A4_VERDE', 'A4_AZUL',
+  'A3A', 'A3A_VERDE', 'A3A_AZUL',
+  'A3', 'A3_VERDE', 'A3_AZUL',
+  'A2', 'A2_VERDE', 'A2_AZUL',
+  'A1', 'A1_VERDE', 'A1_AZUL',
+];
 
 const GROUP_LABELS: Record<TariffGroup, string> = {
   B1: 'B1 — Residencial',
@@ -17,9 +24,17 @@ const GROUP_LABELS: Record<TariffGroup, string> = {
   A4_VERDE: 'A4 Verde (<13.8 kV)',
   A4_AZUL: 'A4 Azul (<13.8 kV)',
   A3A: 'A3a (13.8 kV)',
+  A3A_VERDE: 'A3a Verde (13.8 kV)',
+  A3A_AZUL: 'A3a Azul (13.8 kV)',
   A3: 'A3 (30 kV)',
+  A3_VERDE: 'A3 Verde (30 kV)',
+  A3_AZUL: 'A3 Azul (30 kV)',
   A2: 'A2 (88 kV)',
+  A2_VERDE: 'A2 Verde (88 kV)',
+  A2_AZUL: 'A2 Azul (88 kV)',
   A1: 'A1 (230 kV+)',
+  A1_VERDE: 'A1 Verde (230 kV+)',
+  A1_AZUL: 'A1 Azul (230 kV+)',
 };
 
 function isGrupoA(tg: TariffGroup): boolean {
