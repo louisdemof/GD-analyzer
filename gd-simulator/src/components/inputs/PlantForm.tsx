@@ -189,6 +189,27 @@ export function PlantForm({
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Duracao do Contrato</label>
+          <select
+            value={plant.contractMonths || 24}
+            onChange={e => update('contractMonths', Number(e.target.value))}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+          >
+            {[12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180].map(m => (
+              <option key={m} value={m}>{m} meses ({m / 12} {m / 12 === 1 ? 'ano' : 'anos'})</option>
+            ))}
+          </select>
+          {plant.contractStartMonth && (
+            <p className="text-xs text-slate-400 mt-1">
+              Termino: {(() => {
+                const [y, mo] = plant.contractStartMonth.split('-').map(Number);
+                const end = new Date(y, mo - 1 + (plant.contractMonths || 24), 0);
+                return end.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+              })()}
+            </p>
+          )}
+        </div>
       </div>
 
       {generationSource === 'helexia_plant' ? (

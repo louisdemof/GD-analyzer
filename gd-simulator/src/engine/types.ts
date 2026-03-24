@@ -80,6 +80,8 @@ export interface Project {
   helexiaPlantCode?: string;
   degradationPct?: number;
   lossPct?: number;
+  // Folder
+  folderId?: string;
   // Scenario toggles
   scenarios: {
     icmsExempt: boolean;         // true = isenção applies (base case)

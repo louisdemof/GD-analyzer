@@ -4,17 +4,24 @@ import type { Project, ConsumptionUnit, Distributor, Plant, RateioAllocation } f
 import { createDefaultRateio } from '../engine/optimiser';
 import { DISTRIBUTORS } from '../data/distributors';
 import sampleData from '../../reference/SAMPLE_DATA.json';
+import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
   projects: Project[];
   currentProjectId: string | null;
+  folders: ClientFolder[];
+  isLoaded: boolean;
+
+  // Init — load from IndexedDB
+  initFromDB: () => Promise<void>;
 
   // Actions
   setCurrentProject: (id: string | null) => void;
   getCurrentProject: () => Project | null;
-  createProject: (clientName: string, distributorId: string) => Project;
+  createProject: (clientName: string, distributorId: string, folderId?: string) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
+  duplicateProject: (id: string) => Project | null;
 
   // UC management
   addUC: (projectId: string, uc: ConsumptionUnit) => void;
@@ -39,6 +46,12 @@ interface ProjectStore {
   // Export/Import
   exportProject: (id: string) => string;
   importProject: (json: string) => void;
+
+  // Folders
+  createFolder: (name: string, color: string, description?: string) => ClientFolder;
+  updateFolder: (id: string, updates: Partial<ClientFolder>) => void;
+  deleteFolder: (id: string) => void;
+  moveProjectToFolder: (projectId: string, folderId: string | null) => void;
 }
 
 function generateId(): string {
@@ -50,6 +63,27 @@ export const useProjectStore = create<ProjectStore>()(
     (set, get) => ({
       projects: [],
       currentProjectId: null,
+      folders: [],
+      isLoaded: false,
+
+      initFromDB: async () => {
+        try {
+          // Migrate from old localStorage
+          await migrateFromLocalStorage();
+          // Load from IndexedDB
+          const dbProjects = await loadAllProjectsFromDB();
+          const dbFolders = await loadAllFoldersFromDB();
+          const current = get().projects;
+          // Merge: IndexedDB projects + any in-memory that aren't in DB
+          const merged = [...dbProjects];
+          for (const p of current) {
+            if (!merged.find(m => m.id === p.id)) merged.push(p);
+          }
+          set({ projects: merged, folders: dbFolders, isLoaded: true });
+        } catch {
+          set({ isLoaded: true });
+        }
+      },
 
       setCurrentProject: (id) => set({ currentProjectId: id }),
 
@@ -95,19 +129,44 @@ export const useProjectStore = create<ProjectStore>()(
           updatedAt: now,
         };
         set(state => ({ projects: [...state.projects, project], currentProjectId: project.id }));
+        saveProjectToDB(project).catch(() => {});
         return project;
       },
 
-      updateProject: (id, updates) => set(state => ({
-        projects: state.projects.map(p =>
-          p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-        ),
-      })),
+      updateProject: (id, updates) => {
+        set(state => ({
+          projects: state.projects.map(p =>
+            p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+          ),
+        }));
+        const updated = get().projects.find(p => p.id === id);
+        if (updated) saveProjectToDB(updated).catch(() => {});
+      },
 
-      deleteProject: (id) => set(state => ({
-        projects: state.projects.filter(p => p.id !== id),
-        currentProjectId: state.currentProjectId === id ? null : state.currentProjectId,
-      })),
+      deleteProject: (id) => {
+        set(state => ({
+          projects: state.projects.filter(p => p.id !== id),
+          currentProjectId: state.currentProjectId === id ? null : state.currentProjectId,
+        }));
+        deleteProjectFromDB(id).catch(() => {});
+      },
+
+      duplicateProject: (id) => {
+        const source = get().projects.find(p => p.id === id);
+        if (!source) return null;
+        const now = new Date().toISOString();
+        const clone: Project = {
+          ...JSON.parse(JSON.stringify(source)),
+          id: generateId(),
+          clientName: source.clientName + ' — Copia',
+          createdAt: now,
+          updatedAt: now,
+        };
+        clone.rateio = { ...clone.rateio, isOptimised: false };
+        set(state => ({ projects: [...state.projects, clone], currentProjectId: clone.id }));
+        saveProjectToDB(clone).catch(() => {});
+        return clone;
+      },
 
       addUC: (projectId, uc) => set(state => ({
         projects: state.projects.map(p => {
@@ -209,6 +268,74 @@ export const useProjectStore = create<ProjectStore>()(
           projects: [...state.projects, project],
           currentProjectId: project.id,
         }));
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      // ─── Folders ──────────────────────────────────────────
+      createFolder: (name, color, description) => {
+        const folder: ClientFolder = {
+          id: generateId(),
+          name,
+          description,
+          color,
+          createdAt: new Date().toISOString(),
+          projectIds: [],
+        };
+        set(state => ({ folders: [...state.folders, folder] }));
+        saveFolderToDB(folder).catch(() => {});
+        return folder;
+      },
+
+      updateFolder: (id, updates) => {
+        set(state => ({
+          folders: state.folders.map(f => f.id === id ? { ...f, ...updates } : f),
+        }));
+        const updated = get().folders.find(f => f.id === id);
+        if (updated) saveFolderToDB(updated).catch(() => {});
+      },
+
+      deleteFolder: (id) => {
+        // Unassign projects from this folder
+        const folder = get().folders.find(f => f.id === id);
+        if (folder) {
+          for (const pid of folder.projectIds) {
+            const p = get().projects.find(pp => pp.id === pid);
+            if (p) {
+              set(state => ({
+                projects: state.projects.map(pp => pp.id === pid ? { ...pp, folderId: undefined } : pp),
+              }));
+            }
+          }
+        }
+        set(state => ({ folders: state.folders.filter(f => f.id !== id) }));
+        deleteFolderFromDB(id).catch(() => {});
+      },
+
+      moveProjectToFolder: (projectId, folderId) => {
+        // Remove from old folder
+        set(state => ({
+          folders: state.folders.map(f => ({
+            ...f,
+            projectIds: f.projectIds.filter(id => id !== projectId),
+          })),
+          projects: state.projects.map(p =>
+            p.id === projectId ? { ...p, folderId: folderId ?? undefined, updatedAt: new Date().toISOString() } : p
+          ),
+        }));
+        // Add to new folder
+        if (folderId) {
+          set(state => ({
+            folders: state.folders.map(f =>
+              f.id === folderId ? { ...f, projectIds: [...f.projectIds, projectId] } : f
+            ),
+          }));
+        }
+        // Save
+        const updated = get().projects.find(p => p.id === projectId);
+        if (updated) saveProjectToDB(updated).catch(() => {});
+        for (const f of get().folders) {
+          saveFolderToDB(f).catch(() => {});
+        }
       },
     }),
     {
