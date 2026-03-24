@@ -98,7 +98,7 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
     // KPIs
     React.createElement(View, { style: s.kpiRow },
       ...[
-        { label: 'Geracao 24m', value: fmtKWh(sm.totalGeneration), sub: 'P50 injetado' },
+        { label: `Geracao ${durationLabel(cm)}`, value: fmtKWh(sm.totalGeneration), sub: 'P50 injetado' },
         { label: 'Economia Liquida', value: fmtBRL(sm.economiaLiquida), sub: fmtPct(sm.economiaPct) + ' reducao' },
         { label: 'Banco Residual', value: fmtBRL(sm.bancoResidualValue), sub: fmtKWh(sm.bancoResidualKWh) },
         { label: 'VALOR TOTAL', value: fmtBRL(sm.valorTotal), sub: 'Economia + Banco' },
@@ -183,7 +183,7 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
     React.createElement(Text, { style: { ...s.sectionTitle, marginTop: 20 } }, 'Sensibilidade de Geracao'),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Cenario', 'Geracao 24m', 'PPA (R$)', 'Economia (R$)', 'Reducao (%)'].map((h, i) =>
+        ...['Cenario', `Geracao ${durationLabel(project.plant.contractMonths || 24)}`, 'PPA (R$)', 'Economia (R$)', 'Reducao (%)'].map((h, i) =>
           React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: '20%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
