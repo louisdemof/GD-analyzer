@@ -59,22 +59,22 @@ export function MonthlyChart({ months }: Props) {
               radius={[2, 2, 0, 0]}
             />
 
-            {/* COM — PPA component — lime — bottom of stack */}
+            {/* COM — PPA component — teal — bottom of stack */}
             <Bar
               yAxisId="cost"
               dataKey="ppaCost"
               name="PPA Helexia"
-              fill="#C6DA38"
+              fill="#2F927B"
               stackId="com"
               maxBarSize={16}
             />
 
-            {/* COM — Rede component — teal — top of stack */}
+            {/* COM — Rede component — grey-blue — top of stack */}
             <Bar
               yAxisId="cost"
               dataKey="redeComCost"
               name="Custo Rede COM"
-              fill="#2F927B"
+              fill="rgb(102, 146, 168)"
               stackId="com"
               maxBarSize={16}
               radius={[2, 2, 0, 0]}
