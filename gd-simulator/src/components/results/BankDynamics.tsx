@@ -2,6 +2,20 @@ import { useState, useMemo } from 'react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { SimulationResult, UCMonthlyDetail, MonthlyResult, ConsumptionUnit, RateioAllocation } from '../../engine/types';
 
+function extendArray(base: number[], length: number, growthPerYear: number = 0.025): number[] {
+  if (base.length >= length) return base.slice(0, length);
+  const extended = [...base];
+  const seasonal = base.slice(0, Math.min(base.length, 12));
+  while (extended.length < length) {
+    const m = extended.length;
+    const yearIdx = Math.floor(m / 12);
+    const calMonth = m % 12;
+    const baseVal = seasonal[calMonth] ?? base[m % base.length] ?? 0;
+    extended.push(Math.round(baseVal * Math.pow(1 + growthPerYear, yearIdx)));
+  }
+  return extended;
+}
+
 interface Props {
   result: SimulationResult;
   ucs: ConsumptionUnit[];
@@ -178,8 +192,8 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                       } ${semBankDepleted && (sd?.costRede ?? 0) > 0 ? 'bg-red-50/30' : ''}`}
                     >
                       <td className="py-1 px-2">{months[i]?.label}</td>
-                      <td className="py-1 px-2 text-right font-mono">{(selUC.consumptionFP[i] || 0).toLocaleString('pt-BR')}</td>
-                      {selUC.isGrupoA && <td className="py-1 px-2 text-right font-mono">{(selUC.consumptionPT[i] || 0).toLocaleString('pt-BR')}</td>}
+                      <td className="py-1 px-2 text-right font-mono">{(extendArray(selUC.consumptionFP, months.length)[i] || 0).toLocaleString('pt-BR')}</td>
+                      {selUC.isGrupoA && <td className="py-1 px-2 text-right font-mono">{(extendArray(selUC.consumptionPT || [], months.length)[i] || 0).toLocaleString('pt-BR')}</td>}
                       <td className="py-1 px-2 text-right font-mono">{cd.ownGenerationUsed > 0 ? Math.round(cd.ownGenerationUsed).toLocaleString('pt-BR') : '—'}</td>
                       {/* SEM columns */}
                       <td className="py-1 px-2 text-right font-mono text-blue-700">{Math.round(sd?.bankStart ?? 0).toLocaleString('pt-BR')}</td>
