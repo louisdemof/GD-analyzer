@@ -82,8 +82,13 @@ function CoverPage({ project, generatedAt }: { project: Project; generatedAt: st
   );
 }
 
+function durationLabel(months: number): string {
+  return months % 12 === 0 ? `${months / 12} anos` : `${months} meses`;
+}
+
 function SummaryPage({ project, result }: { project: Project; result: SimulationResult }) {
   const sm = result.summary;
+  const cm = project.plant.contractMonths || 24;
   const maxCost = Math.max(sm.baselineSEM, sm.totalPPACost + (sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost));
   const barScale = 300 / (maxCost || 1);
 
@@ -106,7 +111,7 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
       )
     ),
     // Cost waterfall
-    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 8 } }, 'Decomposicao de Custos (24 meses)'),
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 8 } }, `Decomposicao de Custos (${durationLabel(cm)})`),
     ...[
       { label: 'SEM Helexia (baseline)', value: sm.baselineSEM, color: '#6692A8' },
       { label: 'COM Helexia — Rede', value: sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost, color: NAVY },
@@ -119,23 +124,36 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
         React.createElement(Text, { style: s.waterfallValue }, fmtBRL(row.value))
       )
     ),
-    // Monthly table (first 12 months)
-    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 16 } }, 'Resumo Mensal — Ano 1'),
+    // Yearly summary table
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 16 } }, `Resumo por Ano (${durationLabel(cm)})`),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Mes', 'Geracao', 'SEM (R$)', 'COM (R$)', 'Economia'].map((h, i) =>
-          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '15%' : '21.25%', textAlign: i === 0 ? 'left' : 'right' } }, h)
+        ...['Periodo', 'Geracao', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
+          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '14%' : '17.2%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
-      ...result.months.slice(0, 12).map((m, i) =>
-        React.createElement(View, { key: i, style: i % 2 ? s.tableRowAlt : s.tableRow },
-          React.createElement(Text, { style: { ...s.tableCell, width: '15%' } }, m.label),
-          React.createElement(Text, { style: { ...s.tableCell, width: '21.25%', textAlign: 'right' } }, fmtKWh(m.generation)),
-          React.createElement(Text, { style: { ...s.tableCell, width: '21.25%', textAlign: 'right' } }, fmtBRL(m.sem.totalCost)),
-          React.createElement(Text, { style: { ...s.tableCell, width: '21.25%', textAlign: 'right' } }, fmtBRL(m.com.totalCost)),
-          React.createElement(Text, { style: { ...s.tableCellBold, width: '21.25%', textAlign: 'right', color: m.economia >= 0 ? TEAL : '#dc2626' } }, fmtBRL(m.economia))
-        )
-      )
+      ...(() => {
+        const years = Math.ceil(cm / 12);
+        let acum = 0;
+        return Array.from({ length: years }, (_, y) => {
+          const start = y * 12;
+          const end = Math.min(start + 12, cm);
+          const yearMonths = result.months.slice(start, end);
+          const gen = yearMonths.reduce((s, m) => s + m.generation, 0);
+          const sem = yearMonths.reduce((s, m) => s + m.sem.totalCost, 0);
+          const com = yearMonths.reduce((s, m) => s + m.com.totalCost, 0);
+          const eco = yearMonths.reduce((s, m) => s + m.economia, 0);
+          acum += eco;
+          return React.createElement(View, { key: y, style: y % 2 ? s.tableRowAlt : s.tableRow },
+            React.createElement(Text, { style: { ...s.tableCell, width: '14%' } }, `Ano ${y + 1}`),
+            React.createElement(Text, { style: { ...s.tableCell, width: '17.2%', textAlign: 'right' } }, fmtKWh(gen)),
+            React.createElement(Text, { style: { ...s.tableCell, width: '17.2%', textAlign: 'right' } }, fmtBRL(sem)),
+            React.createElement(Text, { style: { ...s.tableCell, width: '17.2%', textAlign: 'right' } }, fmtBRL(com)),
+            React.createElement(Text, { style: { ...s.tableCellBold, width: '17.2%', textAlign: 'right', color: eco >= 0 ? TEAL : '#dc2626' } }, fmtBRL(eco)),
+            React.createElement(Text, { style: { ...s.tableCellBold, width: '17.2%', textAlign: 'right', color: acum >= 0 ? TEAL : '#dc2626' } }, fmtBRL(acum))
+          );
+        });
+      })()
     )
   );
 }
@@ -243,8 +261,8 @@ function NotesPage({ project }: { project: Project }) {
     React.createElement(Text, { style: s.sectionTitle }, 'Notas Regulatorias'),
     React.createElement(Text, { style: s.noteTitle }, 'Lei 14.300/2022 — SCEE Autoconsumo Remoto'),
     React.createElement(Text, { style: s.noteText }, 'O Sistema de Compensacao de Energia Eletrica (SCEE) permite que a energia injetada pela usina solar gere creditos que compensam o consumo das Unidades Consumidoras (UCs) do cliente, mesmo que em enderecos diferentes, dentro da mesma area de concessao.'),
-    React.createElement(Text, { style: s.noteTitle }, 'Rateio Fixo — 4 Periodos'),
-    React.createElement(Text, { style: s.noteText }, 'A alocacao dos creditos entre as UCs segue o modelo de rateio fixo em 4 periodos ao longo do contrato de 24 meses. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.'),
+    React.createElement(Text, { style: s.noteTitle }, 'Rateio Fixo por Periodos'),
+    React.createElement(Text, { style: s.noteText }, `A alocacao dos creditos entre as UCs segue o modelo de rateio fixo por periodos ao longo do contrato de ${durationLabel(project.plant.contractMonths || 24)}. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.`),
     React.createElement(Text, { style: s.noteTitle }, 'Validade dos Creditos'),
     React.createElement(Text, { style: s.noteText }, 'Conforme regulamentacao vigente, os creditos de energia gerados no ambito do SCEE tem validade ate 2045, podendo ser acumulados no banco de creditos da distribuidora e utilizados em faturas futuras.'),
     !project.scenarios.icmsExempt && React.createElement(View, null,
