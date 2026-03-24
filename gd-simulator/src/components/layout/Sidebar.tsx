@@ -9,7 +9,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 bg-navy-900 text-white min-h-screen flex flex-col" style={{ backgroundColor: '#004B70' }}>
       <div className="p-4 border-b border-white/10">
-        <img src="/GD-analyzer/Helexia_logo_WHT_web.svg" alt="Helexia" className="h-8 mb-2" />
+        <img src="/GD-analyzer/Helexia_logo_WHT_web.svg" alt="Helexia" className="h-12 mb-2" />
         <h1 className="text-lg font-bold tracking-tight">GD Simulator</h1>
       </div>
 
