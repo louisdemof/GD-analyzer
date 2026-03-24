@@ -65,9 +65,15 @@ export function runSimulation(project: Project): SimulationResult {
   // Validate project inputs
   validateProject(project, distributor);
 
-  const generation = getGeneration(project);
+  const rawGeneration = getGeneration(project);
   const ppaRate = project.plant.ppaRateRsBRLkWh;
   const contractMonths = project.plant.contractMonths || 24;
+
+  // Extend generation profile to contractMonths by cycling the base pattern
+  const generation: number[] = [];
+  for (let m = 0; m < contractMonths; m++) {
+    generation.push(rawGeneration[m] ?? rawGeneration[m % rawGeneration.length] ?? 0);
+  }
 
   // Compute BAT credits distribution (same for SEM and COM)
   const batCredits = computeBATCredits(project);

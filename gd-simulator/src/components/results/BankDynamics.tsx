@@ -167,7 +167,7 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                 {comDetails.map((cd, i) => {
                   const sd = semDetails[i];
                   const economia = (sd?.costRede ?? 0) - cd.costRede;
-                  const isLast = i === 23;
+                  const isLast = i === comDetails.length - 1;
                   const semBankDepleted = (sd?.bankEnd ?? 0) === 0;
 
                   return (
@@ -186,7 +186,7 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                       <td className={`py-1 px-2 text-right font-mono ${semBankDepleted ? 'text-red-600 font-semibold' : 'text-blue-700'}`}>{Math.round(sd?.bankEnd ?? 0).toLocaleString('pt-BR')}</td>
                       <td className={`py-1 px-2 text-right font-mono ${(sd?.costRede ?? 0) > 0 ? 'text-red-600 font-semibold' : 'text-blue-700'}`}>{fmtBRL(sd?.costRede ?? 0)}</td>
                       {/* COM columns */}
-                      <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(generation[i] * getRateioFraction(rateio, selectedUC, i)).toLocaleString('pt-BR')}</td>
+                      <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round((generation[i] || 0) * getRateioFraction(rateio, selectedUC, i)).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankStart).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankEnd).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{fmtBRL(cd.costRede)}</td>
