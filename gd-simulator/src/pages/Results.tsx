@@ -354,6 +354,9 @@ export function Results() {
             onChange={updates => updateScenarios(project.id, updates)}
             onOptimise={handleOptimise}
             isOptimising={isOptimising}
+            growthRate={project.growthRate}
+            generationDegradation={project.generationDegradation}
+            onProjectChange={updates => useProjectStore.getState().updateProject(project.id, updates)}
           />
         )}
         {tab === 'sensibilidade-geracao' && (
