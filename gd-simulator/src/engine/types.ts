@@ -82,6 +82,9 @@ export interface Project {
   lossPct?: number;
   // Folder
   folderId?: string;
+  // Growth & degradation for multi-year contracts
+  growthRate?: number;              // annual consumption growth, e.g. 0.025 (2.5%)
+  generationDegradation?: number;   // annual gen degradation, e.g. 0.005 (0.5%)
   // Scenario toggles
   scenarios: {
     icmsExempt: boolean;         // true = isenção applies (base case)

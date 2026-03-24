@@ -5,13 +5,66 @@ import { computeDerivedTariffs } from './tariff';
 import { simulateUCBank, computeBATCredits, type BankSimResult } from './bank';
 
 /**
- * Get generation profile based on scenario toggle.
+ * Get base generation profile (before extension).
  */
-function getGeneration(project: Project): number[] {
+function getBaseGeneration(project: Project): number[] {
   if (project.scenarios.useActualGeneration && project.plant.actualProfile) {
     return project.plant.actualProfile;
   }
   return project.plant.p50Profile;
+}
+
+/**
+ * Extend generation profile to contractMonths with degradation.
+ * Cycles the seasonal pattern (12 months) and applies annual degradation.
+ */
+function extendGeneration(
+  base: number[],
+  contractMonths: number,
+  degradationPerYear: number,
+): number[] {
+  if (!base || base.length === 0) return new Array(contractMonths).fill(0);
+
+  const profile: number[] = [];
+  // Use first 12 months as the seasonal base pattern
+  const seasonalBase = base.slice(0, Math.min(base.length, 12));
+
+  for (let m = 0; m < contractMonths; m++) {
+    const calMonth = m % 12;
+    const yearIndex = Math.floor(m / 12);
+    const factor = Math.pow(1 - degradationPerYear, yearIndex);
+    const baseVal = m < base.length
+      ? base[m]
+      : (seasonalBase[calMonth] ?? 0);
+    profile.push(Math.round(baseVal * factor));
+  }
+  return profile;
+}
+
+/**
+ * Extend consumption array to contractMonths with annual growth.
+ * Cycles the seasonal pattern and applies compound growth per year.
+ */
+function extendConsumption(
+  base: number[],
+  contractMonths: number,
+  growthPerYear: number,
+): number[] {
+  if (!base || base.length === 0) return new Array(contractMonths).fill(0);
+  if (base.length >= contractMonths) return base.slice(0, contractMonths);
+
+  const extended = [...base];
+  const seasonalBase = base.slice(0, Math.min(base.length, 12));
+
+  while (extended.length < contractMonths) {
+    const m = extended.length;
+    const calMonth = m % 12;
+    const yearIndex = Math.floor(m / 12);
+    const baseVal = seasonalBase[calMonth] ?? base[m % base.length] ?? 0;
+    const growth = Math.pow(1 + growthPerYear, yearIndex);
+    extended.push(Math.round(baseVal * growth));
+  }
+  return extended;
 }
 
 /**
@@ -65,25 +118,37 @@ export function runSimulation(project: Project): SimulationResult {
   // Validate project inputs
   validateProject(project, distributor);
 
-  const rawGeneration = getGeneration(project);
   const ppaRate = project.plant.ppaRateRsBRLkWh;
   const contractMonths = project.plant.contractMonths || 24;
+  const growthRate = project.growthRate ?? 0.025;
+  const genDegradation = project.generationDegradation ?? 0.005;
 
-  // Extend generation profile to contractMonths by cycling the base pattern
-  const generation: number[] = [];
-  for (let m = 0; m < contractMonths; m++) {
-    generation.push(rawGeneration[m] ?? rawGeneration[m % rawGeneration.length] ?? 0);
-  }
+  // Extend generation profile to contractMonths with degradation
+  const rawGen = getBaseGeneration(project);
+  const generation = extendGeneration(rawGen, contractMonths, genDegradation);
 
-  // Compute BAT credits distribution (same for SEM and COM)
-  const batCredits = computeBATCredits(project);
+  // Extend all UC consumption arrays to contractMonths with growth
+  const extendedProject: Project = {
+    ...project,
+    ucs: project.ucs.map(uc => ({
+      ...uc,
+      consumptionFP: extendConsumption(uc.consumptionFP, contractMonths, growthRate),
+      consumptionPT: extendConsumption(uc.consumptionPT || [], contractMonths, growthRate),
+      ownGeneration: uc.ownGeneration
+        ? extendGeneration(uc.ownGeneration, contractMonths, genDegradation)
+        : undefined,
+    })),
+  };
+
+  // Compute BAT credits distribution using extended data
+  const batCredits = computeBATCredits(extendedProject);
 
   // Empty BAT credits for UCs that don't receive them
   const emptyBatCredits: number[] = new Array(contractMonths).fill(0);
 
   // --- SEM scenario (no CS3 credits) ---
   const semResults: Record<string, BankSimResult> = {};
-  for (const uc of project.ucs) {
+  for (const uc of extendedProject.ucs) {
     if (uc.id === 'bat') continue; // skip BAT itself in SEM computation
     const ucBatCredits = batCredits[uc.id] || emptyBatCredits;
     semResults[uc.id] = simulateUCBank({
@@ -103,7 +168,7 @@ export function runSimulation(project: Project): SimulationResult {
 
   // --- COM scenario (with CS3 credits) ---
   const comResults: Record<string, BankSimResult> = {};
-  for (const uc of project.ucs) {
+  for (const uc of extendedProject.ucs) {
     if (uc.id === 'bat') continue; // skip BAT itself in COM computation
     const ucBatCredits = batCredits[uc.id] || emptyBatCredits;
     comResults[uc.id] = simulateUCBank({
@@ -132,7 +197,7 @@ export function runSimulation(project: Project): SimulationResult {
     let comRedeCost = 0;
     let comIcmsAdditional = 0;
 
-    for (const uc of project.ucs) {
+    for (const uc of extendedProject.ucs) {
       // Skip BAT UC (no consumption)
       if (uc.id === 'bat') {
         continue;
@@ -199,7 +264,7 @@ export function runSimulation(project: Project): SimulationResult {
   let icmsRisk = 0;
   if (project.scenarios.icmsExempt) {
     // Calculate what ICMS would be if not exempt
-    for (const uc of project.ucs) {
+    for (const uc of extendedProject.ucs) {
       if (uc.id === 'bat') continue;
       const ucBatCredits = batCredits[uc.id] || emptyBatCredits;
       const riskResult = simulateUCBank({
@@ -235,7 +300,7 @@ export function runSimulation(project: Project): SimulationResult {
   // Collect per-UC monthly details for bank dynamics view
   const ucDetailsCOM: Record<string, UCMonthlyDetail[]> = {};
   const ucDetailsSEM: Record<string, UCMonthlyDetail[]> = {};
-  for (const uc of project.ucs) {
+  for (const uc of extendedProject.ucs) {
     if (uc.id === 'bat') continue;
     if (comResults[uc.id]) ucDetailsCOM[uc.id] = comResults[uc.id].monthlyDetails;
     if (semResults[uc.id]) ucDetailsSEM[uc.id] = semResults[uc.id].monthlyDetails;
