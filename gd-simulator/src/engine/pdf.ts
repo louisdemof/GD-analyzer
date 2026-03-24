@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, StyleSheet, pdf } from '@react-pdf/renderer';
 import type { Project, SimulationResult } from './types';
 import { runSimulation } from './simulation';
 
@@ -69,7 +69,7 @@ function Header({ clientName, plantName }: { clientName: string; plantName: stri
 function CoverPage({ project, generatedAt }: { project: Project; generatedAt: string }) {
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(View, { style: s.coverCenter },
-      React.createElement(Text, { style: { fontSize: 11, color: TEAL, marginBottom: 30 } }, 'HELEXIA BRASIL'),
+      React.createElement(Image, { src: '/GD-analyzer/Helexia_main_logo_screen_L.png', style: { width: 180, marginBottom: 30 } }),
       React.createElement(Text, { style: s.coverTitle }, project.clientName),
       React.createElement(Text, { style: s.coverSubtitle }, project.plant.name),
       React.createElement(Text, { style: s.coverSubtitle }, `${project.distributor.name} — ${project.distributor.state}`),
