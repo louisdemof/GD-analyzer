@@ -36,22 +36,21 @@ function getRateioFraction(
 }
 
 /**
- * Simulate credit bank for a single UC over 24 months.
+ * Simulate credit bank for a single UC over contractMonths.
  *
- * ANEEL SCEE (REN 1.000/2021) credit application for Grupo A:
+ * Matches Excel V10 Simulacao formulas exactly:
  *
- * The credit bank tracks kWh. 1 kWh credit offsets 1 kWh of
- * consumption regardless of time-of-use post (FP or PT).
- * FA (TE_FP/TE_PT) affects the R$ value of the offset, not the
- * kWh exchange rate. All kWh offsets are 1:1.
+ * Grupo A (rows 25-37 NHS, 43-55 AMD):
+ *   Row 25: autoCompFP = MIN(ownGen, consFP)
+ *   Row 26: autoCompPT = MIN(ownGenSurplus * FA, consPT)
+ *   Row 30: bankDraw = MIN(bankStart, fpShortfall + ptShortfall/FA)
+ *   Row 31: bankEnd = MAX(bankStart-draw,0) + bat + cs3Surplus + ownGenSurplus
+ *   Row 36: cost = IF(bankEnd>0, 0, fpUncovered*T_AFP + ptUncovered*T_APT)
  *
- * STEP 1 — Pool all credits (ownGen + CS3 + BAT), offset FP (1:1).
- * STEP 2 — Surplus credits offset PT consumption (1:1).
- * STEP 3 — Remaining surplus → credit bank (kWh).
- * STEP 4 — FP shortfall covered by bank draws (1:1).
- * STEP 5 — PT shortfall covered by bank draws (1:1).
- * STEP 6 — bank_end = max(0, bank_start − draws) + credits_to_bank.
- *          Cost = residual FP × T_AFP + residual PT × T_APT.
+ * FA converts FP-equivalent surplus to PT offset: 1 FP kWh = FA PT kWh.
+ * Bank stores FP-equivalent kWh; drawing for PT costs ptShortfall/FA.
+ *
+ * Grupo B (rows 57-68 etc): single tariff, no PT, no own generation.
  */
 export function simulateUCBank(params: BankSimParams): BankSimResult {
   const {
@@ -94,46 +93,50 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       const consFP = uc.consumptionFP[m] || 0;
       const consPT = uc.consumptionPT[m] || 0;
 
-      // ── STEP 1 — Pool generation credits, offset FP first (1:1 kWh) ──
-      // Under REN 1.000/2021 the credit bank tracks kWh;
-      // 1 kWh credit offsets 1 kWh of consumption regardless of
-      // time-of-use post. FA only affects the R$ value, not the
-      // kWh exchange rate. All kWh offsets are 1:1.
-      // BAT stranded-bank credits are T+1 transfers deposited to
-      // the credit bank, not part of the consumption-offset pool.
-      const totalCredits = ownGen + cs3Credits;
-      const fpApplied = Math.min(totalCredits, consFP);
-      const creditsRemaining = totalCredits - fpApplied;
-      creditsFPApplied = fpApplied;
+      // ═══ Excel V10 Simulacao formulas — Grupo A (NHS/AMD) ═══
+      // Ref: rows 25-37 (NHS) and 43-55 (AMD) in Simulacao sheet
 
-      // ── STEP 2 — Surplus credits offset PT (1:1 kWh) ──
-      const ptApplied = Math.min(creditsRemaining, consPT);
-      creditsPTApplied = ptApplied;
+      // Row 25: Auto-compensação FP = MIN(ownGen, consFP)
+      const autoCompFP = Math.min(ownGen, consFP);
+      creditsFPApplied = autoCompFP;
 
-      // ── STEP 3 — Remaining credits → bank (kWh) ──
-      const creditsToBank = creditsRemaining - ptApplied;
+      // Row 26: Auto-compensação PT = MIN((ownGen - autoCompFP) * FA, consPT)
+      // Surplus own gen after FP, converted to PT via FA
+      const ownGenSurplusFP = Math.max(0, ownGen - autoCompFP);
+      const autoCompPT = Math.min(ownGenSurplusFP * FA, consPT);
+      creditsPTApplied = autoCompPT;
 
-      // ── STEP 4 — FP shortfall covered by bank (1:1) ──
-      const fpShortfall = Math.max(0, consFP - fpApplied);
-      const bankDrawFP = Math.min(bankStart, fpShortfall);
+      // Row 30: Bank draw COM
+      // = MIN(bankStart,
+      //     MAX(consFP - ownGen - cs3 - bat, 0)
+      //   + MAX(consPT - autoCompPT, 0) / FA )
+      const fpShortfallAfterCredits = Math.max(0, consFP - ownGen - cs3Credits - batCredits);
+      const ptShortfallAfterOwnGen = Math.max(0, consPT - autoCompPT);
+      const ptShortfallAsFPequiv = FA > 0 ? ptShortfallAfterOwnGen / FA : 0;
+      bankDraw = Math.min(bankStart, fpShortfallAfterCredits + ptShortfallAsFPequiv);
 
-      // ── STEP 5 — PT shortfall covered by bank (1:1) ──
-      const ptShortfall = Math.max(0, consPT - ptApplied);
-      const bankDrawPT = Math.min(bankStart - bankDrawFP, ptShortfall);
+      // Row 31: Bank end COM
+      // = MAX(bankStart - bankDraw, 0)
+      //   + batCredits
+      //   + MAX(cs3 - MAX(consFP - ownGen, 0), 0)
+      //   + MAX(ownGen - consFP, 0)
+      const fpDeficit = Math.max(0, consFP - ownGen);
+      const cs3Surplus = Math.max(0, cs3Credits - fpDeficit);
+      const ownGenSurplus = Math.max(0, ownGen - consFP);
+      bank = Math.max(0, bankStart - bankDraw) + batCredits + cs3Surplus + ownGenSurplus;
 
-      // ── STEP 6 — Bank end and cost ──
-      // BAT credits deposited to bank (T+1 stranded bank transfer).
-      const totalBankDraw = bankDrawFP + bankDrawPT;
-      bankDraw = totalBankDraw;
-      bank = Math.max(0, bankStart - totalBankDraw) + creditsToBank + batCredits;
-
-      // Billing rule: if bank_end > 0, all consumption was offset
-      // (the distributor sees net credits >= consumption).
+      // Row 36: Custo COM
+      // = IF(bankEnd > 0, 0,
+      //     MAX(consFP - ownGen - cs3 - bat - bankStart, 0) * T_AFP
+      //   + MAX(consPT - FA * MAX(ownGen + cs3 + bat + bankStart - consFP, 0), 0) * T_APT )
       if (bank > 0) {
         costRede = 0;
       } else {
-        costRede = Math.max(0, fpShortfall - bankDrawFP) * T_AFP
-                 + Math.max(0, ptShortfall - bankDrawPT) * T_APT;
+        const fpUncovered = Math.max(0, consFP - ownGen - cs3Credits - batCredits - bankStart);
+        const totalSurplusFP = Math.max(0, ownGen + cs3Credits + batCredits + bankStart - consFP);
+        const ptCoveredBySurplus = totalSurplusFP * FA;
+        const ptUncovered = Math.max(0, consPT - ptCoveredBySurplus);
+        costRede = fpUncovered * T_AFP + ptUncovered * T_APT;
       }
 
       // ICMS additional on compensated credits
