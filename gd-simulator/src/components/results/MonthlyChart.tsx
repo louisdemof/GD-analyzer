@@ -48,13 +48,14 @@ export function MonthlyChart({ months }: Props) {
             />
             <Legend />
 
-            {/* SEM Helexia — navy — tall bar */}
+            {/* SEM Helexia — navy — tall bar — own stack so it renders left */}
             <Bar
               yAxisId="cost"
               dataKey="custoSEM"
               name="Custo SEM Helexia"
               fill="#004B70"
               opacity={0.85}
+              stackId="sem"
               maxBarSize={16}
               radius={[2, 2, 0, 0]}
             />
