@@ -157,10 +157,54 @@ export interface UCMonthlyDetail {
   icmsAdditional: number;
 }
 
-// Default rateio periods
+// Default rateio periods for 24 months
 export const DEFAULT_PERIODS = [
   { start: 0, end: 3 },   // P1: months 1-4
   { start: 4, end: 9 },   // P2: months 5-10
   { start: 10, end: 15 },  // P3: months 11-16
   { start: 16, end: 23 },  // P4: months 17-24
 ];
+
+// Build periods dynamically for any contract length
+export function buildPeriods(contractMonths: number): { start: number; end: number }[] {
+  if (contractMonths <= 12) {
+    return [{ start: 0, end: contractMonths - 1 }];
+  }
+  if (contractMonths <= 24) {
+    return [
+      { start: 0, end: 3 },
+      { start: 4, end: 9 },
+      { start: 10, end: 15 },
+      { start: 16, end: contractMonths - 1 },
+    ];
+  }
+  if (contractMonths <= 36) {
+    return [
+      { start: 0, end: 3 },
+      { start: 4, end: 9 },
+      { start: 10, end: 15 },
+      { start: 16, end: 23 },
+      { start: 24, end: contractMonths - 1 },
+    ];
+  }
+  if (contractMonths <= 48) {
+    return [
+      { start: 0, end: 3 },
+      { start: 4, end: 9 },
+      { start: 10, end: 15 },
+      { start: 16, end: 23 },
+      { start: 24, end: 35 },
+      { start: 36, end: contractMonths - 1 },
+    ];
+  }
+  // 60 months
+  return [
+    { start: 0, end: 3 },
+    { start: 4, end: 9 },
+    { start: 10, end: 15 },
+    { start: 16, end: 23 },
+    { start: 24, end: 35 },
+    { start: 36, end: 47 },
+    { start: 48, end: contractMonths - 1 },
+  ];
+}

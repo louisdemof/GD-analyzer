@@ -39,8 +39,18 @@ export function PlantForm({
     onChange({ ...plant, [field]: value });
   };
 
+  // Debounce degradation/loss changes (400ms)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedProjectFieldChange = (updates: Partial<Pick<Project, 'degradationPct' | 'lossPct'>>) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onProjectFieldChange?.(updates);
+    }, 400);
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [pendingPlant, setPendingPlant] = useState<HelexiaPlant | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedHelexiaPlant = useMemo(() => {
@@ -101,9 +111,21 @@ export function PlantForm({
   }, []);
 
   const handleSelectPlant = (p: HelexiaPlant) => {
-    onProjectFieldChange?.({ helexiaPlantCode: p.codigo });
+    if (p.cliente && p.cliente !== 'SEM CLIENTE') {
+      setPendingPlant(p);
+    } else {
+      confirmSelectPlant(p);
+    }
     setIsDropdownOpen(false);
     setSearchQuery('');
+  };
+
+  const confirmSelectPlant = (p: HelexiaPlant) => {
+    if (p.cliente && p.cliente !== 'SEM CLIENTE') {
+      console.warn('[PlantSelector] Selected contracted plant:', p.codigo, p.nome, p.cliente);
+    }
+    onProjectFieldChange?.({ helexiaPlantCode: p.codigo });
+    setPendingPlant(null);
   };
 
   const chartData = useMemo(() => {
@@ -265,6 +287,46 @@ export function PlantForm({
             </div>
           )}
 
+          {/* Contracted plant warning banner */}
+          {selectedHelexiaPlant && selectedHelexiaPlant.cliente !== 'SEM CLIENTE' && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-start gap-2">
+              <span className="text-orange-500 text-lg leading-none">!</span>
+              <p className="text-xs text-orange-700">
+                Usina contratada com <strong>{selectedHelexiaPlant.cliente}</strong> — confirme disponibilidade com o time comercial antes de enviar proposta ao cliente.
+              </p>
+            </div>
+          )}
+
+          {/* Confirmation modal for contracted plants */}
+          {pendingPlant && (
+            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+              <div className="bg-white rounded-xl p-6 shadow-xl max-w-md mx-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Usina com cliente ativo</h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  A usina <strong>{pendingPlant.codigo} — {pendingPlant.nome}</strong> esta atualmente contratada com <strong>{pendingPlant.cliente}</strong>.
+                </p>
+                <p className="text-sm text-slate-500 mb-6">
+                  Verifique a disponibilidade com o time comercial antes de incluir esta usina numa proposta.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setPendingPlant(null)}
+                    className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => confirmSelectPlant(pendingPlant)}
+                    className="px-4 py-2 text-sm text-white rounded-lg"
+                    style={{ backgroundColor: '#004B70' }}
+                  >
+                    Continuar mesmo assim
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Degradation and loss inputs */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -277,7 +339,7 @@ export function PlantForm({
                 max={2}
                 step={0.1}
                 value={degradationPct}
-                onChange={e => onProjectFieldChange?.({ degradationPct: parseFloat(e.target.value) || 0 })}
+                onChange={e => debouncedProjectFieldChange({ degradationPct: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
               <p className="text-xs text-slate-400 mt-0.5">Padrao: 0.5% a.a.</p>
@@ -292,7 +354,7 @@ export function PlantForm({
                 max={5}
                 step={0.1}
                 value={lossPct}
-                onChange={e => onProjectFieldChange?.({ lossPct: parseFloat(e.target.value) || 0 })}
+                onChange={e => debouncedProjectFieldChange({ lossPct: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
               <p className="text-xs text-slate-400 mt-0.5">Padrao: 0%</p>

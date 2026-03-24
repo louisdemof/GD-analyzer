@@ -4,13 +4,14 @@ import { computeICMSPerKWh } from './tariff';
 interface BankSimParams {
   uc: ConsumptionUnit;
   distributor: Distributor;
-  generation: number[];       // 24 months of plant generation (kWh)
+  generation: number[];       // contractMonths of plant generation (kWh)
   rateio: RateioAllocation;
   includeCS3Credits: boolean; // false for SEM, true for COM
   batCreditsPerMonth: number[]; // BAT bank credits flowing to this UC per month (T+1 applied)
   icmsExempt: boolean;
   competitorDiscount: number; // only affects Grupo B SEM scenario
   isSEM: boolean;
+  contractMonths: number;     // typically 24, but can be 12-60
 }
 
 export interface BankSimResult {
@@ -56,7 +57,8 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   const {
     uc, distributor, generation, rateio,
     includeCS3Credits, batCreditsPerMonth,
-    icmsExempt, competitorDiscount, isSEM
+    icmsExempt, competitorDiscount, isSEM,
+    contractMonths
   } = params;
 
   const FA = distributor.FA ?? 0;
@@ -69,7 +71,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   let totalCostRede = 0;
   let totalIcmsAdditional = 0;
 
-  for (let m = 0; m < 24; m++) {
+  for (let m = 0; m < contractMonths; m++) {
     const bankStart = bank;
 
     // Credit sources — all FP-equivalent kWh
@@ -212,16 +214,17 @@ export function computeBATCredits(
   const bat = project.batBank;
   const batUC = project.ucs.find(uc => uc.id === 'bat');
 
-  const nhsCredits: number[] = new Array(24).fill(0);
-  const amdCredits: number[] = new Array(24).fill(0);
+  const cm = project.plant.contractMonths || 24;
+  const nhsCredits: number[] = new Array(cm).fill(0);
+  const amdCredits: number[] = new Array(cm).fill(0);
 
   if (!batUC) {
     let remaining = bat.openingKWh;
-    const draw = bat.openingKWh / 24;
-    for (let m = 0; m < 24; m++) {
+    const draw = bat.openingKWh / cm;
+    for (let m = 0; m < cm; m++) {
       const d = Math.min(draw, remaining);
       remaining -= d;
-      if (m + 1 < 24) {
+      if (m + 1 < cm) {
         nhsCredits[m + 1] += d * bat.toNHSPct;
         amdCredits[m + 1] += d * bat.toAMDPct;
       }
@@ -234,7 +237,7 @@ export function computeBATCredits(
   const FA = project.distributor.FA ?? 0.6;
   let batBank = bat.openingKWh;
 
-  for (let m = 0; m < 24; m++) {
+  for (let m = 0; m < cm; m++) {
     const gen = (batUC.ownGeneration && batUC.ownGeneration[m]) ? batUC.ownGeneration[m] : 0;
     const consFP = batUC.consumptionFP[m] || 0;
     const consPT = batUC.consumptionPT[m] || 0;
@@ -271,7 +274,7 @@ export function computeBATCredits(
     batBank = Math.max(0, batBank - bankDraw);
 
     // Surplus flows to target UCs with T+1 lag
-    if (surplus > 0 && m + 1 < 24) {
+    if (surplus > 0 && m + 1 < cm) {
       nhsCredits[m + 1] += surplus * bat.toNHSPct;
       amdCredits[m + 1] += surplus * bat.toAMDPct;
     }

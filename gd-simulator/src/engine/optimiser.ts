@@ -1,5 +1,5 @@
 import type { Project, RateioAllocation, ConsumptionUnit } from './types';
-import { DEFAULT_PERIODS } from './types';
+import { DEFAULT_PERIODS, buildPeriods } from './types';
 import { runSimulation } from './simulation';
 import { computeDerivedTariffs } from './tariff';
 
@@ -22,17 +22,19 @@ export interface OptimiserResult {
 
 interface Period { start: number; end: number }
 
-const PERIODS: Period[] = DEFAULT_PERIODS;
-const N_PERIODS = PERIODS.length;
+function getProjectPeriods(project: Project): Period[] {
+  return buildPeriods(project.plant.contractMonths || 24);
+}
 
 function buildRateioFromMatrix(
   alloc: number[][],
   eligible: ConsumptionUnit[],
   allUCIds: string[],
-  lockedUCs: string[]
+  lockedUCs: string[],
+  periods: Period[]
 ): RateioAllocation {
   return {
-    periods: PERIODS.map((p, pi) => ({
+    periods: periods.map((p, pi) => ({
       start: p.start,
       end: p.end,
       allocations: allUCIds.map(id => {
@@ -52,7 +54,8 @@ function createEvaluator(
   project: Project,
   eligible: ConsumptionUnit[],
   allUCIds: string[],
-  lockedUCs: string[]
+  lockedUCs: string[],
+  periods: Period[]
 ) {
   let evalCount = 0;
   const cache = new Map<string, number>();
@@ -64,7 +67,7 @@ function createEvaluator(
     const cached = cache.get(key);
     if (cached !== undefined) return cached;
     evalCount++;
-    const rateio = buildRateioFromMatrix(alloc, eligible, allUCIds, lockedUCs);
+    const rateio = buildRateioFromMatrix(alloc, eligible, allUCIds, lockedUCs, periods);
     const result = runSimulation({ ...project, rateio });
     const eco = result.summary.economiaLiquida;
     cache.set(key, eco);
@@ -81,7 +84,8 @@ function buildSmartInitialAllocations(
   eligible: ConsumptionUnit[],
   allUCIds: string[],
   lockedUCs: string[],
-  evaluate: (alloc: number[][]) => number
+  evaluate: (alloc: number[][]) => number,
+  periods: Period[]
 ): { best: number[][]; bestVal: number } {
   const nUCs = eligible.length;
   const grupoB = eligible.filter(uc => !uc.isGrupoA);
@@ -99,7 +103,7 @@ function buildSmartInitialAllocations(
   const amdIdx = eligible.findIndex(uc => uc.id === 'amd' || uc.name.includes('Amandina'));
 
   function uniform(fracs: (uc: ConsumptionUnit, ucIdx: number, period: number) => number): number[][] {
-    return PERIODS.map((_, p) => {
+    return periods.map((_, p) => {
       const row = eligible.map((uc, i) => fracs(uc, i, p));
       const sum = row.reduce((a, b) => a + b, 0);
       return sum > 0 ? row.map(v => v / sum) : row.map(() => 1 / nUCs);
@@ -156,12 +160,12 @@ function buildSmartInitialAllocations(
 
   // 7. Greedy — marginal value based on SEM bank state
   {
-    const zeroRateio = createZeroRateio(allUCIds, lockedUCs);
+    const zeroRateio = createZeroRateio(allUCIds, lockedUCs, periods);
     const semResult = runSimulation({ ...project, rateio: zeroRateio });
 
-    const greedy = PERIODS.map((_, pi) => {
-      const pStart = PERIODS[pi].start;
-      const pEnd = PERIODS[pi].end;
+    const greedy = periods.map((_, pi) => {
+      const pStart = periods[pi].start;
+      const pEnd = periods[pi].end;
       const periodMonths = pEnd - pStart + 1;
       const row = eligible.map(uc => {
         const semDetails = semResult.ucDetailsSEM[uc.id];
@@ -200,10 +204,11 @@ function buildSmartInitialAllocations(
 
 function createZeroRateio(
   ucIds: string[],
-  lockedUCs: string[]
+  lockedUCs: string[],
+  periods: Period[]
 ): RateioAllocation {
   return {
-    periods: PERIODS.map(p => ({
+    periods: periods.map(p => ({
       start: p.start,
       end: p.end,
       allocations: ucIds.map(id => ({ ucId: id, fraction: 0 })),
@@ -222,8 +227,10 @@ export function optimiseRateio(
   const eligible = project.ucs.filter(uc => !lockedUCs.includes(uc.id));
   const allUCIds = project.ucs.map(uc => uc.id);
   const nUCs = eligible.length;
+  const periods = getProjectPeriods(project);
+  const nPeriods = periods.length;
 
-  const { evaluate, getCount } = createEvaluator(project, eligible, allUCIds, lockedUCs);
+  const { evaluate, getCount } = createEvaluator(project, eligible, allUCIds, lockedUCs, periods);
 
   // Build smart initial allocation
   onProgress?.({
@@ -234,7 +241,7 @@ export function optimiseRateio(
   });
 
   const { best: initialAlloc, bestVal: initialEco } = buildSmartInitialAllocations(
-    project, eligible, allUCIds, lockedUCs, evaluate
+    project, eligible, allUCIds, lockedUCs, evaluate, periods
   );
 
   let bestAlloc = initialAlloc.map(row => [...row]);
@@ -259,7 +266,7 @@ export function optimiseRateio(
       improved = false;
       passes++;
 
-      for (let p = 0; p < N_PERIODS; p++) {
+      for (let p = 0; p < nPeriods; p++) {
         for (let i = 0; i < nUCs; i++) {
           for (let j = 0; j < nUCs; j++) {
             if (i === j) continue;
@@ -304,7 +311,7 @@ export function optimiseRateio(
   });
 
   return {
-    allocation: buildRateioFromMatrix(bestAlloc, eligible, allUCIds, lockedUCs),
+    allocation: buildRateioFromMatrix(bestAlloc, eligible, allUCIds, lockedUCs, periods),
     bestEconomia: bestEco,
     converged: true,
     evaluations: getCount(),
@@ -331,9 +338,10 @@ export function createDefaultRateio(project: Project): RateioAllocation {
   const lockedUCs = project.batBank ? ['bat'] : [];
   const activeUCs = ucIds.filter(id => !lockedUCs.includes(id));
   const fraction = activeUCs.length > 0 ? 1 / activeUCs.length : 0;
+  const periods = getProjectPeriods(project);
 
   return {
-    periods: DEFAULT_PERIODS.map(p => ({
+    periods: periods.map(p => ({
       start: p.start,
       end: p.end,
       allocations: ucIds.map(id => ({

@@ -213,6 +213,71 @@ export const useProjectStore = create<ProjectStore>()(
     }),
     {
       name: 'gd-simulator-projects',
+      version: 2,
+      migrate: (persisted: unknown, version: number) => {
+        const state = persisted as { projects?: unknown[]; currentProjectId?: string | null };
+        if (!state || !state.projects) return { projects: [], currentProjectId: null };
+        const projects = (state.projects as Record<string, unknown>[]).map(migrateProject);
+        return { projects, currentProjectId: state.currentProjectId ?? null };
+      },
     }
   )
 );
+
+function migrateProject(p: Record<string, unknown>): Project {
+  const plant = (p.plant ?? {}) as Record<string, unknown>;
+  const scenarios = (p.scenarios ?? {}) as Record<string, unknown>;
+  const dist = (p.distributor ?? {}) as Record<string, unknown>;
+  const tariffs = (dist.tariffs ?? {}) as Record<string, unknown>;
+  const taxes = (dist.taxes ?? {}) as Record<string, unknown>;
+
+  return {
+    id: (p.id as string) ?? generateId(),
+    clientName: (p.clientName as string) ?? 'Sem nome',
+    distributor: {
+      id: (dist.id as string) ?? '',
+      name: (dist.name as string) ?? '',
+      state: (dist.state as string) ?? '',
+      resolution: (dist.resolution as string) ?? '',
+      tariffs: {
+        B_TUSD: (tariffs.B_TUSD as number) ?? 0,
+        B_TE: (tariffs.B_TE as number) ?? 0,
+        A_FP_TUSD_TE: (tariffs.A_FP_TUSD_TE as number) ?? 0,
+        A_PT_TUSD_TE: (tariffs.A_PT_TUSD_TE as number) ?? 0,
+        A_TE_FP: (tariffs.A_TE_FP as number) ?? 0,
+        A_TE_PT: (tariffs.A_TE_PT as number) ?? 0,
+      },
+      taxes: {
+        ICMS: (taxes.ICMS as number) ?? 0.17,
+        PIS: (taxes.PIS as number) ?? 0.0153,
+        COFINS: (taxes.COFINS as number) ?? 0.0703,
+      },
+    },
+    plant: {
+      id: (plant.id as string) ?? generateId(),
+      name: (plant.name as string) ?? '',
+      capacityKWac: (plant.capacityKWac as number) ?? 0,
+      distributor: (plant.distributor as string) ?? '',
+      p50Profile: (plant.p50Profile as number[]) ?? new Array(24).fill(0),
+      actualProfile: (plant.actualProfile as number[] | undefined),
+      useActual: (plant.useActual as boolean) ?? false,
+      ppaRateRsBRLkWh: (plant.ppaRateRsBRLkWh as number) ?? 0,
+      contractStartMonth: (plant.contractStartMonth as string) ?? '2026-06',
+      contractMonths: (plant.contractMonths as number) ?? 24,
+    },
+    ucs: (p.ucs as Project['ucs']) ?? [],
+    batBank: p.batBank as Project['batBank'],
+    generationSource: (p.generationSource as Project['generationSource']) ?? 'manual',
+    helexiaPlantCode: p.helexiaPlantCode as string | undefined,
+    degradationPct: p.degradationPct as number | undefined,
+    lossPct: p.lossPct as number | undefined,
+    scenarios: {
+      icmsExempt: (scenarios.icmsExempt as boolean) ?? true,
+      competitorDiscount: (scenarios.competitorDiscount as number) ?? 0,
+      useActualGeneration: (scenarios.useActualGeneration as boolean) ?? false,
+    },
+    rateio: (p.rateio as Project['rateio']) ?? { periods: [], isOptimised: false },
+    createdAt: (p.createdAt as string) ?? new Date().toISOString(),
+    updatedAt: (p.updatedAt as string) ?? new Date().toISOString(),
+  };
+}

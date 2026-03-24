@@ -1,5 +1,5 @@
 import type {
-  Project, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail
+  Project, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor
 } from './types';
 import { computeDerivedTariffs } from './tariff';
 import { simulateUCBank, computeBATCredits, type BankSimResult } from './bank';
@@ -29,28 +29,51 @@ function formatMonthLabel(contractStart: string, monthIndex: number): string {
 /**
  * Run full 24-month simulation: SEM and COM scenarios.
  */
+function validateProject(project: Project, d: Distributor): void {
+  if (project.ucs.length === 0) {
+    throw new Error('O projeto nao tem Unidades Consumidoras. Adicione pelo menos uma UC antes de simular.');
+  }
+
+  const checks: [string, number | undefined][] = [
+    ['T_B3', d.T_B3],
+    ['T_AFP', d.T_AFP],
+    ['T_APT', d.T_APT],
+  ];
+  for (const [name, value] of checks) {
+    if (value === undefined || value === null || isNaN(value) || value <= 0) {
+      throw new Error(`Tarifa invalida: ${name} = ${value} para ${d.name}. Preencha todos os campos tarifarios antes de simular.`);
+    }
+  }
+
+  if (d.taxes && (d.taxes.PIS || 0) + (d.taxes.COFINS || 0) >= 1) {
+    throw new Error('PIS + COFINS >= 100% — valores invalidos. Insira as taxas como percentagem decimal (ex: 0.0153 para 1,53%).');
+  }
+
+  if (!project.plant.p50Profile?.length || project.plant.p50Profile.every(v => v === 0)) {
+    throw new Error('Perfil de geracao invalido — todos os valores sao zero. Adicione os dados de geracao da usina.');
+  }
+
+  if (!project.plant.ppaRateRsBRLkWh || project.plant.ppaRateRsBRLkWh <= 0) {
+    throw new Error('Tarifa PPA invalida. Defina o preco do PPA em R$/kWh antes de simular.');
+  }
+}
+
 export function runSimulation(project: Project): SimulationResult {
   // Ensure derived tariffs are computed
   const distributor = computeDerivedTariffs(project.distributor);
 
-  // Validate — skip validation for incomplete projects (still being set up)
-  const hasGrupoB = project.ucs.some(uc => !uc.isGrupoA);
-  const hasGrupoA = project.ucs.some(uc => uc.isGrupoA);
-  if (project.ucs.length > 0 && hasGrupoB && (!distributor.T_B3 || isNaN(distributor.T_B3))) {
-    throw new Error(`Tarifa B3 invalida para ${distributor.name}. Verifique os dados da distribuidora.`);
-  }
-  if (project.ucs.length > 0 && hasGrupoA && (!distributor.T_AFP || isNaN(distributor.T_AFP))) {
-    throw new Error(`Tarifa A FP invalida para ${distributor.name}. Necessaria para UCs Grupo A.`);
-  }
+  // Validate project inputs
+  validateProject(project, distributor);
 
   const generation = getGeneration(project);
   const ppaRate = project.plant.ppaRateRsBRLkWh;
+  const contractMonths = project.plant.contractMonths || 24;
 
   // Compute BAT credits distribution (same for SEM and COM)
   const batCredits = computeBATCredits(project);
 
   // Empty BAT credits for UCs that don't receive them
-  const emptyBatCredits: number[] = new Array(24).fill(0);
+  const emptyBatCredits: number[] = new Array(contractMonths).fill(0);
 
   // --- SEM scenario (no CS3 credits) ---
   const semResults: Record<string, BankSimResult> = {};
@@ -67,6 +90,7 @@ export function runSimulation(project: Project): SimulationResult {
       icmsExempt: true, // SEM doesn't have ICMS additional (no CS3 credits to tax)
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: true,
+      contractMonths,
     });
 
   }
@@ -86,6 +110,7 @@ export function runSimulation(project: Project): SimulationResult {
       icmsExempt: project.scenarios.icmsExempt,
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: false,
+      contractMonths,
     });
   }
 
@@ -93,7 +118,7 @@ export function runSimulation(project: Project): SimulationResult {
   const months: MonthlyResult[] = [];
   let economiaAcum = 0;
 
-  for (let m = 0; m < 24; m++) {
+  for (let m = 0; m < contractMonths; m++) {
     const gen = generation[m];
     const ppaCost = gen * ppaRate;
 
@@ -181,6 +206,7 @@ export function runSimulation(project: Project): SimulationResult {
         icmsExempt: false,
         competitorDiscount: project.scenarios.competitorDiscount,
         isSEM: false,
+        contractMonths,
       });
       icmsRisk += riskResult.totalIcmsAdditional;
     }
@@ -192,7 +218,7 @@ export function runSimulation(project: Project): SimulationResult {
     baselineSEM,
     economiaLiquida,
     economiaPct: baselineSEM > 0 ? economiaLiquida / baselineSEM : 0,
-    economiaPerMonth: economiaLiquida / 24,
+    economiaPerMonth: economiaLiquida / contractMonths,
     bancoResidualKWh,
     bancoResidualValue,
     bancoNetHelexia: valorBancoAtPPA,
