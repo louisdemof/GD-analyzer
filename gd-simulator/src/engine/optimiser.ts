@@ -60,6 +60,8 @@ function createEvaluator(
   let evalCount = 0;
   const cache = new Map<string, number>();
 
+  const contractMonths = project.plant.contractMonths || 24;
+
   function evaluate(alloc: number[][]): number {
     const key = alloc
       .map(row => row.map(v => Math.round(v * 1000) / 1000).join(','))
@@ -69,9 +71,34 @@ function createEvaluator(
     evalCount++;
     const rateio = buildRateioFromMatrix(alloc, eligible, allUCIds, lockedUCs, periods);
     const result = runSimulation({ ...project, rateio });
-    const eco = result.summary.economiaLiquida;
-    cache.set(key, eco);
-    return eco;
+
+    // For short contracts (<=24m), use raw economia
+    if (contractMonths <= 24) {
+      const eco = result.summary.economiaLiquida;
+      cache.set(key, eco);
+      return eco;
+    }
+
+    // For long contracts, use weighted economia that favours early years
+    // + payback penalty to prevent deep negative economia in years 1-2
+    let weighted = 0;
+    let paybackMonth = contractMonths;
+    for (let m = 0; m < result.months.length; m++) {
+      const yearIdx = Math.floor(m / 12);
+      const weight = yearIdx === 0 ? 1.5 : yearIdx === 1 ? 1.3 : yearIdx === 2 ? 1.1 : 1.0;
+      weighted += result.months[m].economia * weight;
+      if (paybackMonth === contractMonths && result.months[m].economiaAcum > 0) {
+        paybackMonth = m;
+      }
+    }
+
+    // Penalty for late payback (target: break even within 18 months)
+    const targetPayback = 18;
+    const paybackPenalty = Math.max(0, paybackMonth - targetPayback) * 5000;
+
+    const score = weighted - paybackPenalty;
+    cache.set(key, score);
+    return score;
   }
 
   return { evaluate, getCount: () => evalCount };
@@ -131,8 +158,8 @@ function buildSmartInitialAllocations(
 
   // 4. Proportional to consumption × tariff
   candidates.push(uniform((uc) => {
-    const avgFP = uc.consumptionFP.reduce((a, b) => a + b, 0) / 24;
-    const avgPT = (uc.consumptionPT || []).reduce((a, b) => a + b, 0) / 24;
+    const avgFP = uc.consumptionFP.reduce((a, b) => a + b, 0) / Math.max(uc.consumptionFP.length, 1);
+    const avgPT = (uc.consumptionPT || []).reduce((a, b) => a + b, 0) / Math.max((uc.consumptionPT || []).length, 1);
     const tariff = uc.isGrupoA
       ? T_AFP * avgFP + T_APT * avgPT
       : T_B3_eff * avgFP;
@@ -188,9 +215,40 @@ function buildSmartInitialAllocations(
 
   // 8. 50/50 A and B, consumption-weighted
   candidates.push(uniform((uc) => {
-    const avgCons = uc.consumptionFP.reduce((s, v) => s + v, 0) / 24;
+    const avgCons = uc.consumptionFP.reduce((s, v) => s + v, 0) / Math.max(uc.consumptionFP.length, 1);
     return avgCons;
   }));
+
+  // 9. Long-contract start: NHS heavy in early periods, AMD later
+  if (periods.length > 4) {
+    candidates.push(periods.map((_, periodIdx) => {
+      const row = eligible.map((uc, i) => {
+        const isNHS = uc.id === 'nhs' || uc.name.toLowerCase().includes('horizonte');
+        const isAMD = uc.id === 'amd' || uc.name.toLowerCase().includes('amandina');
+        if (periodIdx <= 1) {
+          // P1-P2: heavy NHS for harvest months
+          if (isNHS) return 0.65;
+          if (isAMD) return 0;
+          if (!uc.isGrupoA) return 0.35 / Math.max(nB, 1);
+          return 0;
+        } else if (periodIdx <= 3) {
+          // P3-P4: NHS dominant, some B
+          if (isNHS) return 0.55;
+          if (isAMD) return 0;
+          if (!uc.isGrupoA) return 0.45 / Math.max(nB, 1);
+          return 0;
+        } else {
+          // P5+: NHS + AMD share, B gets rest
+          if (isNHS) return 0.40;
+          if (isAMD) return 0.20;
+          if (!uc.isGrupoA) return 0.40 / Math.max(nB, 1);
+          return 0;
+        }
+      });
+      const total = row.reduce((a, b) => a + b, 0);
+      return total > 0 ? row.map(v => v / total) : row.map(() => 1 / nUCs);
+    }));
+  }
 
   // Evaluate all candidates and pick best
   let best = candidates[0];

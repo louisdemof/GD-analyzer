@@ -7,7 +7,9 @@ interface Props {
   onRateioChange?: (rateio: RateioAllocation) => void;
 }
 
-const PERIOD_LABELS = ['P1 (M1-4)', 'P2 (M5-10)', 'P3 (M11-16)', 'P4 (M17-24)'];
+function periodLabel(period: { start: number; end: number }, index: number): string {
+  return `P${index + 1} (M${period.start + 1}-${period.end + 1})`;
+}
 
 export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
   const [editingCell, setEditingCell] = useState<{ ucId: string; pi: number } | null>(null);
@@ -59,16 +61,16 @@ export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+      <div className="overflow-x-auto border border-slate-200 rounded-lg">
+        <table className="text-xs" style={{ minWidth: 'max-content', width: '100%' }}>
           <thead>
             <tr className="border-b border-slate-200">
               <th className="text-left py-2 px-3 text-slate-500 font-medium">UC</th>
               <th className="text-left py-2 px-3 text-slate-500 font-medium w-16">Grupo</th>
-              {PERIOD_LABELS.map((label, i) => (
-                <th key={i} className="text-center py-2 px-3 text-slate-500 font-medium">
-                  {label}
-                  {manualPeriods.has(i) && <span className="ml-1" title="Editado manualmente">✏️</span>}
+              {rateio.periods.map((period, i) => (
+                <th key={i} className="text-center py-2 px-2 text-slate-500 font-medium text-[10px] whitespace-nowrap">
+                  {periodLabel(period, i)}
+                  {manualPeriods.has(i) && <span className="ml-1" title="Editado manualmente">*</span>}
                 </th>
               ))}
             </tr>

@@ -258,7 +258,7 @@ export function Results() {
         </div>
       </div>
 
-      <KPICards summary={result.summary} />
+      <KPICards summary={result.summary} months={result.months} />
 
       <div className="flex gap-1 mt-6 mb-4 border-b border-slate-200">
         {tabs.map(t => (

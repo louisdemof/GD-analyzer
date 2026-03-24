@@ -1,7 +1,8 @@
-import type { SimulationSummary } from '../../engine/types';
+import type { SimulationSummary, MonthlyResult } from '../../engine/types';
 
 interface Props {
   summary: SimulationSummary;
+  months?: MonthlyResult[];
 }
 
 function formatBRL(value: number): string {
@@ -12,24 +13,35 @@ function formatKWh(value: number): string {
   return value.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' kWh';
 }
 
-export function KPICards({ summary }: Props) {
+export function KPICards({ summary, months }: Props) {
   const comRede = summary.baselineSEM - summary.economiaLiquida - summary.totalPPACost;
+  const contractMonths = months?.length || 24;
+  const durationLabel = contractMonths % 12 === 0 ? `${contractMonths / 12} anos` : `${contractMonths}m`;
+
+  // Find payback month
+  let paybackLabel = '';
+  if (months && months.length > 0) {
+    const paybackIdx = months.findIndex(m => m.economiaAcum > 0);
+    if (paybackIdx >= 0) {
+      paybackLabel = `Payback: ${months[paybackIdx].label} (mes ${paybackIdx + 1})`;
+    }
+  }
 
   const cards = [
     {
-      label: 'Economia Líquida',
+      label: 'Economia Liquida',
       value: formatBRL(summary.economiaLiquida),
-      sub: `${(summary.economiaPct * 100).toFixed(1)}% de redução`,
+      sub: `${(summary.economiaPct * 100).toFixed(1)}% de reducao` + (paybackLabel ? ` | ${paybackLabel}` : ''),
       color: 'bg-teal-50 border-teal-200 text-teal-700',
     },
     {
-      label: 'Custo SEM Helexia (24m)',
+      label: `Custo SEM Helexia (${durationLabel})`,
       value: formatBRL(summary.baselineSEM),
-      sub: 'Baseline sem geração distribuída',
+      sub: 'Baseline sem geracao distribuida',
       color: 'bg-slate-50 border-slate-200 text-slate-700',
     },
     {
-      label: 'Custo COM Helexia (24m)',
+      label: `Custo COM Helexia (${durationLabel})`,
       value: formatBRL(summary.baselineSEM - summary.economiaLiquida),
       sub: `Rede ${formatBRL(comRede)} + PPA ${formatBRL(summary.totalPPACost)}`,
       color: 'bg-blue-50 border-blue-200 text-blue-700',
