@@ -181,12 +181,13 @@ export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
               <td className="py-2 px-3" colSpan={2}>TOTAL</td>
               {rateio.periods.map((period, pi) => {
                 const total = period.allocations.reduce((a, b) => a + b.fraction, 0) * 100;
-                const isOk = Math.abs(total - 100) <= 0.1;
+                const displayTotal = Math.abs(total - 100) <= 0.5 ? 100.0 : Math.round(total * 10) / 10;
+                const isOk = Math.abs(total - 100) <= 0.5;
                 return (
                   <td key={pi} className={`py-2 px-3 text-center font-mono ${
                     isOk ? 'text-teal-700' : 'text-red-600 bg-red-50'
                   }`}>
-                    {total.toFixed(1)}%
+                    {displayTotal.toFixed(1)}%
                   </td>
                 );
               })}
