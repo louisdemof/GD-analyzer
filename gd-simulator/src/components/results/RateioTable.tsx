@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import * as XLSX from 'xlsx';
 import type { RateioAllocation, ConsumptionUnit } from '../../engine/types';
 
 interface Props {
@@ -9,6 +10,42 @@ interface Props {
 
 function periodLabel(period: { start: number; end: number }, index: number): string {
   return `P${index + 1} (M${period.start + 1}-${period.end + 1})`;
+}
+
+function exportRateioExcel(rateio: RateioAllocation, ucs: ConsumptionUnit[]): void {
+  const wb = XLSX.utils.book_new();
+
+  const headers = ['UC', 'Grupo', ...rateio.periods.map((p, i) => periodLabel(p, i))];
+
+  const rows: (string | number)[][] = [];
+  for (const uc of ucs) {
+    const row: (string | number)[] = [uc.name, uc.tariffGroup];
+    for (const period of rateio.periods) {
+      const alloc = period.allocations.find(a => a.ucId === uc.id);
+      const pct = ((alloc?.fraction ?? 0) * 100);
+      row.push(Math.round(pct * 10) / 10);
+    }
+    rows.push(row);
+  }
+
+  // Total row
+  const totalRow: (string | number)[] = ['TOTAL', ''];
+  for (const period of rateio.periods) {
+    const total = period.allocations.reduce((s, a) => s + a.fraction, 0) * 100;
+    totalRow.push(Math.round(total * 10) / 10);
+  }
+  rows.push(totalRow);
+
+  const aoa = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Column widths
+  const cols: XLSX.ColInfo[] = [{ wch: 28 }, { wch: 12 }];
+  for (let i = 0; i < rateio.periods.length; i++) cols.push({ wch: 16 });
+  ws['!cols'] = cols;
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Rateio');
+  XLSX.writeFile(wb, `rateio_${rateio.isOptimised ? 'optimizado' : 'manual'}.xlsx`);
 }
 
 export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
@@ -151,7 +188,7 @@ export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
           <span className="text-teal-600 font-medium">Optimizado</span>
         ) : (
           <span className="text-slate-400">
-            {manualPeriods.size > 0 ? 'Editado manualmente' : 'Distribuição padrão (igual)'}
+            {manualPeriods.size > 0 ? 'Editado manualmente' : 'Distribuicao padrao (igual)'}
           </span>
         )}
         {rateio.lastOptimisedAt && (
@@ -160,8 +197,14 @@ export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
           </span>
         )}
         {onRateioChange && (
-          <span className="text-slate-400">Clique em uma célula para editar</span>
+          <span className="text-slate-400">Clique em uma celula para editar</span>
         )}
+        <button
+          onClick={() => exportRateioExcel(rateio, ucs)}
+          className="ml-auto px-3 py-1 text-xs border border-teal-500 text-teal-700 rounded hover:bg-teal-50"
+        >
+          Exportar Rateio (.xlsx)
+        </button>
       </div>
     </div>
   );
