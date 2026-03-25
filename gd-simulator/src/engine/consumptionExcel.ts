@@ -70,8 +70,8 @@ export function exportConsumptionExcel(project: Project): void {
   const genDegradation = project.generationDegradation ?? 0.005;
   const monthLabels = generateMonthLabels(project.plant.contractStartMonth, contractMonths);
 
-  // Filter out BAT UC
-  const ucs = project.ucs.filter(uc => uc.id !== 'bat');
+  // Include all UCs (including BAT stranded bank if present)
+  const ucs = project.ucs;
 
   // ── Sheet 1: Consumo_Mensal ──
   {
