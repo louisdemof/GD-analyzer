@@ -37,14 +37,14 @@ function exportRateioExcel(rateio: RateioAllocation, ucs: ConsumptionUnit[]): vo
       rounded[maxIdx] = Math.round((rounded[maxIdx] + (100 - sum)) * 10000) / 10000;
     }
     for (let ui = 0; ui < ucs.length; ui++) {
-      rows[ui][2 + pi] = rounded[ui];
+      rows[ui][2 + pi] = `${rounded[ui].toFixed(4)}%`;
     }
   }
 
   // Total row
   const totalRow: (string | number)[] = ['TOTAL', ''];
   for (let pi = 0; pi < rateio.periods.length; pi++) {
-    totalRow.push(100.0);
+    totalRow.push('100.0000%');
   }
   rows.push(totalRow);
 
