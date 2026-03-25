@@ -34,10 +34,40 @@ function round1(v: number): number {
   return Math.round(v * 10) / 10;
 }
 
+function extendConsumption(base: number[], contractMonths: number, growthPerYear: number): number[] {
+  if (base.length >= contractMonths) return base.slice(0, contractMonths);
+  const extended = [...base];
+  const seasonal = base.slice(0, Math.min(base.length, 12));
+  while (extended.length < contractMonths) {
+    const m = extended.length;
+    const yearIdx = Math.floor(m / 12);
+    const calMonth = m % 12;
+    const baseVal = seasonal[calMonth] ?? base[m % base.length] ?? 0;
+    extended.push(Math.round(baseVal * Math.pow(1 + growthPerYear, yearIdx)));
+  }
+  return extended;
+}
+
+function extendGeneration(base: number[], contractMonths: number, degradation: number): number[] {
+  if (!base || base.length === 0) return new Array(contractMonths).fill(0);
+  const extended: number[] = [];
+  const seasonal = base.slice(0, Math.min(base.length, 12));
+  for (let m = 0; m < contractMonths; m++) {
+    const yearIdx = Math.floor(m / 12);
+    const factor = Math.pow(1 - degradation, yearIdx);
+    const baseVal = m < base.length ? base[m] : (seasonal[m % 12] ?? 0);
+    extended.push(Math.round(baseVal * factor));
+  }
+  return extended;
+}
+
 // ─── Export ───────────────────────────────────────────────────────
 export function exportConsumptionExcel(project: Project): void {
   const wb = XLSX.utils.book_new();
-  const monthLabels = generateMonthLabels(project.plant.contractStartMonth, 24);
+  const contractMonths = project.plant.contractMonths || 24;
+  const growthRate = project.growthRate ?? 0.025;
+  const genDegradation = project.generationDegradation ?? 0.005;
+  const monthLabels = generateMonthLabels(project.plant.contractStartMonth, contractMonths);
 
   // Filter out BAT UC
   const ucs = project.ucs.filter(uc => uc.id !== 'bat');
@@ -51,19 +81,23 @@ export function exportConsumptionExcel(project: Project): void {
     headerRow1[2] = null;
     headerRow1[3] = null;
     headerRow1[4] = null;
-    // F-AC: consumptionFP header
-    headerRow1[5] = 'consumptionFP →';
-    for (let i = 6; i <= 28; i++) headerRow1[i] = null;
-    // AD-BA: consumptionPT header
-    headerRow1[29] = 'consumptionPT →';
-    for (let i = 30; i <= 52; i++) headerRow1[i] = null;
+    // F onwards: consumptionFP header
+    const fpEnd = 4 + contractMonths; // col index of last FP month
+    headerRow1[5] = `consumptionFP (${contractMonths}m, com crescimento ${(growthRate * 100).toFixed(1)}%/a) →`;
+    for (let i = 6; i <= fpEnd; i++) headerRow1[i] = null;
+    // After FP: consumptionPT header
+    const ptStart = fpEnd + 1;
+    headerRow1[ptStart] = `consumptionPT (${contractMonths}m) →`;
+    for (let i = ptStart + 1; i < ptStart + contractMonths; i++) headerRow1[i] = null;
 
     const headerRow2: string[] = ['ucId', 'ucName', 'tariffGroup', 'isGrupoA', 'openingBank'];
-    for (const label of monthLabels) headerRow2.push(label); // FP months 5-28
-    for (const label of monthLabels) headerRow2.push(label); // PT months 29-52
+    for (const label of monthLabels) headerRow2.push(label); // FP
+    for (const label of monthLabels) headerRow2.push(label); // PT
 
     const rows: (string | number | boolean)[][] = [];
     for (const uc of ucs) {
+      const extFP = extendConsumption(uc.consumptionFP, contractMonths, growthRate);
+      const extPT = extendConsumption(uc.consumptionPT || [], contractMonths, growthRate);
       const row: (string | number | boolean)[] = [
         uc.id,
         uc.name,
@@ -71,8 +105,8 @@ export function exportConsumptionExcel(project: Project): void {
         uc.isGrupoA,
         round1(uc.openingBank),
       ];
-      for (let i = 0; i < 24; i++) row.push(round1(uc.consumptionFP[i] ?? 0));
-      for (let i = 0; i < 24; i++) row.push(round1(uc.consumptionPT[i] ?? 0));
+      for (let i = 0; i < contractMonths; i++) row.push(round1(extFP[i] ?? 0));
+      for (let i = 0; i < contractMonths; i++) row.push(round1(extPT[i] ?? 0));
       rows.push(row);
     }
 
@@ -81,20 +115,16 @@ export function exportConsumptionExcel(project: Project): void {
 
     // Merge section headers
     ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },    // UC Info
-      { s: { r: 0, c: 5 }, e: { r: 0, c: 28 } },   // consumptionFP
-      { s: { r: 0, c: 29 }, e: { r: 0, c: 52 } },  // consumptionPT
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+      { s: { r: 0, c: 5 }, e: { r: 0, c: fpEnd } },
+      { s: { r: 0, c: ptStart }, e: { r: 0, c: ptStart + contractMonths - 1 } },
     ];
 
     // Column widths
     const cols: XLSX.ColInfo[] = [
-      { wch: 14 }, // ucId
-      { wch: 22 }, // ucName
-      { wch: 14 }, // tariffGroup
-      { wch: 10 }, // isGrupoA
-      { wch: 14 }, // openingBank
+      { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 14 },
     ];
-    for (let i = 0; i < 48; i++) cols.push({ wch: 10 }); // month columns
+    for (let i = 0; i < contractMonths * 2; i++) cols.push({ wch: 10 });
     ws['!cols'] = cols;
 
     XLSX.utils.book_append_sheet(wb, ws, 'Consumo_Mensal');
@@ -106,14 +136,15 @@ export function exportConsumptionExcel(project: Project): void {
     const header = ['ucId', 'ucName', ...monthLabels];
     const rows: (string | number)[][] = [];
     for (const uc of ucsWithGen) {
+      const extGen = extendGeneration(uc.ownGeneration || [], contractMonths, genDegradation);
       const row: (string | number)[] = [uc.id, uc.name];
-      for (let i = 0; i < 24; i++) row.push(round1(uc.ownGeneration?.[i] ?? 0));
+      for (let i = 0; i < contractMonths; i++) row.push(round1(extGen[i] ?? 0));
       rows.push(row);
     }
     const aoa = [header, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const cols: XLSX.ColInfo[] = [{ wch: 14 }, { wch: 22 }];
-    for (let i = 0; i < 24; i++) cols.push({ wch: 10 });
+    for (let i = 0; i < contractMonths; i++) cols.push({ wch: 10 });
     ws['!cols'] = cols;
     XLSX.utils.book_append_sheet(wb, ws, 'Geracao_Propria');
   }
