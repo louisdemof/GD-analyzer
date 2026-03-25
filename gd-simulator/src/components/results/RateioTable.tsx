@@ -17,22 +17,34 @@ function exportRateioExcel(rateio: RateioAllocation, ucs: ConsumptionUnit[]): vo
 
   const headers = ['UC', 'Grupo', ...rateio.periods.map((p, i) => periodLabel(p, i))];
 
+  // Round percentages per period, adjusting largest UC to ensure sum = 100.0%
   const rows: (string | number)[][] = [];
   for (const uc of ucs) {
-    const row: (string | number)[] = [uc.name, uc.tariffGroup];
-    for (const period of rateio.periods) {
+    rows.push([uc.name, uc.tariffGroup, ...new Array(rateio.periods.length).fill(0)]);
+  }
+
+  for (let pi = 0; pi < rateio.periods.length; pi++) {
+    const period = rateio.periods[pi];
+    const rawPcts = ucs.map(uc => {
       const alloc = period.allocations.find(a => a.ucId === uc.id);
-      const pct = ((alloc?.fraction ?? 0) * 100);
-      row.push(Math.round(pct * 10) / 10);
+      return (alloc?.fraction ?? 0) * 100;
+    });
+    const rounded = rawPcts.map(v => Math.round(v * 10) / 10);
+    const sum = rounded.reduce((a, b) => a + b, 0);
+    // Adjust the largest value to make total exactly 100.0
+    if (sum > 0) {
+      const maxIdx = rounded.indexOf(Math.max(...rounded));
+      rounded[maxIdx] = Math.round((rounded[maxIdx] + (100 - sum)) * 10) / 10;
     }
-    rows.push(row);
+    for (let ui = 0; ui < ucs.length; ui++) {
+      rows[ui][2 + pi] = rounded[ui];
+    }
   }
 
   // Total row
   const totalRow: (string | number)[] = ['TOTAL', ''];
-  for (const period of rateio.periods) {
-    const total = period.allocations.reduce((s, a) => s + a.fraction, 0) * 100;
-    totalRow.push(Math.round(total * 10) / 10);
+  for (let pi = 0; pi < rateio.periods.length; pi++) {
+    totalRow.push(100.0);
   }
   rows.push(totalRow);
 
