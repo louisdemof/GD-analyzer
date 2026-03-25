@@ -65,6 +65,7 @@ function extendGeneration(base: number[], contractMonths: number, degradation: n
 export function exportConsumptionExcel(project: Project): void {
   const wb = XLSX.utils.book_new();
   const contractMonths = project.plant.contractMonths || 24;
+  console.log(`[ExportConsumption] contractMonths=${contractMonths}, ucs=${project.ucs.length}, growthRate=${project.growthRate ?? 0.025}`);
   const growthRate = project.growthRate ?? 0.025;
   const genDegradation = project.generationDegradation ?? 0.005;
   const monthLabels = generateMonthLabels(project.plant.contractStartMonth, contractMonths);
