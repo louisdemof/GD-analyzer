@@ -29,12 +29,12 @@ function exportRateioExcel(rateio: RateioAllocation, ucs: ConsumptionUnit[]): vo
       const alloc = period.allocations.find(a => a.ucId === uc.id);
       return (alloc?.fraction ?? 0) * 100;
     });
-    const rounded = rawPcts.map(v => Math.round(v * 10) / 10);
+    const rounded = rawPcts.map(v => Math.round(v * 10000) / 10000);
     const sum = rounded.reduce((a, b) => a + b, 0);
     // Adjust the largest value to make total exactly 100.0
     if (sum > 0) {
       const maxIdx = rounded.indexOf(Math.max(...rounded));
-      rounded[maxIdx] = Math.round((rounded[maxIdx] + (100 - sum)) * 10) / 10;
+      rounded[maxIdx] = Math.round((rounded[maxIdx] + (100 - sum)) * 10000) / 10000;
     }
     for (let ui = 0; ui < ucs.length; ui++) {
       rows[ui][2 + pi] = rounded[ui];
