@@ -14,6 +14,7 @@ import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
 import { generatePDF, downloadPDF } from '../engine/pdf';
 import { exportResultsExcel } from '../engine/excel';
+import { exportConsumptionExcel } from '../engine/consumptionExcel';
 
 type ResultTab = 'resumo' | 'mensal' | 'banco' | 'rateio' | 'sensibilidades' | 'sensibilidade-geracao';
 
@@ -254,6 +255,19 @@ export function Results() {
             className="px-4 py-2 text-sm border border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50 disabled:opacity-60"
           >
             Exportar Excel
+          </button>
+          <button
+            onClick={() => {
+              try {
+                exportConsumptionExcel(project);
+              } catch (e) {
+                setToast('Erro ao exportar consumo: ' + (e instanceof Error ? e.message : 'desconhecido'));
+                setTimeout(() => setToast(null), 5000);
+              }
+            }}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Exportar Consumo
           </button>
         </div>
       </div>
