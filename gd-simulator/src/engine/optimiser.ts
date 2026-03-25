@@ -228,6 +228,7 @@ function createEvaluator(
 ) {
   let evalCount = 0;
   const cache = new Map<string, number>();
+  const ecoCache = new Map<string, number>(); // real economia for each allocation
   const contractMonths = project.plant.contractMonths || 24;
 
   function evaluate(alloc: number[][]): number {
@@ -238,6 +239,8 @@ function createEvaluator(
 
     const rateio = buildRateioFromMatrix(alloc, eligible, allUCIds, lockedUCs, periods);
     const result = runSimulation({ ...project, rateio });
+    // Always store the real economia
+    ecoCache.set(key, result.summary.economiaLiquida);
 
     // For short contracts, use raw economia
     if (contractMonths <= 24) {
@@ -262,7 +265,12 @@ function createEvaluator(
     return score;
   }
 
-  return { evaluate, getCount: () => evalCount };
+  function getRealEconomia(alloc: number[][]): number {
+    const key = alloc.map(row => row.map(v => Math.round(v * 1000) / 1000).join(',')).join('|');
+    return ecoCache.get(key) ?? 0;
+  }
+
+  return { evaluate, getCount: () => evalCount, getRealEconomia };
 }
 
 // ─── Main optimiser ─────────────────────────────────────────────
@@ -293,7 +301,7 @@ export function optimiseRateio(
 
   onProgress?.({ currentStart: 0, totalStarts: 1, bestEconomia: 0, message: `${nPeriods} periodos detectados. Gerando alocacoes...`, pct: 8 });
 
-  const { evaluate, getCount } = createEvaluator(project, eligible, allUCIds, lockedUCs, periods);
+  const { evaluate, getCount, getRealEconomia } = createEvaluator(project, eligible, allUCIds, lockedUCs, periods);
 
   // Phase 2: build initial allocations
   const candidates: number[][][] = [];
@@ -395,7 +403,8 @@ export function optimiseRateio(
     if (val > bestEco) { bestEco = val; bestAlloc = candidates[c]; }
   }
 
-  onProgress?.({ currentStart: 0, totalStarts: 1, bestEconomia: bestEco, message: `Melhor inicial: R$${Math.round(bestEco).toLocaleString('pt-BR')}`, pct: 15 });
+  const realEcoInitial = getRealEconomia(bestAlloc);
+  onProgress?.({ currentStart: 0, totalStarts: 1, bestEconomia: realEcoInitial, message: `Melhor inicial: R$${Math.round(realEcoInitial).toLocaleString('pt-BR')}`, pct: 15 });
 
   // Phase 3: coordinate descent
   const STEPS = [0.20, 0.10, 0.05, 0.02, 0.01, 0.005];
@@ -433,15 +442,17 @@ export function optimiseRateio(
       }
 
       const pct = Math.min(95, 15 + (si / STEPS.length) * 80 + (passes / 20) * (80 / STEPS.length));
-      onProgress?.({ currentStart: si + 1, totalStarts: STEPS.length, bestEconomia: bestEco, message: `Passo ${step} — rodada ${passes}`, pct });
+      const realEcoStep = getRealEconomia(bestAlloc);
+      onProgress?.({ currentStart: si + 1, totalStarts: STEPS.length, bestEconomia: realEcoStep, message: `Passo ${step} — rodada ${passes} — R$${Math.round(realEcoStep).toLocaleString('pt-BR')}`, pct });
     }
   }
 
-  onProgress?.({ currentStart: STEPS.length, totalStarts: STEPS.length, bestEconomia: bestEco, message: `Concluido (${getCount()} avaliacoes)`, pct: 100 });
+  const realEcoFinal = getRealEconomia(bestAlloc);
+  onProgress?.({ currentStart: STEPS.length, totalStarts: STEPS.length, bestEconomia: realEcoFinal, message: `Concluido: R$${Math.round(realEcoFinal).toLocaleString('pt-BR')} (${getCount()} avaliacoes)`, pct: 100 });
 
   return {
     allocation: buildRateioFromMatrix(bestAlloc, eligible, allUCIds, lockedUCs, periods),
-    bestEconomia: bestEco,
+    bestEconomia: realEcoFinal,
     converged: true,
     evaluations: getCount(),
   };
