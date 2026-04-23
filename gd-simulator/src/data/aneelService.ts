@@ -15,6 +15,45 @@ export const ICMS_BY_STATE: Record<string, number> = {
 export const DEFAULT_PIS = 0.0153;
 export const DEFAULT_COFINS = 0.0703;
 
+// Desconto irrigante/aquicultor no horário reservado (REN 1000 Art. 186).
+// Percentuais pelo Submercado / Região — aplicados sobre a tarifa FP/B base.
+// Centro-Oeste (MS/MT/GO/DF): 80% Grupo A, 67% Grupo B.
+// Outras regiões podem ter percentuais diferentes — valores podem ser ajustados manualmente.
+const RURAL_IRRIGANTE_REGIONS: Record<string, { grupoA: number; grupoB: number }> = {
+  // Centro-Oeste
+  MS: { grupoA: 0.80, grupoB: 0.67 },
+  MT: { grupoA: 0.80, grupoB: 0.67 },
+  GO: { grupoA: 0.80, grupoB: 0.67 },
+  DF: { grupoA: 0.80, grupoB: 0.67 },
+  // Outras regiões — percentuais típicos, confirmar com a distribuidora:
+  // Sul/Sudeste: ~73% A / 60% B; Norte/Nordeste: ~70% A / 60% B
+};
+
+/**
+ * Retorna os percentuais de desconto do horário reservado para um estado,
+ * ou null se o estado não tiver percentuais cadastrados (usuário preenche manualmente).
+ */
+export function getRuralIrriganteDiscount(state: string): { grupoA: number; grupoB: number } | null {
+  return RURAL_IRRIGANTE_REGIONS[state] ?? null;
+}
+
+/**
+ * Calcula as tarifas do horário reservado (TUSD+TE, sem tributos) a partir
+ * das tarifas base FP/B e do desconto aplicável à região.
+ */
+export function computeReservadoTariffs(
+  A_FP_TUSD_TE: number,
+  B_TUSD_plus_TE: number,
+  state: string,
+): { A_RSV_TUSD_TE: number; B_RSV_TUSD_TE: number } | null {
+  const disc = getRuralIrriganteDiscount(state);
+  if (!disc) return null;
+  return {
+    A_RSV_TUSD_TE: A_FP_TUSD_TE * (1 - disc.grupoA),
+    B_RSV_TUSD_TE: B_TUSD_plus_TE * (1 - disc.grupoB),
+  };
+}
+
 // --- Concessionárias: SigAgente → state mapping ---
 // Only main concessionárias (not permissionárias/cooperatives).
 // Agents not listed here are filtered out of the dropdown.

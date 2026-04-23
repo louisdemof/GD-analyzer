@@ -17,7 +17,8 @@ interface Props {
   helexiaPlantCode?: string;
   degradationPct?: number;
   lossPct?: number;
-  onProjectFieldChange?: (updates: Partial<Pick<Project, 'generationSource' | 'helexiaPlantCode' | 'degradationPct' | 'lossPct'>>) => void;
+  performanceFactor?: number;
+  onProjectFieldChange?: (updates: Partial<Pick<Project, 'generationSource' | 'helexiaPlantCode' | 'degradationPct' | 'lossPct' | 'performanceFactor'>>) => void;
 }
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -33,6 +34,7 @@ export function PlantForm({
   helexiaPlantCode,
   degradationPct = 0.5,
   lossPct = 0,
+  performanceFactor = 1.0,
   onProjectFieldChange,
 }: Props) {
   const update = (field: keyof Plant, value: unknown) => {
@@ -439,6 +441,41 @@ export function PlantForm({
             label="Usar geracao real medida"
             description="Alternar entre P50 (PVsyst) e dados reais"
           />
+
+          <div className="p-3 bg-slate-50 rounded-lg">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Fator de performance (haircut sobre P50)
+                </label>
+                <p className="text-xs text-slate-500">
+                  Reduz o P50 para refletir subperformance real (soiling, curtailment, inversor, etc).
+                  Usinas em operação normalmente entregam 88–95% do P50 PVsyst.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={50}
+                  max={100}
+                  step={1}
+                  value={+(performanceFactor * 100).toFixed(0)}
+                  onChange={e => {
+                    const pct = parseFloat(e.target.value);
+                    const val = isNaN(pct) ? 1.0 : Math.max(0.5, Math.min(1.0, pct / 100));
+                    onProjectFieldChange?.({ performanceFactor: val });
+                  }}
+                  className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center font-mono"
+                />
+                <span className="text-sm text-slate-500 whitespace-nowrap">% do P50</span>
+              </div>
+            </div>
+            {performanceFactor < 1.0 && (
+              <p className="text-[11px] text-amber-700 mt-2">
+                Geração efetiva = P50 × {(performanceFactor * 100).toFixed(0)}%. Aplicado à planta principal e geração própria das UCs.
+              </p>
+            )}
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">

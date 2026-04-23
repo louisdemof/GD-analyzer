@@ -84,10 +84,17 @@ export function ProjectEditor() {
     if (!result?.updates || !project) return;
 
     const { updates: u } = result;
+
+    // Create new UCs first so subsequent updateUC calls find them.
+    for (const newUC of u.ucsToCreate) {
+      addUC(project.id, newUC);
+    }
+
     for (const ucUp of u.ucs) {
       const partial: Record<string, unknown> = {};
       if (ucUp.consumptionFP) partial.consumptionFP = ucUp.consumptionFP;
       if (ucUp.consumptionPT) partial.consumptionPT = ucUp.consumptionPT;
+      if (ucUp.consumptionReservado) partial.consumptionReservado = ucUp.consumptionReservado;
       if (ucUp.openingBank !== undefined) partial.openingBank = ucUp.openingBank;
       if (ucUp.ownGeneration) partial.ownGeneration = ucUp.ownGeneration;
       updateUC(project.id, ucUp.id, partial);
@@ -111,9 +118,10 @@ export function ProjectEditor() {
 
     setImportModal(null);
     pendingImportRef.current = null;
-    setToast(`Consumo importado com sucesso para ${u.ucs.length} UC(s).`);
+    const createdMsg = u.ucsToCreate.length > 0 ? `${u.ucsToCreate.length} UC(s) criada(s), ` : '';
+    setToast(`Consumo importado: ${createdMsg}${u.ucs.length} UC(s) atualizada(s).`);
     setTimeout(() => setToast(null), 5000);
-  }, [project, updateUC, updateProject, updatePlant]);
+  }, [project, addUC, updateUC, updateProject, updatePlant]);
 
   if (!project) {
     return <div className="p-6 text-slate-500">Projeto não encontrado.</div>;
@@ -163,6 +171,11 @@ export function ProjectEditor() {
                 <p className="text-sm text-slate-600 mb-2">
                   Importar consumo de {importModal.result.updates?.ucs.length ?? 0} UC(s)?
                 </p>
+                {(importModal.result.updates?.ucsToCreate.length ?? 0) > 0 && (
+                  <p className="text-sm text-teal-700 mb-1">
+                    + Criar {importModal.result.updates!.ucsToCreate.length} UC(s) novas automaticamente
+                  </p>
+                )}
                 {importModal.result.updates?.p50Profile && (
                   <p className="text-sm text-slate-600 mb-1">+ Atualizar perfil P50</p>
                 )}
@@ -268,6 +281,7 @@ export function ProjectEditor() {
               helexiaPlantCode={project.helexiaPlantCode}
               degradationPct={project.degradationPct ?? 0.5}
               lossPct={project.lossPct ?? 0}
+              performanceFactor={project.performanceFactor ?? 1.0}
               onProjectFieldChange={updates => updateProject(project.id, updates)}
             />
             <div>
@@ -299,6 +313,7 @@ export function ProjectEditor() {
               <h4 className="text-sm font-semibold text-slate-700 mb-2">Unidades Consumidoras ({project.ucs.length})</h4>
               <UCTable
                 ucs={project.ucs}
+                contractStartMonth={project.plant.contractStartMonth}
                 onAdd={uc => addUC(project.id, uc)}
                 onUpdate={(ucId, updates) => updateUC(project.id, ucId, updates)}
                 onRemove={ucId => removeUC(project.id, ucId)}

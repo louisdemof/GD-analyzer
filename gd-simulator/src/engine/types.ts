@@ -15,6 +15,11 @@ export interface Distributor {
     A_PT_TUSD_TE: number; // TUSD+TE Grupo A Ponta
     A_TE_FP: number;      // TE only FP (for FA calculation)
     A_TE_PT: number;      // TE only Ponta (for FA calculation)
+    // Horário Reservado (REN 1000 Art. 186). Reservado = posto Fora Ponta com desconto
+    // irrigante/aquicultor (Centro-Oeste: 80% Grupo A, 67% Grupo B). Same posto as FP for
+    // SCEE compensation; only tariff differs. Optional — set only for rural irrigante UCs.
+    A_RSV_TUSD_TE?: number; // TUSD+TE Grupo A no horário reservado
+    B_RSV_TUSD_TE?: number; // TUSD+TE Grupo B no horário reservado
   };
   taxes: {
     ICMS: number;         // e.g. 0.17
@@ -26,6 +31,8 @@ export interface Distributor {
   T_B3?: number;          // all-in Grupo B tariff — computed
   T_AFP?: number;         // all-in Grupo A FP — computed
   T_APT?: number;         // all-in Grupo A Ponta — computed
+  T_ARSV?: number;        // all-in Grupo A no horário reservado — present only if A_RSV_TUSD_TE set
+  T_BRSV?: number;        // all-in Grupo B no horário reservado — present only if B_RSV_TUSD_TE set
 }
 
 // A consumption unit (UC)
@@ -35,8 +42,12 @@ export interface ConsumptionUnit {
   tariffGroup: TariffGroup;
   isGrupoA: boolean;
   // Monthly consumption in kWh for the 24 contract months
-  consumptionFP: number[];   // length 24, fora-ponta
+  consumptionFP: number[];   // length 24, fora-ponta (regular hours, excl. reservado window)
   consumptionPT: number[];   // length 24, ponta (only for Grupo A)
+  // Horário reservado (21h30–06h, REN 1000 Art. 186). Same posto as FP for SCEE
+  // compensation, billed at a discounted tariff. Present only when the UC is
+  // enrolled as irrigante/aquicultor.
+  consumptionReservado?: number[];
   // Opening credit bank (kWh) at contract start
   openingBank: number;
   // Does this UC have its own generation? (e.g. NHS, AMD in the Copasul case)
@@ -85,6 +96,9 @@ export interface Project {
   // Growth & degradation for multi-year contracts
   growthRate?: number;              // annual consumption growth, e.g. 0.025 (2.5%)
   generationDegradation?: number;   // annual gen degradation, e.g. 0.005 (0.5%)
+  // Haircut on P50 to reflect real-world underperformance (typical 0.90–0.95).
+  // Applied to both the main plant P50 and any UC ownGeneration. Defaults to 1.0 (no haircut).
+  performanceFactor?: number;
   // Scenario toggles
   scenarios: {
     icmsExempt: boolean;         // true = isenção applies (base case)
@@ -154,6 +168,7 @@ export interface UCMonthlyDetail {
   creditsReceived: number;
   creditsFPApplied: number;
   creditsPTApplied: number;
+  creditsRSVApplied?: number;  // only populated when UC has consumptionReservado
   bankStart: number;
   bankDraw: number;
   bankEnd: number;

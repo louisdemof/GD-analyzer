@@ -7,6 +7,8 @@ import {
   aneelToDistributor,
   getCacheFetchedAt,
   clearCache,
+  getRuralIrriganteDiscount,
+  computeReservadoTariffs,
   ICMS_BY_STATE,
   DEFAULT_PIS,
   DEFAULT_COFINS,
@@ -255,6 +257,61 @@ export function DistributorForm({ distributor, onChange }: Props) {
             onChange={v => handleTariffChange('A_TE_PT', v)}
             showOverride={isTariffOverridden('A_TE_PT', d.tariffs.A_TE_PT)}
           />
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <div className="flex items-center gap-2 mb-3">
+            <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+              Horário reservado — rural irrigante/aquicultor
+            </h4>
+            <div className="relative group">
+              <span className="text-slate-400 cursor-help text-xs">?</span>
+              <div className="absolute bottom-full left-0 mb-2 w-80 p-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                REN 1000 Art. 186. Reservado = posto Fora Ponta com desconto. Centro-Oeste:
+                80% Grupo A → tarifa RSV = FP × 0,20. 67% Grupo B → tarifa RSV = B × 0,33.
+                Deixe zerado se a UC não for irrigante/aquicultor.
+              </div>
+            </div>
+            {(() => {
+              const disc = getRuralIrriganteDiscount(distributor.state);
+              if (!disc) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rsv = computeReservadoTariffs(
+                      distributor.tariffs.A_FP_TUSD_TE,
+                      distributor.tariffs.B_TUSD + distributor.tariffs.B_TE,
+                      distributor.state,
+                    );
+                    if (!rsv) return;
+                    const updated = {
+                      ...distributor,
+                      tariffs: { ...distributor.tariffs, ...rsv },
+                    };
+                    onChange(computeDerivedTariffs(updated));
+                  }}
+                  className="ml-auto text-xs text-teal-600 hover:text-teal-700 underline"
+                >
+                  Preencher com desconto {distributor.state} ({(disc.grupoA * 100).toFixed(0)}% A / {(disc.grupoB * 100).toFixed(0)}% B)
+                </button>
+              );
+            })()}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <CurrencyInput
+              label="Grupo A Reservado (TUSD+TE)"
+              prefix="R$/kWh"
+              value={d.tariffs.A_RSV_TUSD_TE ?? 0}
+              onChange={v => handleTariffChange('A_RSV_TUSD_TE', v)}
+            />
+            <CurrencyInput
+              label="Grupo B Reservado (TUSD+TE)"
+              prefix="R$/kWh"
+              value={d.tariffs.B_RSV_TUSD_TE ?? 0}
+              onChange={v => handleTariffChange('B_RSV_TUSD_TE', v)}
+            />
+          </div>
         </div>
       </div>
 

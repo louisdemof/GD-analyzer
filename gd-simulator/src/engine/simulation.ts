@@ -122,9 +122,10 @@ export function runSimulation(project: Project): SimulationResult {
   const contractMonths = project.plant.contractMonths || 24;
   const growthRate = project.growthRate ?? 0.025;
   const genDegradation = project.generationDegradation ?? 0.005;
+  const performanceFactor = project.performanceFactor ?? 1.0;
 
-  // Extend generation profile to contractMonths with degradation
-  const rawGen = getBaseGeneration(project);
+  // Extend generation profile to contractMonths with degradation + performance haircut
+  const rawGen = getBaseGeneration(project).map(v => v * performanceFactor);
   const generation = extendGeneration(rawGen, contractMonths, genDegradation);
 
   // Extend all UC consumption arrays to contractMonths with growth
@@ -134,8 +135,11 @@ export function runSimulation(project: Project): SimulationResult {
       ...uc,
       consumptionFP: extendConsumption(uc.consumptionFP, contractMonths, growthRate),
       consumptionPT: extendConsumption(uc.consumptionPT || [], contractMonths, growthRate),
+      consumptionReservado: uc.consumptionReservado
+        ? extendConsumption(uc.consumptionReservado, contractMonths, growthRate)
+        : undefined,
       ownGeneration: uc.ownGeneration
-        ? extendGeneration(uc.ownGeneration, contractMonths, genDegradation)
+        ? extendGeneration(uc.ownGeneration.map(v => v * performanceFactor), contractMonths, genDegradation)
         : undefined,
     })),
   };

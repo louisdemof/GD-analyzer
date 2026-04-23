@@ -1,11 +1,27 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { ConsumptionUnit, TariffGroup } from '../../engine/types';
 
 interface Props {
   ucs: ConsumptionUnit[];
+  contractStartMonth?: string; // "YYYY-MM", drives month labels on the chart
   onAdd: (uc: ConsumptionUnit) => void;
   onUpdate: (ucId: string, updates: Partial<ConsumptionUnit>) => void;
   onRemove: (ucId: string) => void;
+}
+
+const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function monthLabels(contractStart: string | undefined, count: number): string[] {
+  if (!contractStart) return Array.from({ length: count }, (_, i) => `M${String(i + 1).padStart(2, '0')}`);
+  const [yStr, mStr] = contractStart.split('-');
+  const y0 = parseInt(yStr, 10);
+  const m0 = parseInt(mStr, 10) - 1;
+  return Array.from({ length: count }, (_, i) => {
+    const m = (m0 + i) % 12;
+    const y = y0 + Math.floor((m0 + i) / 12);
+    return `${MONTH_ABBR[m]}/${String(y).slice(-2)}`;
+  });
 }
 
 const TARIFF_GROUPS: TariffGroup[] = [
@@ -41,7 +57,7 @@ function isGrupoA(tg: TariffGroup): boolean {
   return tg.startsWith('A');
 }
 
-export function UCTable({ ucs, onAdd, onUpdate, onRemove }: Props) {
+export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: Props) {
   const [newName, setNewName] = useState('');
   const [newGroup, setNewGroup] = useState<TariffGroup>('B3');
   const [newBank, setNewBank] = useState(0);
@@ -69,6 +85,28 @@ export function UCTable({ ucs, onAdd, onUpdate, onRemove }: Props) {
     });
   };
 
+  const anyHasRSV = ucs.some(uc => uc.consumptionReservado && uc.consumptionReservado.some(v => v > 0));
+  const anyGrupoA = ucs.some(uc => uc.isGrupoA);
+
+  // Aggregated stacked chart data — sum FP/PT/RSV across all UCs per month
+  const aggregatedChart = useMemo(() => {
+    if (ucs.length === 0) return [];
+    const labels = monthLabels(contractStartMonth, 24);
+    const data: { month: string; FP: number; PT: number; RSV: number; total: number }[] = [];
+    for (let m = 0; m < 24; m++) {
+      let fp = 0, pt = 0, rsv = 0;
+      for (const uc of ucs) {
+        fp += uc.consumptionFP[m] || 0;
+        pt += (uc.consumptionPT || [])[m] || 0;
+        rsv += (uc.consumptionReservado || [])[m] || 0;
+      }
+      data.push({ month: labels[m], FP: Math.round(fp), PT: Math.round(pt), RSV: Math.round(rsv), total: Math.round(fp + pt + rsv) });
+    }
+    return data;
+  }, [ucs, contractStartMonth]);
+
+  const hasAnyConsumption = aggregatedChart.some(d => d.total > 0);
+
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto">
@@ -79,12 +117,19 @@ export function UCTable({ ucs, onAdd, onUpdate, onRemove }: Props) {
               <th className="text-left py-2 px-3 text-slate-500 font-medium">Grupo Tarifário</th>
               <th className="text-right py-2 px-3 text-slate-500 font-medium">Banco Inicial (kWh)</th>
               <th className="text-right py-2 px-3 text-slate-500 font-medium">Consumo Médio FP</th>
+              {anyGrupoA && <th className="text-right py-2 px-3 text-slate-500 font-medium">Média Ponta</th>}
+              {anyHasRSV && <th className="text-right py-2 px-3 text-slate-500 font-medium">Média Reservado</th>}
               <th className="text-center py-2 px-3 text-slate-500 font-medium">Ações</th>
             </tr>
           </thead>
           <tbody>
             {ucs.map(uc => {
               const avgFP = uc.consumptionFP.reduce((a, b) => a + b, 0) / 24;
+              const avgPT = (uc.consumptionPT || []).reduce((a, b) => a + b, 0) / 24;
+              const avgRSV = uc.consumptionReservado
+                ? uc.consumptionReservado.reduce((a, b) => a + b, 0) / 24
+                : 0;
+              const hasRSV = !!uc.consumptionReservado && uc.consumptionReservado.some(v => v > 0);
               return (
                 <tr key={uc.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-2 px-3">
@@ -121,7 +166,30 @@ export function UCTable({ ucs, onAdd, onUpdate, onRemove }: Props) {
                   <td className="py-2 px-3 text-right font-mono text-slate-500">
                     {avgFP.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                   </td>
-                  <td className="py-2 px-3 text-center">
+                  {anyGrupoA && (
+                    <td className="py-2 px-3 text-right font-mono text-slate-500">
+                      {uc.isGrupoA ? avgPT.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—'}
+                    </td>
+                  )}
+                  {anyHasRSV && (
+                    <td className="py-2 px-3 text-right font-mono text-slate-500">
+                      {hasRSV ? avgRSV.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—'}
+                    </td>
+                  )}
+                  <td className="py-2 px-3 text-center space-x-2">
+                    <button
+                      onClick={() => {
+                        if (hasRSV) {
+                          onUpdate(uc.id, { consumptionReservado: undefined });
+                        } else {
+                          onUpdate(uc.id, { consumptionReservado: new Array(24).fill(0) });
+                        }
+                      }}
+                      className="text-xs text-slate-500 hover:text-teal-600"
+                      title={hasRSV ? 'Desativar horário reservado' : 'Ativar horário reservado (rural irrigante)'}
+                    >
+                      {hasRSV ? 'Sem reservado' : '+ Reservado'}
+                    </button>
                     <button
                       onClick={() => onRemove(uc.id)}
                       className="text-red-500 hover:text-red-700 text-xs"
@@ -135,6 +203,34 @@ export function UCTable({ ucs, onAdd, onUpdate, onRemove }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* Aggregated consumption chart — stacked FP / PT / RSV across all UCs */}
+      {hasAnyConsumption && (
+        <div className="p-4 bg-slate-50 rounded-lg">
+          <div className="flex items-baseline justify-between mb-3">
+            <h4 className="text-sm font-semibold text-slate-700">Consumo agregado (todas as UCs)</h4>
+            <span className="text-xs text-slate-400">
+              Total 24m: {aggregatedChart.reduce((a, d) => a + d.total, 0).toLocaleString('pt-BR')} kWh
+            </span>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={aggregatedChart} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} interval={1} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (v / 1000).toFixed(0) + 'k'} />
+              <Tooltip
+                formatter={(value) => [(Number(value) || 0).toLocaleString('pt-BR') + ' kWh', '']}
+                labelStyle={{ color: '#0f172a', fontWeight: 600 }}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="FP" stackId="a" fill="#2F927B" name="Fora Ponta" />
+              {anyGrupoA && <Bar dataKey="PT" stackId="a" fill="#004B70" name="Ponta" />}
+              {anyHasRSV && <Bar dataKey="RSV" stackId="a" fill="#f59e0b" name="Reservado" />}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Add new UC */}
       <div className="flex items-end gap-3 p-3 bg-slate-50 rounded-lg">

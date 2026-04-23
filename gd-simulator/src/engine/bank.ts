@@ -64,6 +64,10 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   const T_B3 = distributor.T_B3 ?? 0;
   const T_AFP = distributor.T_AFP ?? 0;
   const T_APT = distributor.T_APT ?? 0;
+  // Reservado tariffs — fall back to the regular posto tariff when distributor has no
+  // irrigante/aquicultor enrollment (then RSV consumption is billed as ordinary FP/B).
+  const T_ARSV = distributor.T_ARSV ?? T_AFP;
+  const T_BRSV = distributor.T_BRSV ?? T_B3;
 
   const monthlyDetails: UCMonthlyDetail[] = [];
   let bank = uc.openingBank;
@@ -85,6 +89,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
 
     let creditsFPApplied = 0;
     let creditsPTApplied = 0;
+    let creditsRSVApplied = 0;
     let bankDraw = 0;
     let costRede = 0;
     let icmsAdditional = 0;
@@ -92,51 +97,56 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     if (uc.isGrupoA) {
       const consFP = uc.consumptionFP[m] || 0;
       const consPT = uc.consumptionPT[m] || 0;
+      const consRSV = uc.consumptionReservado?.[m] ?? 0;
+      const hasRSV = consRSV > 0;
 
       // ═══ Excel V10 Simulacao formulas — Grupo A (NHS/AMD) ═══
       // Ref: rows 25-37 (NHS) and 43-55 (AMD) in Simulacao sheet
+      //
+      // Extended for horário reservado (REN 1000 Art. 186): RSV pertence ao posto
+      // Fora Ponta — FP credits compensate RSV 1:1, same as regular FP. Only the
+      // *billing* tariff differs. When consRSV=0, every formula below reduces
+      // exactly to the original 2-posto Copasul path.
 
-      // Row 25: Auto-compensação FP = MIN(ownGen, consFP)
+      // Row 25: Auto-compensação FP-regular = MIN(ownGen, consFP)
       const autoCompFP = Math.min(ownGen, consFP);
       creditsFPApplied = autoCompFP;
 
-      // Row 26: Auto-compensação PT = MIN((ownGen - autoCompFP) * FA, consPT)
-      // Surplus own gen after FP, converted to PT via FA
-      const ownGenSurplusFP = Math.max(0, ownGen - autoCompFP);
-      const autoCompPT = Math.min(ownGenSurplusFP * FA, consPT);
+      // Auto-compensação RSV (same posto as FP, no FA, 1:1)
+      const ownGenAfterFPreg = Math.max(0, ownGen - autoCompFP);
+      const autoCompRSV = Math.min(ownGenAfterFPreg, consRSV);
+      creditsRSVApplied = autoCompRSV;
+
+      // Row 26: Auto-compensação PT — surplus crosses posto via FA
+      const ownGenSurplusAfterFPposto = Math.max(0, ownGenAfterFPreg - autoCompRSV);
+      const autoCompPT = Math.min(ownGenSurplusAfterFPposto * FA, consPT);
       creditsPTApplied = autoCompPT;
 
-      // Row 30: Bank draw COM
-      // = MIN(bankStart,
-      //     MAX(consFP - ownGen - cs3 - bat, 0)
-      //   + MAX(consPT - autoCompPT, 0) / FA )
-      const fpShortfallAfterCredits = Math.max(0, consFP - ownGen - cs3Credits - batCredits);
+      // Row 30: Bank draw — FP-posto pool = consFP + consRSV (same posto 1:1)
+      const fpPostoShortfallAfterCredits = Math.max(0, (consFP + consRSV) - ownGen - cs3Credits - batCredits);
       const ptShortfallAfterOwnGen = Math.max(0, consPT - autoCompPT);
       const ptShortfallAsFPequiv = FA > 0 ? ptShortfallAfterOwnGen / FA : 0;
-      bankDraw = Math.min(bankStart, fpShortfallAfterCredits + ptShortfallAsFPequiv);
+      bankDraw = Math.min(bankStart, fpPostoShortfallAfterCredits + ptShortfallAsFPequiv);
 
-      // Row 31: Bank end COM
-      // = MAX(bankStart - bankDraw, 0)
-      //   + batCredits
-      //   + MAX(cs3 - MAX(consFP - ownGen, 0), 0)
-      //   + MAX(ownGen - consFP, 0)
-      const fpDeficit = Math.max(0, consFP - ownGen);
-      const cs3Surplus = Math.max(0, cs3Credits - fpDeficit);
-      const ownGenSurplus = Math.max(0, ownGen - consFP);
+      // Row 31: Bank end
+      const fpPostoDeficit = Math.max(0, (consFP + consRSV) - ownGen);
+      const cs3Surplus = Math.max(0, cs3Credits - fpPostoDeficit);
+      const ownGenSurplus = Math.max(0, ownGen - (consFP + consRSV));
       bank = Math.max(0, bankStart - bankDraw) + batCredits + cs3Surplus + ownGenSurplus;
 
-      // Row 36: Custo COM
-      // = IF(bankEnd > 0, 0,
-      //     MAX(consFP - ownGen - cs3 - bat - bankStart, 0) * T_AFP
-      //   + MAX(consPT - FA * MAX(ownGen + cs3 + bat + bankStart - consFP, 0), 0) * T_APT )
+      // Row 36: Custo — allocate credits FP-regular first, then RSV (same posto,
+      // maximizes customer savings within the FP-posto bucket), then surplus to PT via FA.
       if (bank > 0) {
         costRede = 0;
       } else {
-        const fpUncovered = Math.max(0, consFP - ownGen - cs3Credits - batCredits - bankStart);
-        const totalSurplusFP = Math.max(0, ownGen + cs3Credits + batCredits + bankStart - consFP);
-        const ptCoveredBySurplus = totalSurplusFP * FA;
+        const totalPool = ownGen + cs3Credits + batCredits + bankStart;
+        const fpUncovered = Math.max(0, consFP - totalPool);
+        const remAfterFP = Math.max(0, totalPool - consFP);
+        const rsvUncovered = Math.max(0, consRSV - remAfterFP);
+        const remAfterRSV = Math.max(0, remAfterFP - consRSV);
+        const ptCoveredBySurplus = remAfterRSV * FA;
         const ptUncovered = Math.max(0, consPT - ptCoveredBySurplus);
-        costRede = fpUncovered * T_AFP + ptUncovered * T_APT;
+        costRede = fpUncovered * T_AFP + rsvUncovered * T_ARSV + ptUncovered * T_APT;
       }
 
       // ICMS additional on compensated credits
@@ -144,34 +154,54 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
         const icmsFP = computeICMSPerKWh(T_AFP, distributor.taxes.ICMS);
         const icmsPT = computeICMSPerKWh(T_APT, distributor.taxes.ICMS);
         icmsAdditional = creditsFPApplied * icmsFP + creditsPTApplied * icmsPT;
+        if (hasRSV) {
+          const icmsRSV = computeICMSPerKWh(T_ARSV, distributor.taxes.ICMS);
+          icmsAdditional += creditsRSVApplied * icmsRSV;
+        }
       }
 
     } else {
-      // ── Grupo B: single-tariff logic ──
-      const consTotal = uc.consumptionFP[m] || 0;
+      // ── Grupo B: single-posto logic, optional reservado split for SEM billing ──
+      const consFPregular = uc.consumptionFP[m] || 0;
+      const consRSV = uc.consumptionReservado?.[m] ?? 0;
+      const hasRSV = consRSV > 0;
+      const consTotal = consFPregular + consRSV;
 
-      // Credits that offset consumption: own gen + CS3
-      // BAT credits go to bank
+      // Credits that offset consumption: own gen + CS3. BAT → bank.
       const consumptionCredits = ownGen + cs3Credits;
       const bankDeposit = batCredits;
-
       const totalAvail = consumptionCredits + bankStart + bankDeposit;
-      const creditsApplied = Math.min(totalAvail, consTotal);
-      creditsFPApplied = Math.min(consumptionCredits, consTotal);
 
-      const residual = consTotal - creditsApplied;
+      // Apply credits FP-regular first (higher tariff → more savings/credit), then RSV.
+      const creditsToFP = Math.min(totalAvail, consFPregular);
+      const remAfterFP = Math.max(0, totalAvail - consFPregular);
+      const creditsToRSV = Math.min(remAfterFP, consRSV);
+      const creditsApplied = creditsToFP + creditsToRSV;
 
-      // Plin discount only in SEM
-      const effectiveTariff = (isSEM && competitorDiscount > 0)
-        ? T_B3 * (1 - competitorDiscount)
-        : T_B3;
+      // creditsFPApplied / creditsRSVApplied report only the "new credits" share
+      // (own gen + cs3), not bank/bat draws. Matches the Copasul reporting convention.
+      creditsFPApplied = Math.min(consumptionCredits, consFPregular);
+      creditsRSVApplied = Math.max(0, Math.min(consumptionCredits - consFPregular, consRSV));
 
-      costRede = Math.max(0, residual) * effectiveTariff;
+      const residualFP = Math.max(0, consFPregular - creditsToFP);
+      const residualRSV = Math.max(0, consRSV - creditsToRSV);
 
-      // ICMS additional
+      // Plin discount only in SEM, applied on both tariffs proportionally
+      const discount = (isSEM && competitorDiscount > 0) ? competitorDiscount : 0;
+      const effectiveT_B = T_B3 * (1 - discount);
+      const effectiveT_BRSV = T_BRSV * (1 - discount);
+
+      costRede = residualFP * effectiveT_B + residualRSV * effectiveT_BRSV;
+
+      // ICMS additional (preserve existing semantics: on total credits applied)
       if (!icmsExempt && creditsApplied > 0) {
         const icmsB = computeICMSPerKWh(T_B3, distributor.taxes.ICMS);
-        icmsAdditional = creditsApplied * icmsB;
+        if (hasRSV) {
+          const icmsBRSV = computeICMSPerKWh(T_BRSV, distributor.taxes.ICMS);
+          icmsAdditional = creditsToFP * icmsB + creditsToRSV * icmsBRSV;
+        } else {
+          icmsAdditional = creditsApplied * icmsB;
+        }
       }
 
       bank = Math.max(0, totalAvail - consTotal);
@@ -180,12 +210,14 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     totalCostRede += costRede;
     totalIcmsAdditional += icmsAdditional;
 
+    const hasRSVReport = (uc.consumptionReservado?.[m] ?? 0) > 0;
     monthlyDetails.push({
       ucId: uc.id,
       monthIndex: m,
       creditsReceived: totalNewCredits,
       creditsFPApplied,
       creditsPTApplied,
+      ...(hasRSVReport ? { creditsRSVApplied } : {}),
       bankStart,
       bankDraw,
       bankEnd: bank,

@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { Project } from './types';
+import type { Project, ConsumptionUnit, TariffGroup } from './types';
 
 // ─── Types ────────────────────────────────────────────────────────
 export interface ImportResult {
@@ -7,7 +7,9 @@ export interface ImportResult {
   errors: string[];
   warnings: string[];
   updates: {
-    ucs: { id: string; consumptionFP?: number[]; consumptionPT?: number[]; openingBank?: number; ownGeneration?: number[] }[];
+    ucs: { id: string; consumptionFP?: number[]; consumptionPT?: number[]; consumptionReservado?: number[]; openingBank?: number; ownGeneration?: number[] }[];
+    /** UCs present in the xlsx that don't exist in the project yet — to be created on import confirm. */
+    ucsToCreate: ConsumptionUnit[];
     batBank?: { openingKWh?: number; toNHSPct?: number; toAMDPct?: number };
     growthRate?: number;
     p50Profile?: number[];
@@ -75,6 +77,8 @@ export function exportConsumptionExcel(project: Project): void {
 
   // ── Sheet 1: Consumo_Mensal ──
   {
+    const anyHasRSV = ucs.some(uc => uc.consumptionReservado && uc.consumptionReservado.some(v => v > 0));
+
     const headerRow1: (string | null)[] = [];
     // A-E: UC info
     headerRow1[0] = 'UC Info';
@@ -89,11 +93,22 @@ export function exportConsumptionExcel(project: Project): void {
     // After FP: consumptionPT header
     const ptStart = fpEnd + 1;
     headerRow1[ptStart] = `consumptionPT (${contractMonths}m) →`;
-    for (let i = ptStart + 1; i < ptStart + contractMonths; i++) headerRow1[i] = null;
+    const ptEnd = ptStart + contractMonths - 1;
+    for (let i = ptStart + 1; i <= ptEnd; i++) headerRow1[i] = null;
+    // Optional: consumptionReservado (horário reservado — irrigante/aquicultor)
+    const rsvStart = ptEnd + 1;
+    const rsvEnd = rsvStart + contractMonths - 1;
+    if (anyHasRSV) {
+      headerRow1[rsvStart] = `consumptionReservado (${contractMonths}m) →`;
+      for (let i = rsvStart + 1; i <= rsvEnd; i++) headerRow1[i] = null;
+    }
 
     const headerRow2: string[] = ['ucId', 'ucName', 'tariffGroup', 'isGrupoA', 'openingBank'];
     for (const label of monthLabels) headerRow2.push(label); // FP
     for (const label of monthLabels) headerRow2.push(label); // PT
+    if (anyHasRSV) {
+      for (const label of monthLabels) headerRow2.push(label); // RSV
+    }
 
     const rows: (string | number | boolean)[][] = [];
     for (const uc of ucs) {
@@ -108,6 +123,10 @@ export function exportConsumptionExcel(project: Project): void {
       ];
       for (let i = 0; i < contractMonths; i++) row.push(round1(extFP[i] ?? 0));
       for (let i = 0; i < contractMonths; i++) row.push(round1(extPT[i] ?? 0));
+      if (anyHasRSV) {
+        const extRSV = extendConsumption(uc.consumptionReservado ?? [], contractMonths, growthRate);
+        for (let i = 0; i < contractMonths; i++) row.push(round1(extRSV[i] ?? 0));
+      }
       rows.push(row);
     }
 
@@ -115,17 +134,22 @@ export function exportConsumptionExcel(project: Project): void {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     // Merge section headers
-    ws['!merges'] = [
+    const merges: XLSX.Range[] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
       { s: { r: 0, c: 5 }, e: { r: 0, c: fpEnd } },
-      { s: { r: 0, c: ptStart }, e: { r: 0, c: ptStart + contractMonths - 1 } },
+      { s: { r: 0, c: ptStart }, e: { r: 0, c: ptEnd } },
     ];
+    if (anyHasRSV) {
+      merges.push({ s: { r: 0, c: rsvStart }, e: { r: 0, c: rsvEnd } });
+    }
+    ws['!merges'] = merges;
 
     // Column widths
     const cols: XLSX.ColInfo[] = [
       { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 10 }, { wch: 14 },
     ];
-    for (let i = 0; i < contractMonths * 2; i++) cols.push({ wch: 10 });
+    const blockCount = anyHasRSV ? 3 : 2;
+    for (let i = 0; i < contractMonths * blockCount; i++) cols.push({ wch: 10 });
     ws['!cols'] = cols;
 
     XLSX.utils.book_append_sheet(wb, ws, 'Consumo_Mensal');
@@ -180,6 +204,7 @@ export function exportConsumptionExcel(project: Project): void {
       ['  Colunas A-E: informações da UC (id, nome, grupo tarifário, grupo A/B, banco de abertura)'],
       ['  Colunas F-AC: consumo fora-ponta (kWh) para 24 meses'],
       ['  Colunas AD-BA: consumo ponta (kWh) para 24 meses (apenas Grupo A)'],
+      ['  Colunas BB-BY (opcional): consumo no horário reservado (kWh) para 24 meses (rural irrigante)'],
       [''],
       ['Sheet "Geracao_Propria":'],
       ['  UCs com geração própria (ex: NHS, AMD) e seus 24 valores mensais em kWh'],
@@ -226,7 +251,7 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
     return { success: false, errors: ['Sheet "Consumo_Mensal" não encontrada.'], warnings: [], updates: null };
   }
 
-  const updates: NonNullable<ImportResult['updates']> = { ucs: [] };
+  const updates: NonNullable<ImportResult['updates']> = { ucs: [], ucsToCreate: [] };
 
   // ── Parse Consumo_Mensal ──
   {
@@ -253,11 +278,82 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
       if (!row || !row[0]) continue;
 
       const ucId = String(row[0]).trim();
-      // Match to project UC
-      const projectUC = project.ucs.find(uc => uc.id === ucId);
+      const ucName = row[1] != null ? String(row[1]).trim() : '';
+
+      // Some exporters emit duplicate/repeated header rows — silently skip them.
+      if (ucId.toLowerCase() === 'ucid') continue;
+
+      // Match to project UC: id first, then fall back to case-insensitive name match.
+      let projectUC = project.ucs.find(uc => uc.id === ucId);
+      let matchedBy: 'id' | 'name' | null = projectUC ? 'id' : null;
+      if (!projectUC && ucName) {
+        const normalized = ucName.toLowerCase();
+        const nameMatches = project.ucs.filter(uc => uc.name.trim().toLowerCase() === normalized);
+        if (nameMatches.length === 1) {
+          projectUC = nameMatches[0];
+          matchedBy = 'name';
+        } else if (nameMatches.length > 1) {
+          warnings.push(`UC "${ucId}" / "${ucName}" (linha ${headerRowIdx + 2 + ri}): nome ambíguo — ${nameMatches.length} UCs com mesmo nome no projeto, linha ignorada.`);
+          continue;
+        }
+      }
+
+      // Not found anywhere — if the xlsx has full UC info, queue it for auto-creation.
+      let targetUcId: string;
       if (!projectUC) {
-        warnings.push(`UC "${ucId}" (linha ${headerRowIdx + 2 + ri}) não encontrada no projeto — ignorada.`);
-        continue;
+        const tariffGroupRaw = row[2] != null ? String(row[2]).trim().toUpperCase() : '';
+        const isGrupoARaw = row[3];
+        const hasFullInfo = tariffGroupRaw.length > 0 && isGrupoARaw != null && isGrupoARaw !== '';
+
+        if (!hasFullInfo) {
+          warnings.push(`UC "${ucId}"${ucName ? ` / "${ucName}"` : ''} (linha ${headerRowIdx + 2 + ri}) não encontrada no projeto e sem tariffGroup/isGrupoA — ignorada.`);
+          continue;
+        }
+
+        // Normalize tariffGroup. The source xlsx may use "A3A" (generic) — map to A3A_VERDE as default
+        // for consistency with the optimiser's defaults; user can adjust in the UI.
+        const validGroups: TariffGroup[] = [
+          'B1', 'B2', 'B3',
+          'A4_VERDE', 'A4_AZUL', 'A3A', 'A3A_VERDE', 'A3A_AZUL',
+          'A3', 'A3_VERDE', 'A3_AZUL', 'A2', 'A2_VERDE', 'A2_AZUL',
+          'A1', 'A1_VERDE', 'A1_AZUL',
+        ];
+        let tariffGroup: TariffGroup;
+        if (validGroups.includes(tariffGroupRaw as TariffGroup)) {
+          tariffGroup = tariffGroupRaw as TariffGroup;
+        } else if (tariffGroupRaw.startsWith('A')) {
+          tariffGroup = 'A3A_VERDE';
+          warnings.push(`UC "${ucId}": tariffGroup "${tariffGroupRaw}" não reconhecido — usando A3A_VERDE. Ajuste no UI se necessário.`);
+        } else {
+          tariffGroup = 'B3';
+          warnings.push(`UC "${ucId}": tariffGroup "${tariffGroupRaw}" não reconhecido — usando B3. Ajuste no UI se necessário.`);
+        }
+
+        const isGrupoA = typeof isGrupoARaw === 'boolean'
+          ? isGrupoARaw
+          : String(isGrupoARaw).trim().toLowerCase() === 'true';
+
+        // Generate a stable id — prefer the xlsx ucId when it's not the literal "ucid"; else synthesize.
+        const generatedId = ucId || `uc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+        const newUC: ConsumptionUnit = {
+          id: generatedId,
+          name: ucName || generatedId,
+          tariffGroup,
+          isGrupoA,
+          consumptionFP: new Array(24).fill(0),
+          consumptionPT: new Array(24).fill(0),
+          openingBank: 0,
+        };
+        updates.ucsToCreate.push(newUC);
+        targetUcId = generatedId;
+        warnings.push(`UC "${ucId}" / "${ucName}" será criada automaticamente (${tariffGroup}${isGrupoA ? '' : ', Grupo B'}).`);
+      } else {
+        // Route the update to the matched UC's actual id so ProjectEditor applies correctly.
+        targetUcId = projectUC.id;
+        if (matchedBy === 'name') {
+          warnings.push(`UC "${ucId}" localizada por nome ("${ucName}") → ${targetUcId}.`);
+        }
       }
 
       // openingBank (col E = index 4)
@@ -309,11 +405,35 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
         }
       }
 
+      // consumptionReservado cols BB-BY (53-76) — optional, only for rural irrigante
+      let consumptionReservado: number[] | undefined;
+      if (row.length > 53) {
+        consumptionReservado = [];
+        let hasAnyRSV = false;
+        for (let c = 53; c <= 76; c++) {
+          const v = row[c];
+          if (v === undefined || v === null || v === '') {
+            consumptionReservado.push(0);
+          } else {
+            const num = Number(v);
+            if (isNaN(num)) {
+              warnings.push(`UC "${ucId}": consumptionReservado mês ${c - 53} não numérico — usando 0.`);
+              consumptionReservado.push(0);
+            } else {
+              consumptionReservado.push(num);
+              if (num > 0) hasAnyRSV = true;
+            }
+          }
+        }
+        if (!hasAnyRSV) consumptionReservado = undefined;
+      }
+
       if (!fpValid) continue;
 
-      const ucUpdate: (typeof updates.ucs)[number] = { id: ucId };
+      const ucUpdate: (typeof updates.ucs)[number] = { id: targetUcId };
       if (consumptionFP.length === 24) ucUpdate.consumptionFP = consumptionFP;
       if (consumptionPT.length === 24) ucUpdate.consumptionPT = consumptionPT;
+      if (consumptionReservado && consumptionReservado.length === 24) ucUpdate.consumptionReservado = consumptionReservado;
       if (openingBank !== undefined) ucUpdate.openingBank = openingBank;
       updates.ucs.push(ucUpdate);
     }
@@ -329,11 +449,22 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
     for (const row of dataRows) {
       if (!row || !row[0]) continue;
       const ucId = String(row[0]).trim();
-      const projectUC = project.ucs.find(uc => uc.id === ucId);
-      if (!projectUC) {
-        warnings.push(`Geracao_Propria: UC "${ucId}" não encontrada — ignorada.`);
+      const ucName = row[1] != null ? String(row[1]).trim() : '';
+      if (ucId.toLowerCase() === 'ucid') continue;
+
+      // Match against existing UCs + newly-created UCs from Consumo_Mensal pass.
+      const candidates = [...project.ucs, ...updates.ucsToCreate];
+      let matched = candidates.find(uc => uc.id === ucId);
+      if (!matched && ucName) {
+        const normalized = ucName.toLowerCase();
+        const nameMatches = candidates.filter(uc => uc.name.trim().toLowerCase() === normalized);
+        if (nameMatches.length === 1) matched = nameMatches[0];
+      }
+      if (!matched) {
+        warnings.push(`Geracao_Propria: UC "${ucId}"${ucName ? ` / "${ucName}"` : ''} não encontrada — ignorada.`);
         continue;
       }
+      const targetUcId = matched.id;
 
       const ownGen: number[] = [];
       for (let c = 2; c < 26; c++) {
@@ -347,9 +478,9 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
       }
 
       // Find or create the UC update entry
-      let ucUpdate = updates.ucs.find(u => u.id === ucId);
+      let ucUpdate = updates.ucs.find(u => u.id === targetUcId);
       if (!ucUpdate) {
-        ucUpdate = { id: ucId };
+        ucUpdate = { id: targetUcId };
         updates.ucs.push(ucUpdate);
       }
       ucUpdate.ownGeneration = ownGen;
@@ -376,7 +507,10 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
     if (kvMap.has('p50Profile')) {
       const raw = kvMap.get('p50Profile')!;
       const nums = raw.split(',').map(s => Number(s.trim()));
-      if (nums.length === 24 && nums.every(n => !isNaN(n))) {
+      const allZero = nums.length > 0 && nums.every(n => n === 0);
+      if (allZero) {
+        // Skip — avoid overwriting a real p50 profile with a placeholder row of zeros.
+      } else if (nums.length === 24 && nums.every(n => !isNaN(n))) {
         updates.p50Profile = nums;
       } else {
         warnings.push(`p50Profile: esperado 24 valores numéricos separados por vírgula (encontrado ${nums.length}).`);
@@ -398,7 +532,13 @@ export async function importConsumptionExcel(file: File, project: Project): Prom
     return { success: false, errors, warnings, updates: null };
   }
 
-  if (updates.ucs.length === 0 && !updates.batBank && updates.growthRate === undefined && !updates.p50Profile) {
+  if (
+    updates.ucs.length === 0
+    && updates.ucsToCreate.length === 0
+    && !updates.batBank
+    && updates.growthRate === undefined
+    && !updates.p50Profile
+  ) {
     return { success: false, errors: ['Nenhum dado para importar foi encontrado.'], warnings, updates: null };
   }
 

@@ -45,7 +45,20 @@ export function Results() {
 
   useEffect(() => {
     if (id) runForProject(id);
-  }, [id, project?.scenarios, project?.rateio, project?.ucs.length]);
+  }, [
+    id,
+    project?.scenarios,
+    project?.rateio,
+    project?.ucs.length,
+    project?.growthRate,
+    project?.generationDegradation,
+    project?.performanceFactor,
+    project?.plant.ppaRateRsBRLkWh,
+    project?.plant.p50Profile,
+    project?.plant.actualProfile,
+    project?.plant.contractMonths,
+    project?.distributor,
+  ]);
 
   const result = id ? getResult(id) : null;
 
@@ -370,6 +383,7 @@ export function Results() {
             isOptimising={isOptimising}
             growthRate={project.growthRate}
             generationDegradation={project.generationDegradation}
+            performanceFactor={project.performanceFactor}
             onProjectChange={updates => useProjectStore.getState().updateProject(project.id, updates)}
           />
         )}

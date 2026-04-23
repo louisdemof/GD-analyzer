@@ -33,7 +33,9 @@ function computeMarginalValues(
   const dist = computeDerivedTariffs(project.distributor);
   const T_AFP = dist.T_AFP ?? 0.5;
   const T_APT = dist.T_APT ?? 1;
+  const T_ARSV = dist.T_ARSV ?? T_AFP;  // RSV falls back to FP when no irrigante tariff
   const T_B3 = dist.T_B3 ?? 1;
+  const T_BRSV = dist.T_BRSV ?? T_B3;
   const discount = project.scenarios.competitorDiscount || 0;
   const T_B3_eff = discount > 0 ? T_B3 * (1 - discount) : T_B3;
 
@@ -54,11 +56,19 @@ function computeMarginalValues(
       for (let fm = fromMonth + 1; fm < contractMonths; fm++) {
         const fsd = semDetails?.[fm];
         if (fsd && fsd.costRede > 0) {
-          if (!uc.isGrupoA) return T_B3_eff;
           const fConsFP = uc.consumptionFP[fm] || 0;
+          const fConsRSV = (uc.consumptionReservado || [])[fm] || 0;
+          if (!uc.isGrupoA) {
+            const fTotalB = fConsFP + fConsRSV;
+            if (fTotalB <= 0) return T_B3_eff;
+            const blend = (fConsFP / fTotalB) * T_B3_eff + (fConsRSV / fTotalB) * T_BRSV;
+            return blend;
+          }
           const fConsPT = (uc.consumptionPT || [])[fm] || 0;
-          const fTotal = fConsFP + fConsPT;
-          return fTotal > 0 ? (fConsFP / fTotal) * T_AFP + (fConsPT / fTotal) * T_APT : T_AFP;
+          const fTotal = fConsFP + fConsPT + fConsRSV;
+          return fTotal > 0
+            ? (fConsFP / fTotal) * T_AFP + (fConsPT / fTotal) * T_APT + (fConsRSV / fTotal) * T_ARSV
+            : T_AFP;
         }
       }
       return project.plant.ppaRateRsBRLkWh; // no future cost month → PPA value
@@ -74,19 +84,25 @@ function computeMarginalValues(
 
       if (sd.costRede > 0) {
         // Direct saving: credit offsets rede cost at grid tariff
+        const consFP = uc.consumptionFP[m] || 0;
+        const consRSV = (uc.consumptionReservado || [])[m] || 0;
         if (!uc.isGrupoA) {
-          values.push(T_B3_eff);
+          const totalB = consFP + consRSV;
+          values.push(totalB > 0 ? (consFP / totalB) * T_B3_eff + (consRSV / totalB) * T_BRSV : T_B3_eff);
         } else {
-          const consFP = uc.consumptionFP[m] || 0;
           const consPT = (uc.consumptionPT || [])[m] || 0;
-          const total = consFP + consPT;
-          values.push(total > 0 ? (consFP / total) * T_AFP + (consPT / total) * T_APT : T_AFP);
+          const total = consFP + consPT + consRSV;
+          values.push(total > 0
+            ? (consFP / total) * T_AFP + (consPT / total) * T_APT + (consRSV / total) * T_ARSV
+            : T_AFP);
         }
       } else if (sd.bankDraw > 0) {
         // Bank conservation: credit prevents bank draw, preserving
         // bank for future months when grid tariff will be saved.
         // Value = future tariff × fraction of consumption covered by draw
-        const consumption = (uc.consumptionFP[m] || 0) + ((uc.consumptionPT || [])[m] || 0);
+        const consumption = (uc.consumptionFP[m] || 0)
+          + ((uc.consumptionPT || [])[m] || 0)
+          + ((uc.consumptionReservado || [])[m] || 0);
         const bankFraction = consumption > 0 ? Math.min(sd.bankDraw / consumption, 1) : 0;
         const futureTariff = futureMonthTariff(m);
         values.push(futureTariff * bankFraction * 0.85);
@@ -171,7 +187,9 @@ function greedyAllocation(
     let rSaved = 0;
     for (const m of months) {
       const perKWhValue = marginalValues[uc.id]?.[m] || 0;
-      const consumption = (uc.consumptionFP[m] || 0) + ((uc.consumptionPT || [])[m] || 0);
+      const consumption = (uc.consumptionFP[m] || 0)
+        + ((uc.consumptionPT || [])[m] || 0)
+        + ((uc.consumptionReservado || [])[m] || 0);
       rSaved += perKWhValue * consumption;
     }
     return rSaved;

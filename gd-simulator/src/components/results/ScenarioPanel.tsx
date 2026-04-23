@@ -8,10 +8,11 @@ interface Props {
   isOptimising: boolean;
   growthRate?: number;
   generationDegradation?: number;
+  performanceFactor?: number;
   onProjectChange?: (updates: Partial<Project>) => void;
 }
 
-export function ScenarioPanel({ scenarios, onChange, onOptimise, isOptimising, growthRate = 0.025, generationDegradation = 0.005, onProjectChange }: Props) {
+export function ScenarioPanel({ scenarios, onChange, onOptimise, isOptimising, growthRate = 0.025, generationDegradation = 0.005, performanceFactor = 1.0, onProjectChange }: Props) {
   return (
     <div className="space-y-4 p-4 bg-slate-50 rounded-xl">
       <h3 className="text-sm font-semibold text-slate-700">Cenarios</h3>
@@ -90,6 +91,29 @@ export function ScenarioPanel({ scenarios, onChange, onOptimise, isOptimising, g
               <span className="text-sm text-slate-500">% a.a.</span>
             </div>
             <p className="text-[10px] text-slate-400 mt-1">Padrao: 0,5%. Degradacao dos modulos fotovoltaicos.</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Fator de performance (P50 → real)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={50}
+                max={100}
+                step={1}
+                value={+(performanceFactor * 100).toFixed(0)}
+                onChange={e => {
+                  const pct = parseFloat(e.target.value);
+                  const val = isNaN(pct) ? 1.0 : Math.max(0.5, Math.min(1.0, pct / 100));
+                  onProjectChange?.({ performanceFactor: val });
+                }}
+                className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center"
+              />
+              <span className="text-sm text-slate-500">% do P50</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Padrao: 100%. Reduza (ex: 90%) para refletir underperformance real.</p>
           </div>
         </div>
       </div>
