@@ -8,10 +8,11 @@ import { UCTable } from '../components/inputs/UCTable';
 import { ConsumptionUpload } from '../components/inputs/ConsumptionUpload';
 import { GenerationUpload } from '../components/inputs/GenerationUpload';
 import { ClientDataUpload, type ImportedData } from '../components/inputs/ClientDataUpload';
+import { DemandaAnalysisPanel } from '../components/inputs/DemandaAnalysisPanel';
 import { createDefaultRateio } from '../engine/optimiser';
 import { exportConsumptionExcel, importConsumptionExcel, type ImportResult } from '../engine/consumptionExcel';
 
-type Tab = 'distributor' | 'plant' | 'ucs';
+type Tab = 'distributor' | 'plant' | 'ucs' | 'demanda';
 
 export function ProjectEditor() {
   const { id } = useParams<{ id: string }>();
@@ -131,6 +132,7 @@ export function ProjectEditor() {
     { key: 'distributor', label: 'Distribuidora & Tarifas' },
     { key: 'plant', label: 'Planta Solar' },
     { key: 'ucs', label: 'Unidades Consumidoras' },
+    { key: 'demanda', label: 'Demanda' },
   ];
 
   return (
@@ -337,6 +339,14 @@ export function ProjectEditor() {
               </div>
             )}
           </div>
+        )}
+
+        {tab === 'demanda' && (
+          <DemandaAnalysisPanel
+            ucs={project.ucs}
+            distributor={project.distributor}
+            onUpdate={(ucId, updates) => updateUC(project.id, ucId, updates)}
+          />
         )}
       </div>
     </div>

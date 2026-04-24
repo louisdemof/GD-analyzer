@@ -58,6 +58,12 @@ export interface ConsumptionUnit {
   // Set only for Grupo A UCs; ignored for Grupo B. ANEEL bills on
   // max(medida, 0,85 × contratada) — usuário deve inserir o valor médio faturado.
   demandaFaturadaFP?: number;
+  // Demanda contratada (kW) — compromisso contratual com a distribuidora.
+  // Usado pelo otimizador de demanda para calcular o cenário atual e sugerir DC ótima.
+  demandaContratadaFP?: number;
+  // Histórico da demanda medida (kW), até 13 meses — preenchido manualmente da fatura.
+  // Usado exclusivamente pela aba "Demanda" (otimização de DC); não afeta simulação.
+  demandaMedidaMensal?: number[];
   // Opening credit bank (kWh) at contract start
   openingBank: number;
   // Does this UC have its own generation? (e.g. NHS, AMD in the Copasul case)
