@@ -53,9 +53,11 @@ export interface ConsumptionUnit {
   // compensation, billed at a discounted tariff. Present only when the UC is
   // enrolled as irrigante/aquicultor.
   consumptionReservado?: number[];
-  // Demanda contratada Grupo A Verde (kW). Billed monthly at A_FP_DEMANDA,
-  // unchanged by GD. Set only for Grupo A UCs; ignored for Grupo B.
-  demandaContratadaFP?: number;
+  // Demanda faturada Grupo A Verde (kW) — valor médio da demanda cobrada na fatura.
+  // Billed monthly at A_FP_DEMANDA, unchanged by GD (SCEE não compensa demanda).
+  // Set only for Grupo A UCs; ignored for Grupo B. ANEEL bills on
+  // max(medida, 0,85 × contratada) — usuário deve inserir o valor médio faturado.
+  demandaFaturadaFP?: number;
   // Opening credit bank (kWh) at contract start
   openingBank: number;
   // Does this UC have its own generation? (e.g. NHS, AMD in the Copasul case)

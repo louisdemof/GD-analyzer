@@ -119,7 +119,7 @@ export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: 
               <th className="text-right py-2 px-3 text-slate-500 font-medium">Consumo Médio FP</th>
               {anyGrupoA && <th className="text-right py-2 px-3 text-slate-500 font-medium">Média Ponta</th>}
               {anyHasRSV && <th className="text-right py-2 px-3 text-slate-500 font-medium">Média Reservado</th>}
-              {anyGrupoA && <th className="text-right py-2 px-3 text-slate-500 font-medium">Demanda FP (kW)</th>}
+              {anyGrupoA && <th className="text-right py-2 px-3 text-slate-500 font-medium">Demanda Faturada FP (kW)</th>}
               <th className="text-center py-2 px-3 text-slate-500 font-medium">Ações</th>
             </tr>
           </thead>
@@ -184,8 +184,8 @@ export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: 
                           type="number"
                           min={0}
                           step={1}
-                          value={uc.demandaContratadaFP ?? 0}
-                          onChange={e => onUpdate(uc.id, { demandaContratadaFP: parseFloat(e.target.value) || 0 })}
+                          value={uc.demandaFaturadaFP ?? 0}
+                          onChange={e => onUpdate(uc.id, { demandaFaturadaFP: parseFloat(e.target.value) || 0 })}
                           className="w-20 px-2 py-1 border border-transparent hover:border-slate-300 focus:border-teal-500 rounded text-sm font-mono text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
                         />
                       ) : <span className="text-slate-400">—</span>}

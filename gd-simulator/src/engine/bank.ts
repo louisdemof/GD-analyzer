@@ -72,8 +72,8 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   // with a demanda contratada. Charged equally in SEM and COM (GD doesn't compensate
   // demanda), so cancels in economia but surfaces in the absolute SEM/COM totals.
   const T_A_DEMANDA = distributor.T_A_DEMANDA ?? 0;
-  const demandaContratadaKW = uc.isGrupoA ? (uc.demandaContratadaFP ?? 0) : 0;
-  const demandaMensal = demandaContratadaKW * T_A_DEMANDA;
+  const demandaFaturadaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
+  const demandaMensal = demandaFaturadaKW * T_A_DEMANDA;
 
   const monthlyDetails: UCMonthlyDetail[] = [];
   let bank = uc.openingBank;
