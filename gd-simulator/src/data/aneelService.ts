@@ -103,6 +103,7 @@ interface ANEELRecord {
   DscSubGrupo: string;
   DscModalidadeTarifaria: string;
   DscDetalhe: string;
+  DscUnidadeTerciaria: string;
   NomPostoTarifario: string;
   VlrTUSD: string;
   VlrTE: string;
@@ -120,6 +121,8 @@ export interface ANEELDistributor {
   A_PT_TUSD_TE: number;
   A_TE_FP: number;
   A_TE_PT: number;
+  // Demanda Grupo A Verde Fora Ponta — R$/kW/mês sem tributos (only TUSD is charged; TE not applicable for demanda)
+  A_FP_DEMANDA?: number;
 }
 
 interface CacheEntry {
@@ -132,10 +135,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const RESOURCE_ID = 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
 
-// SQL query: get B3 Convencional + A4 Verde (FP & Ponta) tariffs,
-// "Tarifa de Aplicação" in MWh, only "Não se aplica" detail (excludes SCEE/APE),
+// SQL query: get B3 Convencional + A4 Verde tariffs (energy MWh + demanda kW),
+// "Tarifa de Aplicação", only "Não se aplica" detail (excludes SCEE/APE),
 // from 2024 onwards, sorted by agent + latest date first
-const SQL = `SELECT "SigAgente", "DscREH", "DscSubGrupo", "DscModalidadeTarifaria", "NomPostoTarifario", "VlrTUSD", "VlrTE", "DatInicioVigencia" FROM "${RESOURCE_ID}" WHERE "DscBaseTarifaria"='Tarifa de Aplicação' AND "DscUnidadeTerciaria"='MWh' AND "DscDetalhe"='Não se aplica' AND (("DscSubGrupo"='B3' AND "DscModalidadeTarifaria"='Convencional') OR ("DscSubGrupo"='A4' AND "DscModalidadeTarifaria"='Verde')) AND "DatInicioVigencia" >= '2024-01-01' ORDER BY "SigAgente", "DatInicioVigencia" DESC`;
+const SQL = `SELECT "SigAgente", "DscREH", "DscSubGrupo", "DscModalidadeTarifaria", "DscUnidadeTerciaria", "NomPostoTarifario", "VlrTUSD", "VlrTE", "DatInicioVigencia" FROM "${RESOURCE_ID}" WHERE "DscBaseTarifaria"='Tarifa de Aplicação' AND "DscDetalhe"='Não se aplica' AND (("DscUnidadeTerciaria"='MWh' AND (("DscSubGrupo"='B3' AND "DscModalidadeTarifaria"='Convencional') OR ("DscSubGrupo"='A4' AND "DscModalidadeTarifaria"='Verde'))) OR ("DscUnidadeTerciaria"='kW' AND "DscSubGrupo"='A4' AND "DscModalidadeTarifaria"='Verde')) AND "DatInicioVigencia" >= '2024-01-01' ORDER BY "SigAgente", "DatInicioVigencia" DESC`;
 
 // --- Cache ---
 function getCache(): CacheEntry | null {
@@ -165,10 +168,15 @@ export function clearCache(): void {
 }
 
 // --- Fetch ---
-function parseNumber(val: string): number {
+function parseNumberMWh(val: string): number {
   // ANEEL returns "592,08" format (R$/MWh, comma decimal)
   const n = parseFloat(val.replace('.', '').replace(',', '.'));
   return isNaN(n) ? 0 : n / 1000; // Convert R$/MWh → R$/kWh
+}
+function parseNumberKW(val: string): number {
+  // Demanda tariff comes in R$/kW already — no scaling
+  const n = parseFloat(val.replace('.', '').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
 }
 
 async function fetchSQL(baseUrl: string): Promise<ANEELRecord[]> {
@@ -188,6 +196,7 @@ function parseRecords(records: ANEELRecord[]): ANEELDistributor[] {
     B_TUSD: number; B_TE: number;
     A_FP_TUSD: number; A_FP_TE: number;
     A_PT_TUSD: number; A_PT_TE: number;
+    A_FP_DEMANDA: number;
     seen: Set<string>;
   }>();
 
@@ -199,18 +208,30 @@ function parseRecords(records: ANEELRecord[]): ANEELDistributor[] {
         B_TUSD: 0, B_TE: 0,
         A_FP_TUSD: 0, A_FP_TE: 0,
         A_PT_TUSD: 0, A_PT_TE: 0,
+        A_FP_DEMANDA: 0,
         seen: new Set(),
       });
     }
     const a = agents.get(sig)!;
 
-    // Dedup key: subgroup + posto — take only first (latest date) per combo
-    const key = `${r.DscSubGrupo}|${r.NomPostoTarifario}`;
+    const isDemanda = r.DscUnidadeTerciaria === 'kW';
+    // Dedup key: subgroup + posto + unit — take only first (latest date) per combo
+    const key = `${r.DscSubGrupo}|${r.NomPostoTarifario}|${r.DscUnidadeTerciaria}`;
     if (a.seen.has(key)) continue;
     a.seen.add(key);
 
-    const tusd = parseNumber(r.VlrTUSD);
-    const te = parseNumber(r.VlrTE);
+    if (isDemanda) {
+      // Demanda: only interested in A4 Verde Fora Ponta. Verde has a single FP demanda.
+      const posto = r.NomPostoTarifario.toLowerCase();
+      if (r.DscSubGrupo === 'A4' && (posto.includes('fora') || posto === 'não se aplica')) {
+        // TUSD holds the demanda value for Verde (TE typically zero for demanda)
+        a.A_FP_DEMANDA = parseNumberKW(r.VlrTUSD) + parseNumberKW(r.VlrTE);
+      }
+      continue;
+    }
+
+    const tusd = parseNumberMWh(r.VlrTUSD);
+    const te = parseNumberMWh(r.VlrTE);
 
     if (r.DscSubGrupo === 'B3') {
       a.B_TUSD = tusd;
@@ -241,6 +262,7 @@ function parseRecords(records: ANEELRecord[]): ANEELDistributor[] {
       A_PT_TUSD_TE: a.A_PT_TUSD + a.A_PT_TE,
       A_TE_FP: a.A_FP_TE,
       A_TE_PT: a.A_PT_TE,
+      A_FP_DEMANDA: a.A_FP_DEMANDA > 0 ? a.A_FP_DEMANDA : undefined,
     });
   }
 
@@ -343,6 +365,7 @@ export function aneelToDistributor(aneel: ANEELDistributor): Distributor {
       A_PT_TUSD_TE: aneel.A_PT_TUSD_TE,
       A_TE_FP: aneel.A_TE_FP,
       A_TE_PT: aneel.A_TE_PT,
+      ...(aneel.A_FP_DEMANDA !== undefined ? { A_FP_DEMANDA: aneel.A_FP_DEMANDA } : {}),
     },
     taxes: { ICMS: icms, PIS: DEFAULT_PIS, COFINS: DEFAULT_COFINS },
   });

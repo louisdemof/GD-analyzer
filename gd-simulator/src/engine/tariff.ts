@@ -46,6 +46,9 @@ export function computeDerivedTariffs(dist: Distributor): Distributor {
   const T_BRSV = dist.tariffs.B_RSV_TUSD_TE
     ? computeAllInTariff(dist.tariffs.B_RSV_TUSD_TE, dist.taxes)
     : undefined;
+  const T_A_DEMANDA = dist.tariffs.A_FP_DEMANDA
+    ? computeAllInTariff(dist.tariffs.A_FP_DEMANDA, dist.taxes)
+    : undefined;
 
   return {
     ...dist,
@@ -55,5 +58,6 @@ export function computeDerivedTariffs(dist: Distributor): Distributor {
     T_APT,
     T_ARSV,
     T_BRSV,
+    T_A_DEMANDA,
   };
 }

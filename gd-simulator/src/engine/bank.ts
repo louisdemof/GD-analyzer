@@ -68,6 +68,12 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   // irrigante/aquicultor enrollment (then RSV consumption is billed as ordinary FP/B).
   const T_ARSV = distributor.T_ARSV ?? T_AFP;
   const T_BRSV = distributor.T_BRSV ?? T_B3;
+  // Demanda FP (R$/kW/mês) — applies every month of the contract to Grupo A UCs
+  // with a demanda contratada. Charged equally in SEM and COM (GD doesn't compensate
+  // demanda), so cancels in economia but surfaces in the absolute SEM/COM totals.
+  const T_A_DEMANDA = distributor.T_A_DEMANDA ?? 0;
+  const demandaContratadaKW = uc.isGrupoA ? (uc.demandaContratadaFP ?? 0) : 0;
+  const demandaMensal = demandaContratadaKW * T_A_DEMANDA;
 
   const monthlyDetails: UCMonthlyDetail[] = [];
   let bank = uc.openingBank;
@@ -206,6 +212,9 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
 
       bank = Math.max(0, totalAvail - consTotal);
     }
+
+    // Demanda contratada — charged every month regardless of SEM/COM (not compensated by SCEE).
+    costRede += demandaMensal;
 
     totalCostRede += costRede;
     totalIcmsAdditional += icmsAdditional;

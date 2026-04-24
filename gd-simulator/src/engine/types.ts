@@ -20,6 +20,10 @@ export interface Distributor {
     // SCEE compensation; only tariff differs. Optional — set only for rural irrigante UCs.
     A_RSV_TUSD_TE?: number; // TUSD+TE Grupo A no horário reservado
     B_RSV_TUSD_TE?: number; // TUSD+TE Grupo B no horário reservado
+    // Demanda Grupo A Verde — charged monthly on demanda contratada (R$/kW). Not
+    // compensated by SCEE: same value in SEM and COM scenarios (cancels in economia,
+    // but makes the absolute SEM/COM numbers match the fatura).
+    A_FP_DEMANDA?: number;  // tarifa demanda FP (R$/kW/mês, sem tributos)
   };
   taxes: {
     ICMS: number;         // e.g. 0.17
@@ -33,6 +37,7 @@ export interface Distributor {
   T_APT?: number;         // all-in Grupo A Ponta — computed
   T_ARSV?: number;        // all-in Grupo A no horário reservado — present only if A_RSV_TUSD_TE set
   T_BRSV?: number;        // all-in Grupo B no horário reservado — present only if B_RSV_TUSD_TE set
+  T_A_DEMANDA?: number;   // all-in Grupo A demanda (R$/kW/mês) — present only if A_FP_DEMANDA set
 }
 
 // A consumption unit (UC)
@@ -48,6 +53,9 @@ export interface ConsumptionUnit {
   // compensation, billed at a discounted tariff. Present only when the UC is
   // enrolled as irrigante/aquicultor.
   consumptionReservado?: number[];
+  // Demanda contratada Grupo A Verde (kW). Billed monthly at A_FP_DEMANDA,
+  // unchanged by GD. Set only for Grupo A UCs; ignored for Grupo B.
+  demandaContratadaFP?: number;
   // Opening credit bank (kWh) at contract start
   openingBank: number;
   // Does this UC have its own generation? (e.g. NHS, AMD in the Copasul case)

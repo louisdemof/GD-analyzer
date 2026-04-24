@@ -257,6 +257,12 @@ export function DistributorForm({ distributor, onChange }: Props) {
             onChange={v => handleTariffChange('A_TE_PT', v)}
             showOverride={isTariffOverridden('A_TE_PT', d.tariffs.A_TE_PT)}
           />
+          <CurrencyInput
+            label="Demanda Grupo A Verde"
+            prefix="R$/kW/mês"
+            value={d.tariffs.A_FP_DEMANDA ?? 0}
+            onChange={v => handleTariffChange('A_FP_DEMANDA', v)}
+          />
         </div>
 
         <div className="mt-4 pt-4 border-t border-slate-100">

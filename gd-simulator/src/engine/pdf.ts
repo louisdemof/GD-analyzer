@@ -354,6 +354,7 @@ function PremissasPage({ project }: { project: Project }) {
     ['Tarifa B3 (TUSD+TE)', `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`],
     ['Tarifa A FP (TUSD+TE)', `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`],
     ['Tarifa A PT (TUSD+TE)', `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`],
+    ...(dist.tariffs.A_FP_DEMANDA ? [['Demanda A FP', `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`]] : []),
     ['ICMS', `${(dist.taxes.ICMS * 100).toFixed(0)}%`],
     ['PIS/COFINS', `${(dist.taxes.PIS * 100).toFixed(2)}% / ${(dist.taxes.COFINS * 100).toFixed(2)}%`],
     ['', ''],
