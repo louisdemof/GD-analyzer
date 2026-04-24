@@ -4,6 +4,7 @@ import type { Project, ConsumptionUnit, Distributor, Plant, RateioAllocation } f
 import { createDefaultRateio } from '../engine/optimiser';
 import { DISTRIBUTORS } from '../data/distributors';
 import sampleData from '../../reference/SAMPLE_DATA.json';
+import beloData from '../../reference/BELO_ALIMENTOS_DEMO.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
@@ -42,6 +43,7 @@ interface ProjectStore {
 
   // Demo data
   loadDemoProject: () => void;
+  loadBeloAlimentosDemo: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -253,6 +255,35 @@ export const useProjectStore = create<ProjectStore>()(
             currentProjectId: project.id,
           };
         });
+      },
+
+      loadBeloAlimentosDemo: () => {
+        const demo = beloData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'belo-alimentos-demo',
+          clientName: demo.clientName,
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'belo-alimentos-demo');
+          return {
+            projects: [...withoutDemo, project],
+            currentProjectId: project.id,
+          };
+        });
+        saveProjectToDB(project).catch(() => {});
       },
 
       exportProject: (id) => {

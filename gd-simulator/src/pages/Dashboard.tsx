@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
   const navigate = useNavigate();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -72,7 +72,13 @@ export function Dashboard() {
             onClick={() => { loadDemoProject(); navigate('/project/copasul-cs3-demo'); }}
             className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
           >
-            Carregar Demo
+            Demo Copasul
+          </button>
+          <button
+            onClick={() => { loadBeloAlimentosDemo(); navigate('/project/belo-alimentos-demo'); }}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Demo Belo Alimentos
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
