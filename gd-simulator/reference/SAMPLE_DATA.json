@@ -13,7 +13,8 @@
         "A_FP_TUSD_TE": 0.399588,
         "A_PT_TUSD_TE": 2.255909,
         "A_TE_FP": 0.26963,
-        "A_TE_PT": 0.44621
+        "A_TE_PT": 0.44621,
+        "A_FP_DEMANDA": 34.69
       },
       "taxes": {
         "ICMS": 0.17,
