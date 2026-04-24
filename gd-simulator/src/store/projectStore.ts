@@ -82,6 +82,25 @@ export const useProjectStore = create<ProjectStore>()(
             if (!merged.find(m => m.id === p.id)) merged.push(p);
           }
           set({ projects: merged, folders: dbFolders, isLoaded: true });
+
+          // Defensive re-seed: if a demo project exists but has stale/empty UCs
+          // (e.g. persisted from an earlier app version), re-seed from the shipped
+          // JSON so the demo always reflects the latest seed data.
+          const isStale = (projectId: string): boolean => {
+            const p = merged.find(x => x.id === projectId);
+            if (!p) return false;
+            if (!p.ucs || p.ucs.length === 0) return true;
+            return p.ucs.every(uc => {
+              const fp = uc.consumptionFP || [];
+              return fp.length === 0 || fp.every(v => (v || 0) === 0);
+            });
+          };
+          if (isStale('belo-alimentos-demo')) {
+            get().loadBeloAlimentosDemo();
+          }
+          if (isStale('copasul-cs3-demo')) {
+            get().loadDemoProject();
+          }
         } catch {
           set({ isLoaded: true });
         }
