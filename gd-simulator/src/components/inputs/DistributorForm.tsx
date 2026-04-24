@@ -58,10 +58,30 @@ export function DistributorForm({ distributor, onChange }: Props) {
     setIsLoading(false);
   }, []);
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     clearCache();
-    loadANEEL(true);
-  }, [loadANEEL]);
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      const result = await fetchANEELTariffs(true);
+      if (result.distributors.length > 0) {
+        setAneelDistributors(result.distributors);
+        setLastFetched(result.fetchedAt);
+        if (result.error) setApiError(result.error);
+        // Re-apply fresh tariffs to currently-selected distributor, if any match
+        const current = result.distributors.find(d => d.sigAgente === distributor.id);
+        if (current) {
+          setAneelSource(current);
+          onChange(aneelToDistributor(current));
+        }
+      } else {
+        setApiError(result.error || 'Nenhum dado retornado da ANEEL');
+      }
+    } catch {
+      setApiError('Erro ao buscar tarifas ANEEL');
+    }
+    setIsLoading(false);
+  }, [distributor.id, onChange]);
 
   // Filtered distributor list for search
   const filteredDistributors = useMemo(() => {
