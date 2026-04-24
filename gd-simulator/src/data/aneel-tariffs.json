@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-03-23T17:30:19.736Z",
+  "fetchedAt": "2026-04-24T23:16:24.855Z",
   "distributors": [
     {
       "sigAgente": "AME",
@@ -10,7 +10,8 @@
       "A_FP_TUSD_TE": 0.49592,
       "A_PT_TUSD_TE": 1.73009,
       "A_TE_FP": 0.32926,
-      "A_TE_PT": 0.53038
+      "A_TE_PT": 0.53038,
+      "A_FP_DEMANDA": 22.96
     },
     {
       "sigAgente": "BOA VISTA",
@@ -21,18 +22,20 @@
       "A_FP_TUSD_TE": 0.48192,
       "A_PT_TUSD_TE": 2.13249,
       "A_TE_FP": 0.32733,
-      "A_TE_PT": 0.52553
+      "A_TE_PT": 0.52553,
+      "A_FP_DEMANDA": 22.16
     },
     {
       "sigAgente": "CEA",
       "state": "AP",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.430, DE 10 DE DEZEMBRO DE 2024",
-      "B_TUSD": 0.59996,
-      "B_TE": 0.20836,
-      "A_FP_TUSD_TE": 0.38744,
-      "A_PT_TUSD_TE": 2.64311,
-      "A_TE_FP": 0.19381,
-      "A_TE_PT": 0.35981
+      "resolution": "",
+      "B_TUSD": 0.7841,
+      "B_TE": 0.04105,
+      "A_FP_TUSD_TE": 0.34309,
+      "A_PT_TUSD_TE": 3.26293,
+      "A_TE_FP": 0.07571,
+      "A_TE_PT": 0.26573,
+      "A_FP_DEMANDA": 48.73
     },
     {
       "sigAgente": "CEEE-D",
@@ -43,7 +46,8 @@
       "A_FP_TUSD_TE": 0.47357,
       "A_PT_TUSD_TE": 2.17376,
       "A_TE_FP": 0.32265,
-      "A_TE_PT": 0.50961
+      "A_TE_PT": 0.50961,
+      "A_FP_DEMANDA": 31.36
     },
     {
       "sigAgente": "CELESC",
@@ -54,7 +58,8 @@
       "A_FP_TUSD_TE": 0.44558,
       "A_PT_TUSD_TE": 1.55304,
       "A_TE_FP": 0.30123,
-      "A_TE_PT": 0.48363
+      "A_TE_PT": 0.48363,
+      "A_FP_DEMANDA": 18.09
     },
     {
       "sigAgente": "CEMIG-D",
@@ -65,7 +70,8 @@
       "A_FP_TUSD_TE": 0.45,
       "A_PT_TUSD_TE": 2.28496,
       "A_TE_FP": 0.29677,
-      "A_TE_PT": 0.47591
+      "A_TE_PT": 0.47591,
+      "A_FP_DEMANDA": 22.81
     },
     {
       "sigAgente": "COELBA",
@@ -76,7 +82,8 @@
       "A_FP_TUSD_TE": 0.3639,
       "A_PT_TUSD_TE": 3.1038,
       "A_TE_FP": 0.26248,
-      "A_TE_PT": 0.42776
+      "A_TE_PT": 0.42776,
+      "A_FP_DEMANDA": 38.61
     },
     {
       "sigAgente": "COPEL-DIS",
@@ -87,18 +94,20 @@
       "A_FP_TUSD_TE": 0.37842,
       "A_PT_TUSD_TE": 1.62525,
       "A_TE_FP": 0.25751,
-      "A_TE_PT": 0.41369
+      "A_TE_PT": 0.41369,
+      "A_FP_DEMANDA": 20.78
     },
     {
       "sigAgente": "COSERN",
       "state": "RN",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.442, DE 15 DE ABRIL DE 2025",
-      "B_TUSD": 0.4326,
-      "B_TE": 0.31164,
-      "A_FP_TUSD_TE": 0.38632,
-      "A_PT_TUSD_TE": 2.35359,
-      "A_TE_FP": 0.29476,
-      "A_TE_PT": 0.48578
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.573, DE 22 DE ABRIL DE 2026",
+      "B_TUSD": 0.48236,
+      "B_TE": 0.29344,
+      "A_FP_TUSD_TE": 0.39976,
+      "A_PT_TUSD_TE": 2.49522,
+      "A_TE_FP": 0.28257,
+      "A_TE_PT": 0.48553,
+      "A_FP_DEMANDA": 32
     },
     {
       "sigAgente": "CPFL Santa Cruz",
@@ -109,7 +118,8 @@
       "A_FP_TUSD_TE": 0.35805,
       "A_PT_TUSD_TE": 1.88547,
       "A_TE_FP": 0.23231,
-      "A_TE_PT": 0.38313
+      "A_TE_PT": 0.38313,
+      "A_FP_DEMANDA": 25.9
     },
     {
       "sigAgente": "CPFL-PAULISTA",
@@ -120,7 +130,8 @@
       "A_FP_TUSD_TE": 0.38566,
       "A_PT_TUSD_TE": 1.73913,
       "A_TE_FP": 0.27119,
-      "A_TE_PT": 0.44454
+      "A_TE_PT": 0.44454,
+      "A_FP_DEMANDA": 15.93
     },
     {
       "sigAgente": "CPFL-PIRATINING",
@@ -131,7 +142,8 @@
       "A_FP_TUSD_TE": 0.45176,
       "A_PT_TUSD_TE": 1.45735,
       "A_TE_FP": 0.32277,
-      "A_TE_PT": 0.51345
+      "A_TE_PT": 0.51345,
+      "A_FP_DEMANDA": 12.01
     },
     {
       "sigAgente": "DMED",
@@ -142,7 +154,8 @@
       "A_FP_TUSD_TE": 0.31329,
       "A_PT_TUSD_TE": 1.5727,
       "A_TE_FP": 0.20473,
-      "A_TE_PT": 0.34518
+      "A_TE_PT": 0.34518,
+      "A_FP_DEMANDA": 18.02
     },
     {
       "sigAgente": "EAC",
@@ -153,7 +166,8 @@
       "A_FP_TUSD_TE": 0.28516,
       "A_PT_TUSD_TE": 3.04199,
       "A_TE_FP": 0.14153,
-      "A_TE_PT": 0.28833
+      "A_TE_PT": 0.28833,
+      "A_FP_DEMANDA": 47.09
     },
     {
       "sigAgente": "EDP ES",
@@ -164,7 +178,8 @@
       "A_FP_TUSD_TE": 0.46196,
       "A_PT_TUSD_TE": 1.80088,
       "A_TE_FP": 0.30025,
-      "A_TE_PT": 0.47895
+      "A_TE_PT": 0.47895,
+      "A_FP_DEMANDA": 31.93
     },
     {
       "sigAgente": "EDP SP",
@@ -175,7 +190,8 @@
       "A_FP_TUSD_TE": 0.45128,
       "A_PT_TUSD_TE": 1.81466,
       "A_TE_FP": 0.30923,
-      "A_TE_PT": 0.48903
+      "A_TE_PT": 0.48903,
+      "A_FP_DEMANDA": 12.02
     },
     {
       "sigAgente": "ELEKTRO",
@@ -186,7 +202,8 @@
       "A_FP_TUSD_TE": 0.43584,
       "A_PT_TUSD_TE": 2.40313,
       "A_TE_FP": 0.29732,
-      "A_TE_PT": 0.48004
+      "A_TE_PT": 0.48004,
+      "A_FP_DEMANDA": 28.61
     },
     {
       "sigAgente": "ELETROPAULO",
@@ -197,7 +214,8 @@
       "A_FP_TUSD_TE": 0.39859,
       "A_PT_TUSD_TE": 1.2762,
       "A_TE_FP": 0.27354,
-      "A_TE_PT": 0.43913
+      "A_TE_PT": 0.43913,
+      "A_FP_DEMANDA": 17.04
     },
     {
       "sigAgente": "EMR",
@@ -208,7 +226,8 @@
       "A_FP_TUSD_TE": 0.46891,
       "A_PT_TUSD_TE": 2.59394,
       "A_TE_FP": 0.33242,
-      "A_TE_PT": 0.53733
+      "A_TE_PT": 0.53733,
+      "A_FP_DEMANDA": 30.97
     },
     {
       "sigAgente": "EMS",
@@ -219,29 +238,32 @@
       "A_FP_TUSD_TE": 0.39961,
       "A_PT_TUSD_TE": 2.25614,
       "A_TE_FP": 0.26963,
-      "A_TE_PT": 0.44621
+      "A_TE_PT": 0.44621,
+      "A_FP_DEMANDA": 34.69
     },
     {
       "sigAgente": "EMT",
       "state": "MT",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.440, DE 1 DE ABRIL DE 2025",
-      "B_TUSD": 0.54947,
-      "B_TE": 0.30266,
-      "A_FP_TUSD_TE": 0.41567,
-      "A_PT_TUSD_TE": 2.19295,
-      "A_TE_FP": 0.28462,
-      "A_TE_PT": 0.47966
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.581, DE 22 DE ABRIL DE 2026",
+      "B_TUSD": 0.60528,
+      "B_TE": 0.29414,
+      "A_FP_TUSD_TE": 0.4504,
+      "A_PT_TUSD_TE": 2.29718,
+      "A_TE_FP": 0.28446,
+      "A_TE_PT": 0.4892,
+      "A_FP_DEMANDA": 34.03
     },
     {
       "sigAgente": "ENEL CE",
       "state": "CE",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.445, DE 15 DE ABRIL DE 2025",
-      "B_TUSD": 0.46488,
-      "B_TE": 0.24519,
-      "A_FP_TUSD_TE": 0.32096,
-      "A_PT_TUSD_TE": 1.53537,
-      "A_TE_FP": 0.2325,
-      "A_TE_PT": 0.37247
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.574, DE 22 DE ABRIL DE 2026",
+      "B_TUSD": 0.48878,
+      "B_TE": 0.26099,
+      "A_FP_TUSD_TE": 0.36917,
+      "A_PT_TUSD_TE": 1.54397,
+      "A_TE_FP": 0.24531,
+      "A_TE_PT": 0.4092,
+      "A_FP_DEMANDA": 20.82
     },
     {
       "sigAgente": "ENEL RJ",
@@ -252,7 +274,8 @@
       "A_FP_TUSD_TE": 0.53442,
       "A_PT_TUSD_TE": 2.54698,
       "A_TE_FP": 0.31086,
-      "A_TE_PT": 0.48969
+      "A_TE_PT": 0.48969,
+      "A_FP_DEMANDA": 38.75
     },
     {
       "sigAgente": "EPB",
@@ -263,7 +286,8 @@
       "A_FP_TUSD_TE": 0.33729,
       "A_PT_TUSD_TE": 1.65522,
       "A_TE_FP": 0.2407,
-      "A_TE_PT": 0.39219
+      "A_TE_PT": 0.39219,
+      "A_FP_DEMANDA": 24.42
     },
     {
       "sigAgente": "EQUATORIAL AL",
@@ -274,7 +298,8 @@
       "A_FP_TUSD_TE": 0.36256,
       "A_PT_TUSD_TE": 2.2295,
       "A_TE_FP": 0.22405,
-      "A_TE_PT": 0.38757
+      "A_TE_PT": 0.38757,
+      "A_FP_DEMANDA": 25.2
     },
     {
       "sigAgente": "EQUATORIAL GO",
@@ -285,7 +310,8 @@
       "A_FP_TUSD_TE": 0.45348,
       "A_PT_TUSD_TE": 2.14105,
       "A_TE_FP": 0.30387,
-      "A_TE_PT": 0.48489
+      "A_TE_PT": 0.48489,
+      "A_FP_DEMANDA": 26.08
     },
     {
       "sigAgente": "EQUATORIAL MA",
@@ -296,7 +322,8 @@
       "A_FP_TUSD_TE": 0.38271,
       "A_PT_TUSD_TE": 2.80816,
       "A_TE_FP": 0.26656,
-      "A_TE_PT": 0.43069
+      "A_TE_PT": 0.43069,
+      "A_FP_DEMANDA": 31.98
     },
     {
       "sigAgente": "EQUATORIAL PA",
@@ -307,7 +334,8 @@
       "A_FP_TUSD_TE": 0.42079,
       "A_PT_TUSD_TE": 3.02115,
       "A_TE_FP": 0.26893,
-      "A_TE_PT": 0.43857
+      "A_TE_PT": 0.43857,
+      "A_FP_DEMANDA": 44.81
     },
     {
       "sigAgente": "EQUATORIAL PI",
@@ -318,7 +346,8 @@
       "A_FP_TUSD_TE": 0.42191,
       "A_PT_TUSD_TE": 2.75688,
       "A_TE_FP": 0.2817,
-      "A_TE_PT": 0.46025
+      "A_TE_PT": 0.46025,
+      "A_FP_DEMANDA": 32.5
     },
     {
       "sigAgente": "ERO",
@@ -329,18 +358,20 @@
       "A_FP_TUSD_TE": 0.35456,
       "A_PT_TUSD_TE": 2.9157,
       "A_TE_FP": 0.20039,
-      "A_TE_PT": 0.3858
+      "A_TE_PT": 0.3858,
+      "A_FP_DEMANDA": 36.4
     },
     {
       "sigAgente": "ESE",
       "state": "SE",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.444, DE 15 DE ABRIL DE 2025",
-      "B_TUSD": 0.43983,
-      "B_TE": 0.27264,
-      "A_FP_TUSD_TE": 0.34258,
-      "A_PT_TUSD_TE": 2.12944,
-      "A_TE_FP": 0.25765,
-      "A_TE_PT": 0.4265
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.575, DE 22 DE ABRIL DE 2026",
+      "B_TUSD": 0.4828,
+      "B_TE": 0.27181,
+      "A_FP_TUSD_TE": 0.38721,
+      "A_PT_TUSD_TE": 2.18189,
+      "A_TE_FP": 0.26488,
+      "A_TE_PT": 0.46311,
+      "A_FP_DEMANDA": 23.82
     },
     {
       "sigAgente": "ESS",
@@ -351,7 +382,8 @@
       "A_FP_TUSD_TE": 0.43395,
       "A_PT_TUSD_TE": 1.72994,
       "A_TE_FP": 0.30118,
-      "A_TE_PT": 0.48664
+      "A_TE_PT": 0.48664,
+      "A_FP_DEMANDA": 23.4
     },
     {
       "sigAgente": "ETO",
@@ -362,7 +394,8 @@
       "A_FP_TUSD_TE": 0.37948,
       "A_PT_TUSD_TE": 2.48116,
       "A_TE_FP": 0.27255,
-      "A_TE_PT": 0.44315
+      "A_TE_PT": 0.44315,
+      "A_FP_DEMANDA": 52.73
     },
     {
       "sigAgente": "LIGHT SESA",
@@ -373,7 +406,8 @@
       "A_FP_TUSD_TE": 0.50038,
       "A_PT_TUSD_TE": 1.61374,
       "A_TE_FP": 0.28537,
-      "A_TE_PT": 0.43742
+      "A_TE_PT": 0.43742,
+      "A_FP_DEMANDA": 28.05
     },
     {
       "sigAgente": "Neoenergia Brasília",
@@ -384,7 +418,8 @@
       "A_FP_TUSD_TE": 0.54537,
       "A_PT_TUSD_TE": 1.52977,
       "A_TE_FP": 0.37795,
-      "A_TE_PT": 0.60225
+      "A_TE_PT": 0.60225,
+      "A_FP_DEMANDA": 13.1
     },
     {
       "sigAgente": "Neoenergia PE",
@@ -395,7 +430,8 @@
       "A_FP_TUSD_TE": 0.36078,
       "A_PT_TUSD_TE": 1.68112,
       "A_TE_FP": 0.2661,
-      "A_TE_PT": 0.43671
+      "A_TE_PT": 0.43671,
+      "A_FP_DEMANDA": 21.39
     },
     {
       "sigAgente": "RGE",
@@ -406,7 +442,8 @@
       "A_FP_TUSD_TE": 0.40442,
       "A_PT_TUSD_TE": 2.15126,
       "A_TE_FP": 0.28504,
-      "A_TE_PT": 0.45822
+      "A_TE_PT": 0.45822,
+      "A_FP_DEMANDA": 25.53
     }
   ]
 }
