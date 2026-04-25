@@ -260,9 +260,22 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
   }
   if (Object.keys(cm).length > 0) result.currentMonth = cm;
 
+  // ── Detect posto profile from classificação ──
+  // Rural irrigante/aquicultor → has RSV (Reservado) column in the history table
+  // Industrial / commercial → no RSV; numbers misclassified as RSV are usually
+  // ERE excedente or saldo acumulado of GDI credits — discard them.
+  // Grupo B Convencional → single posto (no Ponta), only 1 consumo column.
+  const cls = (result.classificacao || '').toUpperCase();
+  const isRural = /\bRURAL\b|IRRIG|AQUICULT/.test(cls);
+  const isGrupoB = /\bB[123]\b|RESIDENCIAL|COM\.|COMERCIAL/.test(cls)
+    && !/\bA[1-4]/.test(cls); // hedge against false positives
+  const expectedConsumos = isGrupoB ? 1 : (isRural ? 3 : 2);
+  const expectedDemandas = isGrupoB ? 0 : 2; // Verde has FP demand only; Azul has both (we treat as 2 max)
+  // Sanity caps to filter outliers (energia injetada GDI, saldo acumulado, etc.)
+  const maxReasonableConsumo = 1_000_000; // 1 GWh/mês — absurd ceiling
+  const maxReasonableDemanda = 5_000; // 5 MW
+
   // ── 13-month history ──
-  // Find lines on page 2 (or any page) that contain month-year labels.
-  // Use wide row gathering to merge wrapped left/right halves of the same row.
   const monthRe = /\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/(\d{2})\b/g;
 
   const seenMonths = new Set<string>();
@@ -276,28 +289,23 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
 
       // Gather all numbers on this row's wide Y band
       const wide = gatherWideRow(lines, line.page, line.y, 6);
-      // Take everything AFTER this month label until the next month label (or end)
       const afterLabel = wide.split(monthLabel)[1] || '';
       const beforeNextMonth = afterLabel.split(/\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/\d{2}\b/)[0] || '';
-      // Extract all numbers
       const numStrs = beforeNextMonth.match(/[\d.,]+/g) || [];
       const nums = numStrs.map(parseBrNumber).filter(n => !isNaN(n));
 
-      // Heuristic mapping by magnitude:
-      //   numbers > 1000 → consumo kWh (in order: Ponta, FP, RSV)
-      //   numbers 1-300 not following a kWh → demanda kW
-      //   small numbers (< 50) without context → ERE/DRE, skip
+      // Heuristic mapping by magnitude + classificação-aware caps:
+      //   numbers ≥ 1000 → consumo kWh (caps at expectedConsumos)
+      //   numbers 1-(maxDemanda) following a consumo → demanda kW
+      //   anything else → skip
       const consumos: number[] = [];
       const demandas: number[] = [];
-      const lookForDemanda: boolean[] = []; // tracks if the next 1-300 number should be demanda
       let lastWasConsumo = false;
       for (const n of nums) {
-        if (n >= 1000) {
+        if (n >= 1000 && n <= maxReasonableConsumo && consumos.length < expectedConsumos) {
           consumos.push(n);
-          lookForDemanda.push(true);
           lastWasConsumo = true;
-        } else if (n >= 1 && n < 1000 && lastWasConsumo) {
-          // Likely demanda following a consumo
+        } else if (n >= 1 && n <= maxReasonableDemanda && lastWasConsumo && demandas.length < expectedDemandas) {
           demandas.push(n);
           lastWasConsumo = false;
         } else {
@@ -309,16 +317,14 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
       const yearFull = yearShort < 50 ? 2000 + yearShort : 1900 + yearShort;
       const monthIso = `${yearFull}-${MONTH_PT_TO_NUM[mm[1]]}`;
 
-      // Map: first consumo = Ponta, second = FP, third = RSV
-      // First demanda = Ponta, second = FP
       const row: MonthRow = {
         monthLabel,
         monthIso,
-        consumoPonta: consumos[0] ?? 0,
-        consumoForaPonta: consumos[1] ?? 0,
-        consumoReservado: consumos[2] ?? 0,
-        demandaPonta: demandas[0] ?? 0,
-        demandaForaPonta: demandas[1] ?? 0,
+        consumoPonta: isGrupoB ? 0 : (consumos[0] ?? 0),
+        consumoForaPonta: isGrupoB ? (consumos[0] ?? 0) : (consumos[1] ?? 0),
+        consumoReservado: isRural && !isGrupoB ? (consumos[2] ?? 0) : 0,
+        demandaPonta: isGrupoB ? 0 : (demandas[0] ?? 0),
+        demandaForaPonta: isGrupoB ? 0 : (demandas[1] ?? 0),
       };
       result.history.push(row);
     }
