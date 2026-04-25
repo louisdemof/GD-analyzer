@@ -6,6 +6,7 @@ import {
   computeAnnualDemandaCost,
   optimizeDemandaContratada,
 } from '../../engine/demandaOptimizer';
+import { FaturaUpload } from './FaturaUpload';
 
 interface Props {
   ucs: ConsumptionUnit[];
@@ -55,6 +56,9 @@ export function DemandaAnalysisPanel({ ucs, distributor, onUpdate }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* PDF fatura import — auto-fills DC and DM history per UC */}
+      <FaturaUpload ucs={grupoAUCs} onApply={onUpdate} />
+
       {/* Header info */}
       <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
         <h3 className="text-sm font-semibold text-slate-700 mb-2">Otimização da Demanda Contratada</h3>
