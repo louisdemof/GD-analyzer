@@ -276,28 +276,31 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
   const maxReasonableDemanda = 5_000; // 5 MW
 
   // ── 13-month history ──
+  // For each month label found anywhere in the document, score the row by how
+  // many usable numbers it yields, and keep only the BEST candidate per month.
+  // This handles faturas where the same month appears in multiple sections
+  // (e.g. "Nº DIAS" column on page 1 + actual consumo table on page 2).
   const monthRe = /\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/(\d{2})\b/g;
 
-  const seenMonths = new Set<string>();
+  interface Candidate {
+    consumos: number[];
+    demandas: number[];
+    score: number; // higher is better
+  }
+  const bestPerMonth = new Map<string, { label: string; iso: string; cand: Candidate }>();
+
   for (const line of lines) {
     const matches = [...line.text.matchAll(monthRe)];
     if (matches.length === 0) continue;
     for (const mm of matches) {
       const monthLabel = `${mm[1]}/${mm[2]}`;
-      if (seenMonths.has(monthLabel)) continue;
-      seenMonths.add(monthLabel);
 
-      // Gather all numbers on this row's wide Y band
       const wide = gatherWideRow(lines, line.page, line.y, 6);
       const afterLabel = wide.split(monthLabel)[1] || '';
       const beforeNextMonth = afterLabel.split(/\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/\d{2}\b/)[0] || '';
       const numStrs = beforeNextMonth.match(/[\d.,]+/g) || [];
       const nums = numStrs.map(parseBrNumber).filter(n => !isNaN(n));
 
-      // Heuristic mapping by magnitude + classificação-aware caps:
-      //   numbers ≥ 1000 → consumo kWh (caps at expectedConsumos)
-      //   numbers 1-(maxDemanda) following a consumo → demanda kW
-      //   anything else → skip
       const consumos: number[] = [];
       const demandas: number[] = [];
       let lastWasConsumo = false;
@@ -313,21 +316,35 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
         }
       }
 
-      const yearShort = parseInt(mm[2], 10);
-      const yearFull = yearShort < 50 ? 2000 + yearShort : 1900 + yearShort;
-      const monthIso = `${yearFull}-${MONTH_PT_TO_NUM[mm[1]]}`;
+      // Score: weighted toward consumos (×10), then demandas (×1).
+      // Rows with no consumos (like Nº DIAS columns) score 0.
+      const score = consumos.length * 10 + demandas.length;
 
-      const row: MonthRow = {
-        monthLabel,
-        monthIso,
-        consumoPonta: isGrupoB ? 0 : (consumos[0] ?? 0),
-        consumoForaPonta: isGrupoB ? (consumos[0] ?? 0) : (consumos[1] ?? 0),
-        consumoReservado: isRural && !isGrupoB ? (consumos[2] ?? 0) : 0,
-        demandaPonta: isGrupoB ? 0 : (demandas[0] ?? 0),
-        demandaForaPonta: isGrupoB ? 0 : (demandas[1] ?? 0),
-      };
-      result.history.push(row);
+      const existing = bestPerMonth.get(monthLabel);
+      if (!existing || score > existing.cand.score) {
+        const yearShort = parseInt(mm[2], 10);
+        const yearFull = yearShort < 50 ? 2000 + yearShort : 1900 + yearShort;
+        const monthIso = `${yearFull}-${MONTH_PT_TO_NUM[mm[1]]}`;
+        bestPerMonth.set(monthLabel, {
+          label: monthLabel,
+          iso: monthIso,
+          cand: { consumos, demandas, score },
+        });
+      }
     }
+  }
+
+  for (const { label, iso, cand } of bestPerMonth.values()) {
+    const row: MonthRow = {
+      monthLabel: label,
+      monthIso: iso,
+      consumoPonta: isGrupoB ? 0 : (cand.consumos[0] ?? 0),
+      consumoForaPonta: isGrupoB ? (cand.consumos[0] ?? 0) : (cand.consumos[1] ?? 0),
+      consumoReservado: isRural && !isGrupoB ? (cand.consumos[2] ?? 0) : 0,
+      demandaPonta: isGrupoB ? 0 : (cand.demandas[0] ?? 0),
+      demandaForaPonta: isGrupoB ? 0 : (cand.demandas[1] ?? 0),
+    };
+    result.history.push(row);
   }
 
   // Sort history by ISO month ascending (oldest first)
