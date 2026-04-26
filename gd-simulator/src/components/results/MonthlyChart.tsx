@@ -76,6 +76,11 @@ export function MonthlyChart({ months }: Props) {
   const data = useMemo(() => aggregateByGranularity(months, granularity), [months, granularity]);
 
   const isLong = months.length > 24;
+  // Adapt label rendering based on number of buckets (independent of granularity)
+  const bucketCount = data.length;
+  const rotateLabels = bucketCount > 16;
+  // Skip labels to avoid overlap when too many
+  const labelInterval = bucketCount > 40 ? 2 : bucketCount > 28 ? 1 : 0;
 
   return (
     <div className="space-y-4">
@@ -114,10 +119,10 @@ export function MonthlyChart({ months }: Props) {
             <XAxis
               dataKey="label"
               tick={{ fontSize: 10 }}
-              interval={granularity === 'mensal' && months.length > 36 ? 2 : 0}
-              angle={granularity === 'mensal' && months.length > 24 ? -45 : 0}
-              textAnchor={granularity === 'mensal' && months.length > 24 ? 'end' : 'middle'}
-              height={granularity === 'mensal' && months.length > 24 ? 60 : 30}
+              interval={labelInterval}
+              angle={rotateLabels ? -45 : 0}
+              textAnchor={rotateLabels ? 'end' : 'middle'}
+              height={rotateLabels ? 70 : 30}
             />
 
             <YAxis
