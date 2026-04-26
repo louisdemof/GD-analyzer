@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import type { SimulationSummary, MonthlyResult, Project } from '../../engine/types';
+import type { SimulationSummary, MonthlyResult, Project, SimulationResult } from '../../engine/types';
 import { computeDerivedTariffs } from '../../engine/tariff';
 
 interface Props {
   summary: SimulationSummary;
   months?: MonthlyResult[];
   project?: Project;
+  result?: SimulationResult;
 }
 
 function formatBRL(value: number): string {
@@ -17,26 +18,74 @@ function formatKWh(value: number): string {
 }
 
 type InvoiceScope = 'total' | 'yearly' | 'monthly';
+type InvoiceMode = 'agregado' | 'por-uc';
 
-export function KPICards({ summary, months, project }: Props) {
+export function KPICards({ summary, months, project, result }: Props) {
   const [invoiceView, setInvoiceView] = useState(false);
   const [invoiceScope, setInvoiceScope] = useState<InvoiceScope>('yearly');
+  const [invoiceMode, setInvoiceMode] = useState<InvoiceMode>('agregado');
   const comRede = summary.baselineSEM - summary.economiaLiquida - summary.totalPPACost;
   const contractMonths = months?.length || 24;
   const durationLabel = contractMonths % 12 === 0 ? `${contractMonths / 12} anos` : `${contractMonths}m`;
 
   // Compute demanda separately (same value in SEM and COM — not compensated by SCEE)
-  const monthlyDemandaR = useMemo(() => {
+  const T_DEMANDA = useMemo(() => {
     if (!project) return 0;
-    const dist = computeDerivedTariffs(project.distributor);
-    const T_D = dist.T_A_DEMANDA ?? 0;
-    if (T_D === 0) return 0;
-    const monthlyKW = project.ucs
-      .filter(uc => uc.isGrupoA && uc.id !== 'bat')
-      .reduce((sum, uc) => sum + (uc.demandaFaturadaFP ?? 0), 0);
-    return monthlyKW * T_D;
+    return computeDerivedTariffs(project.distributor).T_A_DEMANDA ?? 0;
   }, [project]);
+  const monthlyDemandaR = useMemo(() => {
+    if (!project || T_DEMANDA === 0) return 0;
+    return project.ucs
+      .filter(uc => uc.isGrupoA && uc.id !== 'bat')
+      .reduce((sum, uc) => sum + (uc.demandaFaturadaFP ?? 0), 0) * T_DEMANDA;
+  }, [project, T_DEMANDA]);
   const demandaTotal = monthlyDemandaR * contractMonths;
+
+  // Per-UC breakdown (used when "Por UC" mode is selected)
+  const perUCBreakdown = useMemo(() => {
+    if (!project || !result) return [];
+    const scopeMonths = invoiceScope === 'yearly' ? Math.min(12, contractMonths)
+      : invoiceScope === 'monthly' ? 1 : contractMonths;
+    const monthSlice = (arr: { costRede: number; icmsAdditional: number }[] | undefined): { rede: number; icms: number } => {
+      if (!arr) return { rede: 0, icms: 0 };
+      const slice = invoiceScope === 'yearly' ? arr.slice(0, 12)
+        : invoiceScope === 'monthly' ? arr.slice(0, 1)
+        : arr;
+      const rede = slice.reduce((s, m) => s + (m.costRede || 0), 0);
+      const icms = slice.reduce((s, m) => s + (m.icmsAdditional || 0), 0);
+      // For "monthly" scope, average instead of summing one month
+      if (invoiceScope === 'monthly') {
+        return { rede: arr.reduce((s, m) => s + (m.costRede || 0), 0) / Math.max(1, arr.length),
+                 icms: arr.reduce((s, m) => s + (m.icmsAdditional || 0), 0) / Math.max(1, arr.length) };
+      }
+      return { rede, icms };
+    };
+
+    return project.ucs.filter(uc => uc.id !== 'bat').map(uc => {
+      const sem = monthSlice(result.ucDetailsSEM[uc.id]);
+      const com = monthSlice(result.ucDetailsCOM[uc.id]);
+      const ucDemandaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
+      const dem = ucDemandaKW * T_DEMANDA * scopeMonths;
+      // SEM rede already includes demanda (engine adds it). Energia = rede - demanda.
+      const semEnergia = Math.max(0, sem.rede - dem);
+      const comEnergiaResidual = Math.max(0, com.rede - dem);
+      const semTotal = sem.rede;
+      const comTotal = com.rede + sem.icms; // include any ICMS additional
+      const economia = semTotal - comTotal; // per-UC economia (excludes shared PPA)
+      return {
+        ucId: uc.id,
+        ucName: uc.name,
+        tariffGroup: uc.tariffGroup,
+        isGrupoA: uc.isGrupoA,
+        energia: semEnergia,
+        demanda: dem,
+        semTotal,
+        comEnergiaResidual,
+        comTotal,
+        economia, // ∆ rede only — PPA is shared and not allocated per UC
+      };
+    });
+  }, [project, result, invoiceScope, contractMonths, T_DEMANDA]);
 
   // Decomposition over full contract (used in KPI cards above)
   const semEnergia = summary.baselineSEM - demandaTotal;
@@ -174,28 +223,53 @@ export function KPICards({ summary, months, project }: Props) {
 
           {invoiceView && (
             <div className="px-4 pb-4 space-y-3">
-              {/* Scope toggle */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-slate-500 mr-1">Visualizar como:</span>
-                {([
-                  { k: 'total', label: `Total contrato (${durationLabel})` },
-                  { k: 'yearly', label: 'Ano 1' },
-                  { k: 'monthly', label: 'Mensal médio' },
-                ] as const).map(opt => (
-                  <button
-                    key={opt.k}
-                    onClick={() => setInvoiceScope(opt.k)}
-                    className={`px-3 py-1 rounded border transition-colors ${
-                      invoiceScope === opt.k
-                        ? 'bg-teal-600 text-white border-teal-600'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+              {/* Scope + mode toggles */}
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Período:</span>
+                  {([
+                    { k: 'total', label: `Total (${durationLabel})` },
+                    { k: 'yearly', label: 'Ano 1' },
+                    { k: 'monthly', label: 'Mensal médio' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.k}
+                      onClick={() => setInvoiceScope(opt.k)}
+                      className={`px-3 py-1 rounded border transition-colors ${
+                        invoiceScope === opt.k
+                          ? 'bg-teal-600 text-white border-teal-600'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="text-slate-500">Visão:</span>
+                  {([
+                    { k: 'agregado', label: 'Agregado' },
+                    { k: 'por-uc', label: 'Por UC' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.k}
+                      onClick={() => setInvoiceMode(opt.k)}
+                      className={`px-3 py-1 rounded border transition-colors ${
+                        invoiceMode === opt.k
+                          ? 'bg-navy-600 text-white border-slate-700'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                      style={invoiceMode === opt.k ? { backgroundColor: '#004B70', color: 'white', borderColor: '#004B70' } : {}}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {invoiceMode === 'por-uc' ? (
+                <PorUCTable rows={perUCBreakdown} scopeLabel={scopeData.scopeLabel} />
+              ) : (
               <div className="grid grid-cols-2 gap-4">
                 {/* SEM Helexia — one invoice from distributor */}
                 <div className="border border-slate-300 rounded-lg p-4 bg-slate-50">
@@ -245,10 +319,92 @@ export function KPICards({ summary, months, project }: Props) {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface PorUCRow {
+  ucId: string;
+  ucName: string;
+  tariffGroup: string;
+  isGrupoA: boolean;
+  energia: number;
+  demanda: number;
+  semTotal: number;
+  comEnergiaResidual: number;
+  comTotal: number;
+  economia: number;
+}
+
+function PorUCTable({ rows, scopeLabel }: { rows: PorUCRow[]; scopeLabel: string }) {
+  if (rows.length === 0) {
+    return <p className="text-sm text-slate-500 italic">Nenhuma UC para exibir.</p>;
+  }
+  const totals = rows.reduce((acc, r) => ({
+    energia: acc.energia + r.energia,
+    demanda: acc.demanda + r.demanda,
+    semTotal: acc.semTotal + r.semTotal,
+    comEnergiaResidual: acc.comEnergiaResidual + r.comEnergiaResidual,
+    comTotal: acc.comTotal + r.comTotal,
+    economia: acc.economia + r.economia,
+  }), { energia: 0, demanda: 0, semTotal: 0, comEnergiaResidual: 0, comTotal: 0, economia: 0 });
+
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-x-auto bg-white">
+      <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-200">
+        Detalhamento por UC — período: <strong>{scopeLabel}</strong>. Economia mostrada é redução do custo de rede (não inclui PPA, que é compartilhado).
+      </div>
+      <table className="w-full text-xs">
+        <thead className="bg-slate-50">
+          <tr>
+            <th className="text-left py-2 px-3">UC</th>
+            <th className="text-left py-2 px-3">Grupo</th>
+            <th className="text-right py-2 px-3 bg-slate-100" colSpan={3}>SEM Helexia (Distribuidora)</th>
+            <th className="text-right py-2 px-3 bg-teal-50" colSpan={2}>COM Helexia (Distribuidora)</th>
+            <th className="text-right py-2 px-3 bg-emerald-50">∆ Rede</th>
+          </tr>
+          <tr className="border-t border-slate-200">
+            <th className="text-left py-1.5 px-3"></th>
+            <th className="text-left py-1.5 px-3"></th>
+            <th className="text-right py-1.5 px-3 bg-slate-100">Energia</th>
+            <th className="text-right py-1.5 px-3 bg-slate-100">Demanda</th>
+            <th className="text-right py-1.5 px-3 bg-slate-100">Total</th>
+            <th className="text-right py-1.5 px-3 bg-teal-50">Energia residual</th>
+            <th className="text-right py-1.5 px-3 bg-teal-50">Total</th>
+            <th className="text-right py-1.5 px-3 bg-emerald-50">Economia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.ucId} className={i % 2 ? 'bg-slate-50' : ''}>
+              <td className="py-1.5 px-3">{r.ucName}</td>
+              <td className="py-1.5 px-3 text-slate-500">{r.tariffGroup}</td>
+              <td className="py-1.5 px-3 text-right font-mono">{formatBRL(r.energia)}</td>
+              <td className="py-1.5 px-3 text-right font-mono">{r.isGrupoA ? formatBRL(r.demanda) : <span className="text-slate-400">—</span>}</td>
+              <td className="py-1.5 px-3 text-right font-mono font-semibold">{formatBRL(r.semTotal)}</td>
+              <td className="py-1.5 px-3 text-right font-mono text-teal-700">{formatBRL(r.comEnergiaResidual)}</td>
+              <td className="py-1.5 px-3 text-right font-mono font-semibold text-teal-800">{formatBRL(r.comTotal)}</td>
+              <td className="py-1.5 px-3 text-right font-mono font-semibold text-emerald-700">{formatBRL(r.economia)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-400 bg-slate-100 font-semibold">
+            <td className="py-2 px-3" colSpan={2}>TOTAL</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.energia)}</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.demanda)}</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.semTotal)}</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.comEnergiaResidual)}</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.comTotal)}</td>
+            <td className="py-2 px-3 text-right font-mono text-emerald-700">{formatBRL(totals.economia)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

@@ -98,19 +98,19 @@ export const useProjectStore = create<ProjectStore>()(
             if (allConsumptionEmpty) return true;
             return false;
           };
-          // Belo demo also re-seeds if no Grupo A UC has demanda yet
+          // Demos also re-seed if no Grupo A UC has demanda yet
           // (added in a later release; old persisted demos lack it).
-          const beloMissingDemanda = (() => {
-            const p = merged.find(x => x.id === 'belo-alimentos-demo');
+          const missingDemandaCheck = (projectId: string): boolean => {
+            const p = merged.find(x => x.id === projectId);
             if (!p) return false;
-            const grupoA = p.ucs.filter(uc => uc.isGrupoA);
+            const grupoA = p.ucs.filter(uc => uc.isGrupoA && uc.id !== 'bat');
             if (grupoA.length === 0) return false;
             return grupoA.every(uc => !uc.demandaFaturadaFP || uc.demandaFaturadaFP === 0);
-          })();
-          if (isStale('belo-alimentos-demo') || beloMissingDemanda) {
+          };
+          if (isStale('belo-alimentos-demo') || missingDemandaCheck('belo-alimentos-demo')) {
             get().loadBeloAlimentosDemo();
           }
-          if (isStale('copasul-cs3-demo')) {
+          if (isStale('copasul-cs3-demo') || missingDemandaCheck('copasul-cs3-demo')) {
             get().loadDemoProject();
           }
         } catch {
@@ -323,6 +323,7 @@ export const useProjectStore = create<ProjectStore>()(
             currentProjectId: project.id,
           };
         });
+        saveProjectToDB(project).catch(() => {});
       },
 
       loadBeloAlimentosDemo: () => {
