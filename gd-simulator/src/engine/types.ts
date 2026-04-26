@@ -115,6 +115,11 @@ export interface Project {
   // Haircut on P50 to reflect real-world underperformance (typical 0.90–0.95).
   // Applied to both the main plant P50 and any UC ownGeneration. Defaults to 1.0 (no haircut).
   performanceFactor?: number;
+  // Annual tariff escalation rates (compound growth from contract start).
+  // Distributor rate scales all rede tariffs (FP, PT, RSV, demanda); PPA rate
+  // scales ppaRateRsBRLkWh. Defaults to 0 (no escalation).
+  tariffEscalationDistributor?: number; // ex: 0.05 = 5%/ano
+  tariffEscalationPPA?: number;         // ex: 0.04 = 4%/ano (geralmente IGPM/IPCA)
   // Scenario toggles
   scenarios: {
     icmsExempt: boolean;         // true = isenção applies (base case)

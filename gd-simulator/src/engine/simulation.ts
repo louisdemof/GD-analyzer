@@ -188,6 +188,7 @@ export function runSimulation(project: Project): SimulationResult {
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: true,
       contractMonths,
+      tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
     });
 
   }
@@ -208,16 +209,20 @@ export function runSimulation(project: Project): SimulationResult {
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: false,
       contractMonths,
+      tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
     });
   }
 
   // --- Aggregate monthly results ---
   const months: MonthlyResult[] = [];
   let economiaAcum = 0;
+  const ppaEscalation = project.tariffEscalationPPA ?? 0;
 
   for (let m = 0; m < contractMonths; m++) {
     const gen = generation[m];
-    const ppaCost = gen * ppaRate;
+    const yearIdx = Math.floor(m / 12);
+    const ppaRateM = ppaRate * Math.pow(1 + ppaEscalation, yearIdx);
+    const ppaCost = gen * ppaRateM;
 
     let semTotalCost = 0;
     let comRedeCost = 0;
@@ -304,6 +309,7 @@ export function runSimulation(project: Project): SimulationResult {
         competitorDiscount: project.scenarios.competitorDiscount,
         isSEM: false,
         contractMonths,
+        tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
       });
       icmsRisk += riskResult.totalIcmsAdditional;
     }

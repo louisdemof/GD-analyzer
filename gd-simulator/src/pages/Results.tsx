@@ -53,6 +53,8 @@ export function Results() {
     project?.growthRate,
     project?.generationDegradation,
     project?.performanceFactor,
+    project?.tariffEscalationDistributor,
+    project?.tariffEscalationPPA,
     project?.plant.ppaRateRsBRLkWh,
     project?.plant.p50Profile,
     project?.plant.actualProfile,
@@ -384,6 +386,8 @@ export function Results() {
             growthRate={project.growthRate}
             generationDegradation={project.generationDegradation}
             performanceFactor={project.performanceFactor}
+            tariffEscalationDistributor={project.tariffEscalationDistributor}
+            tariffEscalationPPA={project.tariffEscalationPPA}
             onProjectChange={updates => useProjectStore.getState().updateProject(project.id, updates)}
           />
         )}

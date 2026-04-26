@@ -9,10 +9,17 @@ interface Props {
   growthRate?: number;
   generationDegradation?: number;
   performanceFactor?: number;
+  tariffEscalationDistributor?: number;
+  tariffEscalationPPA?: number;
   onProjectChange?: (updates: Partial<Project>) => void;
 }
 
-export function ScenarioPanel({ scenarios, onChange, onOptimise, isOptimising, growthRate = 0.025, generationDegradation = 0.005, performanceFactor = 1.0, onProjectChange }: Props) {
+export function ScenarioPanel({
+  scenarios, onChange, onOptimise, isOptimising,
+  growthRate = 0.025, generationDegradation = 0.005, performanceFactor = 1.0,
+  tariffEscalationDistributor = 0, tariffEscalationPPA = 0,
+  onProjectChange,
+}: Props) {
   return (
     <div className="space-y-4 p-4 bg-slate-50 rounded-xl">
       <h3 className="text-sm font-semibold text-slate-700">Cenarios</h3>
@@ -123,6 +130,51 @@ export function ScenarioPanel({ scenarios, onChange, onOptimise, isOptimising, g
             <p className="text-[10px] text-slate-400 mt-1">Padrao: 100%. Reduza (ex: 90%) para refletir underperformance real.</p>
           </div>
         </div>
+      </div>
+
+      <div className="border-t border-slate-200 pt-4 mt-4">
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Reajuste Anual Tarifário</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Distribuidora (Energisa, etc.)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={20}
+                step={0.1}
+                value={+(tariffEscalationDistributor * 100).toFixed(2)}
+                onChange={e => onProjectChange?.({ tariffEscalationDistributor: parseFloat(e.target.value) / 100 || 0 })}
+                className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center"
+              />
+              <span className="text-sm text-slate-500">% a.a.</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Reajuste ANEEL típico 5-8%/ano. Aplicado às tarifas FP, PT, RSV e demanda.</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              PPA Helexia
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={20}
+                step={0.1}
+                value={+(tariffEscalationPPA * 100).toFixed(2)}
+                onChange={e => onProjectChange?.({ tariffEscalationPPA: parseFloat(e.target.value) / 100 || 0 })}
+                className="w-20 px-2 py-1.5 border border-slate-300 rounded-lg text-sm text-center"
+              />
+              <span className="text-sm text-slate-500">% a.a.</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Tipicamente IGPM/IPCA (3-5%/ano), conforme contrato.</p>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-500 mt-2 italic">
+          Reajustes compostos a partir do início do contrato. Ano 1 = base, Ano 2 = base × (1+r), etc.
+        </p>
       </div>
 
       <button

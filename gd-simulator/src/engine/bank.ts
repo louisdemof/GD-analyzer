@@ -12,6 +12,9 @@ interface BankSimParams {
   competitorDiscount: number; // only affects Grupo B SEM scenario
   isSEM: boolean;
   contractMonths: number;     // typically 24, but can be 12-60
+  // Annual escalation rate applied to all distributor tariffs (FP, PT, RSV, demanda, B).
+  // Compounds from year 0 (no scaling for first 12 months).
+  tariffEscalationDistributor?: number; // default 0
 }
 
 export interface BankSimResult {
@@ -57,23 +60,18 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     uc, distributor, generation, rateio,
     includeCS3Credits, batCreditsPerMonth,
     icmsExempt, competitorDiscount, isSEM,
-    contractMonths
+    contractMonths,
+    tariffEscalationDistributor = 0,
   } = params;
 
   const FA = distributor.FA ?? 0;
-  const T_B3 = distributor.T_B3 ?? 0;
-  const T_AFP = distributor.T_AFP ?? 0;
-  const T_APT = distributor.T_APT ?? 0;
-  // Reservado tariffs — fall back to the regular posto tariff when distributor has no
-  // irrigante/aquicultor enrollment (then RSV consumption is billed as ordinary FP/B).
-  const T_ARSV = distributor.T_ARSV ?? T_AFP;
-  const T_BRSV = distributor.T_BRSV ?? T_B3;
-  // Demanda FP (R$/kW/mês) — applies every month of the contract to Grupo A UCs
-  // with a demanda contratada. Charged equally in SEM and COM (GD doesn't compensate
-  // demanda), so cancels in economia but surfaces in the absolute SEM/COM totals.
-  const T_A_DEMANDA = distributor.T_A_DEMANDA ?? 0;
+  const T_B3_base = distributor.T_B3 ?? 0;
+  const T_AFP_base = distributor.T_AFP ?? 0;
+  const T_APT_base = distributor.T_APT ?? 0;
+  const T_ARSV_base = distributor.T_ARSV ?? T_AFP_base;
+  const T_BRSV_base = distributor.T_BRSV ?? T_B3_base;
+  const T_A_DEMANDA_base = distributor.T_A_DEMANDA ?? 0;
   const demandaFaturadaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
-  const demandaMensal = demandaFaturadaKW * T_A_DEMANDA;
 
   const monthlyDetails: UCMonthlyDetail[] = [];
   let bank = uc.openingBank;
@@ -82,6 +80,17 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
 
   for (let m = 0; m < contractMonths; m++) {
     const bankStart = bank;
+
+    // Per-year tariff escalation: year 0 = base, year 1 = base × (1+r), etc.
+    const yearIdx = Math.floor(m / 12);
+    const escFactor = Math.pow(1 + tariffEscalationDistributor, yearIdx);
+    const T_AFP = T_AFP_base * escFactor;
+    const T_APT = T_APT_base * escFactor;
+    const T_ARSV = T_ARSV_base * escFactor;
+    const T_B3 = T_B3_base * escFactor;
+    const T_BRSV = T_BRSV_base * escFactor;
+    const T_A_DEMANDA = T_A_DEMANDA_base * escFactor;
+    const demandaMensal = demandaFaturadaKW * T_A_DEMANDA;
 
     // Credit sources — all FP-equivalent kWh
     const cs3Credits = includeCS3Credits
