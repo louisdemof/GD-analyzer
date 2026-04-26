@@ -44,34 +44,61 @@ export function KPICards({ summary, months, project, result }: Props) {
   // Per-UC breakdown (used when "Por UC" mode is selected)
   const perUCBreakdown = useMemo(() => {
     if (!project || !result) return [];
-    const scopeMonths = invoiceScope === 'yearly' ? Math.min(12, contractMonths)
-      : invoiceScope === 'monthly' ? 1 : contractMonths;
-    const monthSlice = (arr: { costRede: number; icmsAdditional: number }[] | undefined): { rede: number; icms: number } => {
+
+    // Slice helper: pick months relevant to current scope
+    const scopeIndices = (() => {
+      const total = result.months.length;
+      if (invoiceScope === 'yearly') return Array.from({ length: Math.min(12, total) }, (_, i) => i);
+      if (invoiceScope === 'monthly') return Array.from({ length: total }, (_, i) => i); // we'll average
+      return Array.from({ length: total }, (_, i) => i);
+    })();
+    const scopeMonths = invoiceScope === 'monthly' ? 1
+      : invoiceScope === 'yearly' ? Math.min(12, contractMonths)
+      : contractMonths;
+    const divisor = invoiceScope === 'monthly' ? Math.max(1, result.months.length) : 1;
+
+    const monthSliceUC = (arr: { costRede: number; icmsAdditional: number }[] | undefined): { rede: number; icms: number } => {
       if (!arr) return { rede: 0, icms: 0 };
-      const slice = invoiceScope === 'yearly' ? arr.slice(0, 12)
-        : invoiceScope === 'monthly' ? arr.slice(0, 1)
-        : arr;
-      const rede = slice.reduce((s, m) => s + (m.costRede || 0), 0);
-      const icms = slice.reduce((s, m) => s + (m.icmsAdditional || 0), 0);
-      // For "monthly" scope, average instead of summing one month
-      if (invoiceScope === 'monthly') {
-        return { rede: arr.reduce((s, m) => s + (m.costRede || 0), 0) / Math.max(1, arr.length),
-                 icms: arr.reduce((s, m) => s + (m.icmsAdditional || 0), 0) / Math.max(1, arr.length) };
+      const indices = invoiceScope === 'monthly' ? arr.map((_, i) => i) : scopeIndices;
+      const rede = indices.reduce((s, i) => s + (arr[i]?.costRede || 0), 0);
+      const icms = indices.reduce((s, i) => s + (arr[i]?.icmsAdditional || 0), 0);
+      return { rede: rede / divisor, icms: icms / divisor };
+    };
+
+    // PPA per UC = Σ months[m].ppaCost × rateioFraction(uc, m)
+    const rateioFraction = (ucId: string, monthIndex: number): number => {
+      for (const p of project.rateio.periods) {
+        if (monthIndex >= p.start && monthIndex <= p.end) {
+          return p.allocations.find(a => a.ucId === ucId)?.fraction ?? 0;
+        }
       }
-      return { rede, icms };
+      return 0;
     };
 
     return project.ucs.filter(uc => uc.id !== 'bat').map(uc => {
-      const sem = monthSlice(result.ucDetailsSEM[uc.id]);
-      const com = monthSlice(result.ucDetailsCOM[uc.id]);
+      const sem = monthSliceUC(result.ucDetailsSEM[uc.id]);
+      const com = monthSliceUC(result.ucDetailsCOM[uc.id]);
       const ucDemandaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
       const dem = ucDemandaKW * T_DEMANDA * scopeMonths;
-      // SEM rede already includes demanda (engine adds it). Energia = rede - demanda.
+
+      // PPA share via rateio
+      const ppaIndices = invoiceScope === 'monthly' ? result.months.map((_, i) => i) : scopeIndices;
+      let ppaShare = 0;
+      for (const i of ppaIndices) {
+        const m = result.months[i];
+        if (!m) continue;
+        ppaShare += m.ppaCost * rateioFraction(uc.id, i);
+      }
+      ppaShare = ppaShare / divisor;
+
       const semEnergia = Math.max(0, sem.rede - dem);
       const comEnergiaResidual = Math.max(0, com.rede - dem);
       const semTotal = sem.rede;
-      const comTotal = com.rede + sem.icms; // include any ICMS additional
-      const economia = semTotal - comTotal; // per-UC economia (excludes shared PPA)
+      const comRedeTotal = com.rede + sem.icms;
+      const comTotal = comRedeTotal + ppaShare;
+      const deltaRede = semTotal - comRedeTotal;
+      const economiaLiquida = deltaRede - ppaShare;
+
       return {
         ucId: uc.id,
         ucName: uc.name,
@@ -81,8 +108,11 @@ export function KPICards({ summary, months, project, result }: Props) {
         demanda: dem,
         semTotal,
         comEnergiaResidual,
+        comRedeTotal,
+        ppaShare,
         comTotal,
-        economia, // ∆ rede only — PPA is shared and not allocated per UC
+        deltaRede,
+        economiaLiquida,
       };
     });
   }, [project, result, invoiceScope, contractMonths, T_DEMANDA]);
@@ -337,8 +367,11 @@ interface PorUCRow {
   demanda: number;
   semTotal: number;
   comEnergiaResidual: number;
+  comRedeTotal: number;
+  ppaShare: number;
   comTotal: number;
-  economia: number;
+  deltaRede: number;
+  economiaLiquida: number;
 }
 
 function PorUCTable({ rows, scopeLabel }: { rows: PorUCRow[]; scopeLabel: string }) {
@@ -350,23 +383,26 @@ function PorUCTable({ rows, scopeLabel }: { rows: PorUCRow[]; scopeLabel: string
     demanda: acc.demanda + r.demanda,
     semTotal: acc.semTotal + r.semTotal,
     comEnergiaResidual: acc.comEnergiaResidual + r.comEnergiaResidual,
+    comRedeTotal: acc.comRedeTotal + r.comRedeTotal,
+    ppaShare: acc.ppaShare + r.ppaShare,
     comTotal: acc.comTotal + r.comTotal,
-    economia: acc.economia + r.economia,
-  }), { energia: 0, demanda: 0, semTotal: 0, comEnergiaResidual: 0, comTotal: 0, economia: 0 });
+    deltaRede: acc.deltaRede + r.deltaRede,
+    economiaLiquida: acc.economiaLiquida + r.economiaLiquida,
+  }), { energia: 0, demanda: 0, semTotal: 0, comEnergiaResidual: 0, comRedeTotal: 0, ppaShare: 0, comTotal: 0, deltaRede: 0, economiaLiquida: 0 });
 
   return (
     <div className="border border-slate-200 rounded-lg overflow-x-auto bg-white">
       <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-200">
-        Detalhamento por UC — período: <strong>{scopeLabel}</strong>. Economia mostrada é redução do custo de rede (não inclui PPA, que é compartilhado).
+        Detalhamento por UC — período: <strong>{scopeLabel}</strong>. PPA é alocado por UC via rateio (geração mensal × fração da UC no rateio × PPA R$/kWh).
       </div>
-      <table className="w-full text-xs">
+      <table className="w-full text-[11px]">
         <thead className="bg-slate-50">
           <tr>
             <th className="text-left py-2 px-3">UC</th>
             <th className="text-left py-2 px-3">Grupo</th>
             <th className="text-right py-2 px-3 bg-slate-100" colSpan={3}>SEM Helexia (Distribuidora)</th>
-            <th className="text-right py-2 px-3 bg-teal-50" colSpan={2}>COM Helexia (Distribuidora)</th>
-            <th className="text-right py-2 px-3 bg-emerald-50">∆ Rede</th>
+            <th className="text-right py-2 px-3 bg-teal-50" colSpan={3}>COM Helexia</th>
+            <th className="text-right py-2 px-3 bg-emerald-50">Economia Líquida</th>
           </tr>
           <tr className="border-t border-slate-200">
             <th className="text-left py-1.5 px-3"></th>
@@ -374,9 +410,10 @@ function PorUCTable({ rows, scopeLabel }: { rows: PorUCRow[]; scopeLabel: string
             <th className="text-right py-1.5 px-3 bg-slate-100">Energia</th>
             <th className="text-right py-1.5 px-3 bg-slate-100">Demanda</th>
             <th className="text-right py-1.5 px-3 bg-slate-100">Total</th>
-            <th className="text-right py-1.5 px-3 bg-teal-50">Energia residual</th>
+            <th className="text-right py-1.5 px-3 bg-teal-50">Rede COM</th>
+            <th className="text-right py-1.5 px-3 bg-teal-50">PPA (rateio)</th>
             <th className="text-right py-1.5 px-3 bg-teal-50">Total</th>
-            <th className="text-right py-1.5 px-3 bg-emerald-50">Economia</th>
+            <th className="text-right py-1.5 px-3 bg-emerald-50">∆ Rede − PPA</th>
           </tr>
         </thead>
         <tbody>
@@ -387,9 +424,10 @@ function PorUCTable({ rows, scopeLabel }: { rows: PorUCRow[]; scopeLabel: string
               <td className="py-1.5 px-3 text-right font-mono">{formatBRL(r.energia)}</td>
               <td className="py-1.5 px-3 text-right font-mono">{r.isGrupoA ? formatBRL(r.demanda) : <span className="text-slate-400">—</span>}</td>
               <td className="py-1.5 px-3 text-right font-mono font-semibold">{formatBRL(r.semTotal)}</td>
-              <td className="py-1.5 px-3 text-right font-mono text-teal-700">{formatBRL(r.comEnergiaResidual)}</td>
+              <td className="py-1.5 px-3 text-right font-mono text-teal-700">{formatBRL(r.comRedeTotal)}</td>
+              <td className="py-1.5 px-3 text-right font-mono text-teal-700">{formatBRL(r.ppaShare)}</td>
               <td className="py-1.5 px-3 text-right font-mono font-semibold text-teal-800">{formatBRL(r.comTotal)}</td>
-              <td className="py-1.5 px-3 text-right font-mono font-semibold text-emerald-700">{formatBRL(r.economia)}</td>
+              <td className={`py-1.5 px-3 text-right font-mono font-semibold ${r.economiaLiquida >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatBRL(r.economiaLiquida)}</td>
             </tr>
           ))}
         </tbody>
@@ -399,9 +437,10 @@ function PorUCTable({ rows, scopeLabel }: { rows: PorUCRow[]; scopeLabel: string
             <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.energia)}</td>
             <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.demanda)}</td>
             <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.semTotal)}</td>
-            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.comEnergiaResidual)}</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.comRedeTotal)}</td>
+            <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.ppaShare)}</td>
             <td className="py-2 px-3 text-right font-mono">{formatBRL(totals.comTotal)}</td>
-            <td className="py-2 px-3 text-right font-mono text-emerald-700">{formatBRL(totals.economia)}</td>
+            <td className={`py-2 px-3 text-right font-mono ${totals.economiaLiquida >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatBRL(totals.economiaLiquida)}</td>
           </tr>
         </tfoot>
       </table>
