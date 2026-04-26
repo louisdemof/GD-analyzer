@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { useProjectStore } from '../store/projectStore';
 import { useNavigate } from 'react-router-dom';
+import { BulkFaturaUpload } from '../components/inputs/BulkFaturaUpload';
+import type { Project } from '../engine/types';
 
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
@@ -9,9 +11,22 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [showBulkFatura, setShowBulkFatura] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState(FOLDER_COLORS[0]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleBulkFaturaCreate = (project: Project) => {
+    // Inject into store and navigate
+    useProjectStore.setState(state => ({
+      projects: [...state.projects, project],
+      currentProjectId: project.id,
+    }));
+    // Persist
+    import('../storage/projectDB').then(m => m.saveProjectToDB(project).catch(() => {}));
+    setShowBulkFatura(false);
+    navigate(`/project/${project.id}`);
+  };
 
   const filteredProjects = selectedFolder === null
     ? projects
@@ -87,6 +102,12 @@ export function Dashboard() {
             Importar Projeto
           </button>
           <input ref={fileInputRef} type="file" accept=".json,.gdproject.json" className="hidden" onChange={handleImport} />
+          <button
+            onClick={() => setShowBulkFatura(true)}
+            className="px-4 py-2 text-sm border border-teal-300 bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 font-medium"
+          >
+            📄 Criar de Faturas
+          </button>
           <button
             onClick={() => navigate('/new')}
             className="px-4 py-2 text-sm text-white rounded-lg font-medium"
@@ -238,6 +259,18 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Bulk fatura → project modal */}
+      {showBulkFatura && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <BulkFaturaUpload
+              onCreate={handleBulkFaturaCreate}
+              onCancel={() => setShowBulkFatura(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
