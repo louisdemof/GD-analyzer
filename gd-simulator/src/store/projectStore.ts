@@ -20,6 +20,7 @@ interface ProjectStore {
   setCurrentProject: (id: string | null) => void;
   getCurrentProject: () => Project | null;
   createProject: (clientName: string, distributorId: string, folderId?: string) => Project;
+  createProjectFromDistributor: (clientName: string, distributor: Distributor, folderId?: string) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   duplicateProject: (id: string) => Project | null;
@@ -146,6 +147,43 @@ export const useProjectStore = create<ProjectStore>()(
             ],
             isOptimised: false,
           },
+          createdAt: now,
+          updatedAt: now,
+        };
+        set(state => ({ projects: [...state.projects, project], currentProjectId: project.id }));
+        saveProjectToDB(project).catch(() => {});
+        return project;
+      },
+
+      createProjectFromDistributor: (clientName, distributor, folderId) => {
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: generateId(),
+          clientName,
+          distributor,
+          plant: {
+            id: generateId(),
+            name: '',
+            capacityKWac: 0,
+            distributor: distributor.id,
+            p50Profile: new Array(24).fill(0),
+            useActual: false,
+            ppaRateRsBRLkWh: 0,
+            contractStartMonth: new Date().toISOString().slice(0, 7),
+            contractMonths: 24,
+          },
+          ucs: [],
+          scenarios: { icmsExempt: true, competitorDiscount: 0, useActualGeneration: false },
+          rateio: {
+            periods: [
+              { start: 0, end: 3, allocations: [] },
+              { start: 4, end: 9, allocations: [] },
+              { start: 10, end: 15, allocations: [] },
+              { start: 16, end: 23, allocations: [] },
+            ],
+            isOptimised: false,
+          },
+          folderId,
           createdAt: now,
           updatedAt: now,
         };
