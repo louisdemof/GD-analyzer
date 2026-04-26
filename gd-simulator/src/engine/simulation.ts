@@ -3,6 +3,7 @@ import type {
 } from './types';
 import { computeDerivedTariffs } from './tariff';
 import { simulateUCBank, computeBATCredits, type BankSimResult } from './bank';
+import { optimizeDemandaContratada, computeDemandaBilling } from './demandaOptimizer';
 
 /**
  * Get base generation profile (before extension).
@@ -128,20 +129,41 @@ export function runSimulation(project: Project): SimulationResult {
   const rawGen = getBaseGeneration(project).map(v => v * performanceFactor);
   const generation = extendGeneration(rawGen, contractMonths, genDegradation);
 
-  // Extend all UC consumption arrays to contractMonths with growth
+  // If "useOptimizedDemand" scenario is on, replace each UC's demandaFaturadaFP
+  // with the average kW billed under the optimal DC computed from its DM history.
+  const useOptDemand = !!project.scenarios.useOptimizedDemand;
+  const T_DEMANDA = distributor.T_A_DEMANDA ?? 0;
+
   const extendedProject: Project = {
     ...project,
-    ucs: project.ucs.map(uc => ({
-      ...uc,
-      consumptionFP: extendConsumption(uc.consumptionFP, contractMonths, growthRate),
-      consumptionPT: extendConsumption(uc.consumptionPT || [], contractMonths, growthRate),
-      consumptionReservado: uc.consumptionReservado
-        ? extendConsumption(uc.consumptionReservado, contractMonths, growthRate)
-        : undefined,
-      ownGeneration: uc.ownGeneration
-        ? extendGeneration(uc.ownGeneration.map(v => v * performanceFactor), contractMonths, genDegradation)
-        : undefined,
-    })),
+    ucs: project.ucs.map(uc => {
+      const next = {
+        ...uc,
+        consumptionFP: extendConsumption(uc.consumptionFP, contractMonths, growthRate),
+        consumptionPT: extendConsumption(uc.consumptionPT || [], contractMonths, growthRate),
+        consumptionReservado: uc.consumptionReservado
+          ? extendConsumption(uc.consumptionReservado, contractMonths, growthRate)
+          : undefined,
+        ownGeneration: uc.ownGeneration
+          ? extendGeneration(uc.ownGeneration.map(v => v * performanceFactor), contractMonths, genDegradation)
+          : undefined,
+      };
+
+      if (useOptDemand && uc.isGrupoA && T_DEMANDA > 0
+          && uc.demandaMedidaMensal && uc.demandaMedidaMensal.some(v => v > 0)) {
+        const opt = optimizeDemandaContratada(uc.demandaMedidaMensal, T_DEMANDA);
+        if (opt.bestDC > 0) {
+          const monthlyBilledKW = uc.demandaMedidaMensal.map(dm =>
+            computeDemandaBilling(opt.bestDC, dm).billed
+          );
+          const avgKW = monthlyBilledKW.reduce((a, b) => a + b, 0) / monthlyBilledKW.length;
+          next.demandaFaturadaFP = avgKW;
+          next.demandaContratadaFP = opt.bestDC;
+        }
+      }
+
+      return next;
+    }),
   };
 
   // Compute BAT credits distribution using extended data

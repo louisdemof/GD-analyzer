@@ -31,6 +31,13 @@ export function ScenarioPanel({ scenarios, onChange, onOptimise, isOptimising, g
         description="Alternar entre P50 e dados reais"
       />
 
+      <Toggle
+        checked={!!scenarios.useOptimizedDemand}
+        onChange={v => onChange({ useOptimizedDemand: v })}
+        label="Aplicar DC otimizada na simulação"
+        description="Usa a demanda contratada ótima (calculada na aba Demanda) para faturar SEM e COM. Reduz o total da fatura em ambos cenários."
+      />
+
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
           Desconto competidor (Plin): {(scenarios.competitorDiscount * 100).toFixed(0)}%

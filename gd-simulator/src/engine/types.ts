@@ -120,6 +120,10 @@ export interface Project {
     icmsExempt: boolean;         // true = isenção applies (base case)
     competitorDiscount: number;  // 0.0 to 0.30 — reduces SEM baseline for Grupo B
     useActualGeneration: boolean;
+    // When true, simulation overrides each Grupo A UC's demandaFaturadaFP with
+    // the average kW billed under the optimal DC (computed from demandaMedidaMensal).
+    // Equivalent to running the demanda optimizer's recommended DC for billing.
+    useOptimizedDemand?: boolean;
   };
   // Rateio: allocated by the optimiser or manually set
   rateio: RateioAllocation;
