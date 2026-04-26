@@ -144,7 +144,9 @@
           7273,
           14160,
           9468
-        ]
+        ],
+        "demandaContratadaFP": 100,
+        "demandaFaturadaFP": 70
       },
       {
         "id": "1935831-6",
@@ -229,7 +231,9 @@
           22818,
           22331,
           20784
-        ]
+        ],
+        "demandaContratadaFP": 100,
+        "demandaFaturadaFP": 65
       },
       {
         "id": "1935903-3",
@@ -314,7 +318,9 @@
           15628,
           15867,
           12022
-        ]
+        ],
+        "demandaContratadaFP": 100,
+        "demandaFaturadaFP": 62
       },
       {
         "id": "1935906-6",
@@ -399,7 +405,9 @@
           8206,
           11108,
           10653
-        ]
+        ],
+        "demandaContratadaFP": 100,
+        "demandaFaturadaFP": 60
       },
       {
         "id": "2608032-5",
@@ -484,7 +492,9 @@
           15809,
           18654,
           19144
-        ]
+        ],
+        "demandaContratadaFP": 100,
+        "demandaFaturadaFP": 65
       },
       {
         "id": "2607952-5",

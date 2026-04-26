@@ -91,12 +91,23 @@ export const useProjectStore = create<ProjectStore>()(
             const p = merged.find(x => x.id === projectId);
             if (!p) return false;
             if (!p.ucs || p.ucs.length === 0) return true;
-            return p.ucs.every(uc => {
+            const allConsumptionEmpty = p.ucs.every(uc => {
               const fp = uc.consumptionFP || [];
               return fp.length === 0 || fp.every(v => (v || 0) === 0);
             });
+            if (allConsumptionEmpty) return true;
+            return false;
           };
-          if (isStale('belo-alimentos-demo')) {
+          // Belo demo also re-seeds if no Grupo A UC has demanda yet
+          // (added in a later release; old persisted demos lack it).
+          const beloMissingDemanda = (() => {
+            const p = merged.find(x => x.id === 'belo-alimentos-demo');
+            if (!p) return false;
+            const grupoA = p.ucs.filter(uc => uc.isGrupoA);
+            if (grupoA.length === 0) return false;
+            return grupoA.every(uc => !uc.demandaFaturadaFP || uc.demandaFaturadaFP === 0);
+          })();
+          if (isStale('belo-alimentos-demo') || beloMissingDemanda) {
             get().loadBeloAlimentosDemo();
           }
           if (isStale('copasul-cs3-demo')) {
