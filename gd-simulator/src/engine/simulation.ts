@@ -1,5 +1,7 @@
 import type {
-  Project, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor
+  Project, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor,
+  AttributionFlags, AttributionScenario, AttributionScenarioName, AttributionResult,
+  AttributionMonthly,
 } from './types';
 import { computeDerivedTariffs } from './tariff';
 import { simulateUCBank, computeBATCredits, type BankSimResult } from './bank';
@@ -166,8 +168,26 @@ export function runSimulation(project: Project): SimulationResult {
     }),
   };
 
-  // Compute BAT credits distribution using extended data
-  const batCredits = computeBATCredits(extendedProject);
+  // Compute BAT credits distribution AND BAT-the-UC's own grid bill.
+  // SEM and COM differ only in whether HCS03 reaches BAT — for Copasul that's
+  // always 0 (BAT is locked from rateio), but the function correctly handles
+  // either case via the rateio param.
+  const tariffEsc = project.tariffEscalationDistributor ?? 0;
+  const pisCofinsExempt = project.distributor.taxes.pisCofinsExempt ?? true;
+  const batSimSEM = computeBATCredits({
+    project: extendedProject,
+    contractMonths,
+    icmsExempt: true, // SEM has no compensated credits → no ICMS additional
+    pisCofinsExempt: true, // same: no compensated credits in SEM
+    tariffEscalationDistributor: tariffEsc,
+  });
+  const batSimCOM = computeBATCredits({
+    project: extendedProject,
+    contractMonths,
+    icmsExempt: project.scenarios.icmsExempt,
+    pisCofinsExempt,
+    tariffEscalationDistributor: tariffEsc,
+  });
 
   // Empty BAT credits for UCs that don't receive them
   const emptyBatCredits: number[] = new Array(contractMonths).fill(0);
@@ -175,8 +195,8 @@ export function runSimulation(project: Project): SimulationResult {
   // --- SEM scenario (no CS3 credits) ---
   const semResults: Record<string, BankSimResult> = {};
   for (const uc of extendedProject.ucs) {
-    if (uc.id === 'bat') continue; // skip BAT itself in SEM computation
-    const ucBatCredits = batCredits[uc.id] || emptyBatCredits;
+    if (uc.id === 'bat') continue; // BAT bills tracked separately via batSimSEM
+    const ucBatCredits = batSimSEM.creditsByUC[uc.id] || emptyBatCredits;
     semResults[uc.id] = simulateUCBank({
       uc,
       distributor,
@@ -185,10 +205,11 @@ export function runSimulation(project: Project): SimulationResult {
       includeCS3Credits: false,  // SEM = no CS3
       batCreditsPerMonth: ucBatCredits,
       icmsExempt: true, // SEM doesn't have ICMS additional (no CS3 credits to tax)
+      pisCofinsExempt: true,
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: true,
       contractMonths,
-      tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
+      tariffEscalationDistributor: tariffEsc,
     });
 
   }
@@ -196,8 +217,8 @@ export function runSimulation(project: Project): SimulationResult {
   // --- COM scenario (with CS3 credits) ---
   const comResults: Record<string, BankSimResult> = {};
   for (const uc of extendedProject.ucs) {
-    if (uc.id === 'bat') continue; // skip BAT itself in COM computation
-    const ucBatCredits = batCredits[uc.id] || emptyBatCredits;
+    if (uc.id === 'bat') continue; // BAT bills tracked separately via batSimCOM
+    const ucBatCredits = batSimCOM.creditsByUC[uc.id] || emptyBatCredits;
     comResults[uc.id] = simulateUCBank({
       uc,
       distributor,
@@ -206,10 +227,11 @@ export function runSimulation(project: Project): SimulationResult {
       includeCS3Credits: true,   // COM = with CS3
       batCreditsPerMonth: ucBatCredits,
       icmsExempt: project.scenarios.icmsExempt,
+      pisCofinsExempt,
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: false,
       contractMonths,
-      tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
+      tariffEscalationDistributor: tariffEsc,
     });
   }
 
@@ -227,12 +249,13 @@ export function runSimulation(project: Project): SimulationResult {
     let semTotalCost = 0;
     let comRedeCost = 0;
     let comIcmsAdditional = 0;
+    let comPisCofinsAdditional = 0;
 
     for (const uc of extendedProject.ucs) {
-      // Skip BAT UC (no consumption)
-      if (uc.id === 'bat') {
-        continue;
-      }
+      // BAT-the-UC is summed below from batSimSEM/batSimCOM (its bills include
+      // own consumption × tariff residual, which the standard simulateUCBank
+      // path doesn't compute because BAT also distributes surplus to NHS/AMD).
+      if (uc.id === 'bat') continue;
 
       const semUC = semResults[uc.id];
       const comUC = comResults[uc.id];
@@ -242,11 +265,22 @@ export function runSimulation(project: Project): SimulationResult {
       if (comUC && comUC.monthlyDetails[m]) {
         comRedeCost += comUC.monthlyDetails[m].costRede;
         comIcmsAdditional += comUC.monthlyDetails[m].icmsAdditional;
+        comPisCofinsAdditional += comUC.monthlyDetails[m].pisCofinsAdditional;
       }
     }
 
+    // Add BAT-the-UC's own bills (was missing — silently dropped on the floor before).
+    if (batSimSEM.monthlyBills[m]) {
+      semTotalCost += batSimSEM.monthlyBills[m].costRede;
+    }
+    if (batSimCOM.monthlyBills[m]) {
+      comRedeCost += batSimCOM.monthlyBills[m].costRede;
+      comIcmsAdditional += batSimCOM.monthlyBills[m].icmsAdditional;
+      comPisCofinsAdditional += batSimCOM.monthlyBills[m].pisCofinsAdditional;
+    }
+
     const comTotalCost = comRedeCost + ppaCost;
-    const economia = semTotalCost - comTotalCost - comIcmsAdditional;
+    const economia = semTotalCost - comTotalCost - comIcmsAdditional - comPisCofinsAdditional;
     economiaAcum += economia;
 
     months.push({
@@ -255,7 +289,7 @@ export function runSimulation(project: Project): SimulationResult {
       generation: gen,
       ppaCost,
       sem: { totalCost: semTotalCost },
-      com: { redeCost: comRedeCost, totalCost: comTotalCost, icmsAdditional: comIcmsAdditional },
+      com: { redeCost: comRedeCost, totalCost: comTotalCost, icmsAdditional: comIcmsAdditional, pisCofinsAdditional: comPisCofinsAdditional },
       economia,
       economiaAcum,
     });
@@ -276,6 +310,18 @@ export function runSimulation(project: Project): SimulationResult {
       };
     });
 
+  // Append BAT-the-UC's bank (tracked by computeBATCredits, not by simulateUCBank).
+  const batUC = project.ucs.find(uc => uc.id === 'bat');
+  if (batUC) {
+    bankPerUC.push({
+      ucId: 'bat',
+      name: batUC.name,
+      finalBankCOM: batSimCOM.finalBank,
+      finalBankSEM: batSimSEM.finalBank,
+      valueAtPPA: (batSimCOM.finalBank - batSimSEM.finalBank) * ppaRate,
+    });
+  }
+
   // --- Summary ---
   const totalGeneration = generation.reduce((a, b) => a + b, 0);
   const totalPPACost = totalGeneration * ppaRate;
@@ -294,10 +340,19 @@ export function runSimulation(project: Project): SimulationResult {
   // Recalculate COM with icmsExempt=false
   let icmsRisk = 0;
   if (project.scenarios.icmsExempt) {
-    // Calculate what ICMS would be if not exempt
+    // BAT-the-UC: re-run with icmsExempt=false
+    const batRisk = computeBATCredits({
+      project: extendedProject,
+      contractMonths,
+      icmsExempt: false,
+      pisCofinsExempt,
+      tariffEscalationDistributor: tariffEsc,
+    });
+    icmsRisk += batRisk.totalIcmsAdditional;
+    // Other UCs
     for (const uc of extendedProject.ucs) {
       if (uc.id === 'bat') continue;
-      const ucBatCredits = batCredits[uc.id] || emptyBatCredits;
+      const ucBatCredits = batRisk.creditsByUC[uc.id] || emptyBatCredits;
       const riskResult = simulateUCBank({
         uc,
         distributor,
@@ -306,10 +361,11 @@ export function runSimulation(project: Project): SimulationResult {
         includeCS3Credits: true,
         batCreditsPerMonth: ucBatCredits,
         icmsExempt: false,
+        pisCofinsExempt,
         competitorDiscount: project.scenarios.competitorDiscount,
         isSEM: false,
         contractMonths,
-        tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
+        tariffEscalationDistributor: tariffEsc,
       });
       icmsRisk += riskResult.totalIcmsAdditional;
     }
@@ -338,6 +394,19 @@ export function runSimulation(project: Project): SimulationResult {
     if (semResults[uc.id]) ucDetailsSEM[uc.id] = semResults[uc.id].monthlyDetails;
   }
 
+  // --- Optional value attribution (5-scenario decomposition) ---
+  const attribution: AttributionResult | undefined = project.scenarios.runAttribution
+    ? computeAttribution({
+        project: extendedProject,
+        distributor,
+        generation,
+        emptyBatCredits,
+        contractMonths,
+        ppaRate,
+        ppaEscalation,
+      })
+    : undefined;
+
   return {
     projectId: project.id,
     months,
@@ -345,5 +414,162 @@ export function runSimulation(project: Project): SimulationResult {
     bankPerUC,
     ucDetailsCOM,
     ucDetailsSEM,
+    ...(attribution ? { attribution } : {}),
   };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Value attribution: 5-scenario decomposition.
+//
+// Runs simulations with progressively-enabled asset sources so each layer's
+// marginal value can be isolated. Sequential subtraction yields the per-source
+// contribution to total customer benefit.
+//
+//   Scenario 1 (Bare):         no opening bank, no own gen, no BAT distrib, no CS3
+//   Scenario 2 (+ Bank):       opening bank ON
+//   Scenario 3 (+ OwnGen):     each UC's own plant ON (NHS/AMD/BAT plants)
+//   Scenario 4 (+ BATdistrib): BAT surplus → NHS/AMD ON  (= existing SEM scenario)
+//   Scenario 5 (+ CS3):        Helexia HCS03 ON          (= existing COM scenario)
+//
+//   initialBankEffect  = cost(Bare)        − cost(+Bank)
+//   ownPlantsEffect    = cost(+Bank)       − cost(+OwnGen)
+//   batDistribEffect   = cost(+OwnGen)     − cost(+BATdistrib)
+//   helexiaCS3Effect   = cost(+BATdistrib) − cost(+CS3)         ← Helexia's true value
+//   total              = cost(Bare)        − cost(+CS3)
+// ──────────────────────────────────────────────────────────────────────────
+
+interface AttributionRunContext {
+  project: Project;
+  distributor: Distributor;
+  generation: number[];
+  emptyBatCredits: number[];
+  contractMonths: number;
+  ppaRate: number;
+  ppaEscalation: number;
+}
+
+function runAttributionScenario(
+  name: AttributionScenarioName,
+  label: string,
+  flags: AttributionFlags,
+  ctx: AttributionRunContext,
+): AttributionScenario {
+  const { project, distributor, generation, emptyBatCredits,
+    contractMonths, ppaRate, ppaEscalation } = ctx;
+
+  // Run BAT simulation with this scenario's flags so the credits flowing to
+  // NHS/AMD are correctly toggled, AND so BAT's own grid bills are scenario-
+  // appropriate (no plant in Bare → BAT pays full retail; etc.).
+  const batSim = computeBATCredits({
+    project,
+    contractMonths,
+    icmsExempt: project.scenarios.icmsExempt,
+    pisCofinsExempt: project.distributor.taxes.pisCofinsExempt ?? true,
+    tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
+    includeOpeningBank: flags.includeOpeningBank,
+    includeOwnGen: flags.includeOwnGen,
+    includeBATDistrib: flags.includeBATDistrib,
+  });
+
+  const ucResults: Record<string, BankSimResult> = {};
+  for (const uc of project.ucs) {
+    if (uc.id === 'bat') continue;
+    const ucBatCredits = batSim.creditsByUC[uc.id] || emptyBatCredits;
+    ucResults[uc.id] = simulateUCBank({
+      uc,
+      distributor,
+      generation,
+      rateio: project.rateio,
+      includeCS3Credits: flags.includeCS3,
+      batCreditsPerMonth: ucBatCredits,
+      icmsExempt: project.scenarios.icmsExempt,
+      pisCofinsExempt: project.distributor.taxes.pisCofinsExempt ?? true,
+      competitorDiscount: project.scenarios.competitorDiscount,
+      isSEM: !flags.includeCS3,
+      contractMonths,
+      tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,
+      includeOpeningBank: flags.includeOpeningBank,
+      includeOwnGen: flags.includeOwnGen,
+      includeBATDistrib: flags.includeBATDistrib,
+    });
+  }
+
+  const monthlyCost: number[] = [];
+  let totalRedeCost = 0;
+  let totalPPACost = 0;
+  let totalIcmsAdditional = 0;
+
+  for (let m = 0; m < contractMonths; m++) {
+    let redeM = 0;
+    let icmsM = 0;
+    for (const uc of project.ucs) {
+      if (uc.id === 'bat') continue;
+      const r = ucResults[uc.id];
+      if (r && r.monthlyDetails[m]) {
+        redeM += r.monthlyDetails[m].costRede;
+        icmsM += r.monthlyDetails[m].icmsAdditional;
+      }
+    }
+    // BAT-the-UC contribution
+    if (batSim.monthlyBills[m]) {
+      redeM += batSim.monthlyBills[m].costRede;
+      icmsM += batSim.monthlyBills[m].icmsAdditional;
+    }
+    const ppaM = flags.includeCS3
+      ? generation[m] * ppaRate * Math.pow(1 + ppaEscalation, Math.floor(m / 12))
+      : 0;
+    monthlyCost.push(redeM + ppaM + icmsM);
+    totalRedeCost += redeM;
+    totalPPACost += ppaM;
+    totalIcmsAdditional += icmsM;
+  }
+
+  return {
+    name,
+    label,
+    flags,
+    totalRedeCost,
+    totalPPACost,
+    totalIcmsAdditional,
+    totalCost: totalRedeCost + totalPPACost + totalIcmsAdditional,
+    monthlyCost,
+  };
+}
+
+function computeAttribution(ctx: AttributionRunContext): AttributionResult {
+  const scenarioDefs: Array<{ name: AttributionScenarioName; label: string; flags: AttributionFlags }> = [
+    { name: 'bare',          label: 'Sem ativos (linha de base)', flags: { includeOpeningBank: false, includeOwnGen: false, includeBATDistrib: false, includeCS3: false } },
+    { name: 'withBank',      label: '+ Banco inicial',            flags: { includeOpeningBank: true,  includeOwnGen: false, includeBATDistrib: false, includeCS3: false } },
+    { name: 'withOwnGen',    label: '+ Geração própria',          flags: { includeOpeningBank: true,  includeOwnGen: true,  includeBATDistrib: false, includeCS3: false } },
+    { name: 'withBATdistrib',label: '+ Distribuição BAT (= SEM)',  flags: { includeOpeningBank: true,  includeOwnGen: true,  includeBATDistrib: true,  includeCS3: false } },
+    { name: 'withCS3',       label: '+ HCS03 Helexia (= COM)',     flags: { includeOpeningBank: true,  includeOwnGen: true,  includeBATDistrib: true,  includeCS3: true  } },
+  ];
+
+  const scenarios = scenarioDefs.map(def => runAttributionScenario(def.name, def.label, def.flags, ctx));
+
+  const [bare, withBank, withOwnGen, withBATdistrib, withCS3] = scenarios;
+
+  const decomposition = {
+    bareBaseline:        bare.totalCost,
+    initialBankEffect:   bare.totalCost           - withBank.totalCost,
+    ownPlantsEffect:     withBank.totalCost       - withOwnGen.totalCost,
+    batDistribEffect:    withOwnGen.totalCost     - withBATdistrib.totalCost,
+    helexiaCS3Effect:    withBATdistrib.totalCost - withCS3.totalCost,
+    totalCustomerBenefit: bare.totalCost          - withCS3.totalCost,
+  };
+
+  const monthly: AttributionMonthly[] = [];
+  for (let m = 0; m < ctx.contractMonths; m++) {
+    monthly.push({
+      monthIndex: m,
+      label: formatMonthLabel(ctx.project.plant.contractStartMonth, m),
+      bareBaseline:      bare.monthlyCost[m],
+      initialBankEffect: bare.monthlyCost[m]           - withBank.monthlyCost[m],
+      ownPlantsEffect:   withBank.monthlyCost[m]       - withOwnGen.monthlyCost[m],
+      batDistribEffect:  withOwnGen.monthlyCost[m]     - withBATdistrib.monthlyCost[m],
+      helexiaCS3Effect:  withBATdistrib.monthlyCost[m] - withCS3.monthlyCost[m],
+    });
+  }
+
+  return { scenarios, decomposition, monthly };
 }

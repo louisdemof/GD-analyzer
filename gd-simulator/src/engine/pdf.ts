@@ -240,45 +240,62 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
     ),
     // Cost waterfall
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 8 } }, `Decomposicao de Custos (${durationLabel(cm)})`),
-    ...[
-      { label: 'SEM Helexia (baseline)', value: sm.baselineSEM, color: '#6692A8' },
-      { label: 'COM Helexia — Rede', value: sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost, color: NAVY },
-      { label: 'COM Helexia — PPA', value: sm.totalPPACost, color: TEAL },
-      { label: 'Economia Liquida', value: sm.economiaLiquida, color: LIME },
-    ].map((row, i) =>
-      React.createElement(View, { key: i, style: s.waterfallRow },
-        React.createElement(Text, { style: s.waterfallLabel }, row.label),
-        React.createElement(View, { style: { ...s.waterfallBar, width: Math.max(2, Math.abs(row.value) * barScale), backgroundColor: row.color } }),
-        React.createElement(Text, { style: s.waterfallValue }, fmtBRL(row.value))
-      )
-    ),
-    // Yearly summary table
+    ...(() => {
+      const pcAdd = result.months.reduce((acc, m) => acc + (m.com.pisCofinsAdditional ?? 0), 0);
+      const rows: { label: string; value: number; color: string }[] = [
+        { label: 'SEM Helexia (baseline)', value: sm.baselineSEM, color: '#6692A8' },
+        { label: 'COM Helexia — Rede', value: sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost, color: NAVY },
+        { label: 'COM Helexia — PPA', value: sm.totalPPACost, color: TEAL },
+      ];
+      if (pcAdd > 0) rows.push({ label: 'PIS/COFINS adicional', value: pcAdd, color: '#b45309' });
+      rows.push({ label: 'Economia Liquida', value: sm.economiaLiquida, color: LIME });
+      return rows.map((row, i) =>
+        React.createElement(View, { key: i, style: s.waterfallRow },
+          React.createElement(Text, { style: s.waterfallLabel }, row.label),
+          React.createElement(View, { style: { ...s.waterfallBar, width: Math.max(2, Math.abs(row.value) * barScale), backgroundColor: row.color } }),
+          React.createElement(Text, { style: s.waterfallValue }, fmtBRL(row.value))
+        )
+      );
+    })(),
+    // Yearly summary table — adds "Consumo" column before "Geracao".
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 16 } }, `Resumo por Ano (${durationLabel(cm)})`),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Periodo', 'Geracao', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
-          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '14%' : '17.2%', textAlign: i === 0 ? 'left' : 'right' } }, h)
+        ...['Periodo', 'Consumo', 'Geracao', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
+          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '12%' : '14.66%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
       ...(() => {
         const years = Math.ceil(cm / 12);
         let acum = 0;
+        const consumoForMonth = (mi: number) => {
+          let sum = 0;
+          for (const uc of project.ucs) {
+            sum += (uc.consumptionFP[mi] ?? 0)
+              + (uc.consumptionPT[mi] ?? 0)
+              + (uc.consumptionReservado?.[mi] ?? 0);
+          }
+          return sum;
+        };
         return Array.from({ length: years }, (_, y) => {
           const start = y * 12;
           const end = Math.min(start + 12, cm);
           const yearMonths = result.months.slice(start, end);
+          let consumo = 0;
+          for (let mi = start; mi < end; mi++) consumo += consumoForMonth(mi);
           const gen = yearMonths.reduce((s, m) => s + m.generation, 0);
           const sem = yearMonths.reduce((s, m) => s + m.sem.totalCost, 0);
           const com = yearMonths.reduce((s, m) => s + m.com.totalCost, 0);
           const eco = yearMonths.reduce((s, m) => s + m.economia, 0);
           acum += eco;
           return React.createElement(View, { key: y, style: y % 2 ? s.tableRowAlt : s.tableRow },
-            React.createElement(Text, { style: { ...s.tableCell, width: '14%' } }, `Ano ${y + 1}`),
-            React.createElement(Text, { style: { ...s.tableCell, width: '17.2%', textAlign: 'right' } }, fmtKWh(gen)),
-            React.createElement(Text, { style: { ...s.tableCell, width: '17.2%', textAlign: 'right' } }, fmtBRL(sem)),
-            React.createElement(Text, { style: { ...s.tableCell, width: '17.2%', textAlign: 'right' } }, fmtBRL(com)),
-            React.createElement(Text, { style: { ...s.tableCellBold, width: '17.2%', textAlign: 'right', color: eco >= 0 ? TEAL : '#dc2626' } }, fmtBRL(eco)),
-            React.createElement(Text, { style: { ...s.tableCellBold, width: '17.2%', textAlign: 'right', color: acum >= 0 ? TEAL : '#dc2626' } }, fmtBRL(acum))
+            React.createElement(Text, { style: { ...s.tableCell, width: '12%' } }, `Ano ${y + 1}`),
+            React.createElement(Text, { style: { ...s.tableCell, width: '14.66%', textAlign: 'right' } }, fmtKWh(consumo)),
+            React.createElement(Text, { style: { ...s.tableCell, width: '14.66%', textAlign: 'right' } }, fmtKWh(gen)),
+            React.createElement(Text, { style: { ...s.tableCell, width: '14.66%', textAlign: 'right' } }, fmtBRL(sem)),
+            React.createElement(Text, { style: { ...s.tableCell, width: '14.66%', textAlign: 'right' } }, fmtBRL(com)),
+            React.createElement(Text, { style: { ...s.tableCellBold, width: '14.66%', textAlign: 'right', color: eco >= 0 ? TEAL : '#dc2626' } }, fmtBRL(eco)),
+            React.createElement(Text, { style: { ...s.tableCellBold, width: '14.66%', textAlign: 'right', color: acum >= 0 ? TEAL : '#dc2626' } }, fmtBRL(acum))
           );
         });
       })()
@@ -769,19 +786,107 @@ function PerUCEconomyPage({ project, result }: { project: Project; result: Simul
   );
 }
 
-function ProposalDocument({ project, result, generatedAt }: { project: Project; result: SimulationResult; generatedAt: string }) {
-  return React.createElement(Document, null,
-    React.createElement(CoverPage, { project, generatedAt }),
-    React.createElement(SummaryPage, { project, result }),
-    React.createElement(UsinaPage, { project }),
-    React.createElement(ConsumptionPage, { project }),
-    React.createElement(TariffComparisonPage, { project }),
-    React.createElement(CumulativeEconomyPage, { project, result }),
-    React.createElement(PerUCEconomyPage, { project, result }),
-    React.createElement(BankPage, { project, result }),
-    React.createElement(PremissasPage, { project }),
-    React.createElement(NotesPage, { project })
+function AttributionPage({ project, result }: { project: Project; result: SimulationResult }) {
+  const attr = result.attribution!;
+  const d = attr.decomposition;
+  const pct = (n: number, total: number) => (total > 0 ? (n / total * 100).toFixed(1) + '%' : '—');
+
+  return React.createElement(Page, { size: 'A4', style: s.page },
+    React.createElement(View, { style: s.pageHeader },
+      React.createElement(Text, { style: s.pageHeaderText }, project.clientName),
+      React.createElement(Text, { style: s.pageHeaderText }, 'Atribuição de Valor')
+    ),
+    React.createElement(Text, { style: s.sectionTitle }, 'Atribuição da Economia por Origem'),
+    React.createElement(Text, { style: { fontSize: 8, color: '#64748b', marginBottom: 12 } },
+      'Decomposição da economia total do cliente em 4 componentes. Apenas o último (HCS03 Helexia) é remunerado via PPA. Os demais provêm de ativos pré-existentes do cliente.'
+    ),
+
+    // Decomposition table
+    React.createElement(View, { style: s.table },
+      React.createElement(View, { style: s.tableHeader },
+        React.createElement(Text, { style: [s.tableHeaderCell, { width: '46%' }] }, 'Componente'),
+        React.createElement(Text, { style: [s.tableHeaderCell, { width: '22%', textAlign: 'right' }] }, 'Valor'),
+        React.createElement(Text, { style: [s.tableHeaderCell, { width: '14%', textAlign: 'right' }] }, '% Total'),
+        React.createElement(Text, { style: [s.tableHeaderCell, { width: '18%' }] }, 'Atribuível a')
+      ),
+      React.createElement(View, { style: s.tableRow },
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, 'Custo SEM ativos (linha de base)'),
+        React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.bareBaseline)),
+        React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, '100,0%'),
+        React.createElement(Text, { style: [s.tableCell, { width: '18%', color: '#94a3b8' }] }, 'distribuidora')
+      ),
+      React.createElement(View, { style: s.tableRowAlt },
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(−) Banco inicial'),
+        React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.initialBankEffect)),
+        React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, pct(d.initialBankEffect, d.totalCustomerBenefit)),
+        React.createElement(Text, { style: [s.tableCell, { width: '18%' }] }, 'cliente')
+      ),
+      React.createElement(View, { style: s.tableRow },
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(−) Geração própria'),
+        React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.ownPlantsEffect)),
+        React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, pct(d.ownPlantsEffect, d.totalCustomerBenefit)),
+        React.createElement(Text, { style: [s.tableCell, { width: '18%' }] }, 'cliente')
+      ),
+      React.createElement(View, { style: s.tableRowAlt },
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(−) Distribuição BAT → outras UCs'),
+        React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.batDistribEffect)),
+        React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, pct(d.batDistribEffect, d.totalCustomerBenefit)),
+        React.createElement(Text, { style: [s.tableCell, { width: '18%' }] }, 'cliente')
+      ),
+      React.createElement(View, { style: [s.tableRow, { backgroundColor: '#dbeafe' }] },
+        React.createElement(Text, { style: [s.tableCellBold, { width: '46%', color: NAVY }] }, '(−) HCS03 Helexia (PPA pago)'),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '22%', textAlign: 'right', color: NAVY }] }, fmtBRL(d.helexiaCS3Effect)),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '14%', textAlign: 'right', color: NAVY }] }, pct(d.helexiaCS3Effect, d.totalCustomerBenefit)),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '18%', color: NAVY }] }, 'Helexia')
+      ),
+      React.createElement(View, { style: [s.tableRow, { borderTopWidth: 1, borderTopColor: NAVY, backgroundColor: LIGHT_GREY }] },
+        React.createElement(Text, { style: [s.tableCellBold, { width: '46%' }] }, 'Economia total do cliente'),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.totalCustomerBenefit)),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '14%', textAlign: 'right' }] }, pct(d.totalCustomerBenefit, d.bareBaseline)),
+        React.createElement(Text, { style: [s.tableCell, { width: '18%' }] })
+      )
+    ),
+
+    // Headline box
+    React.createElement(View, {
+      style: {
+        marginTop: 14,
+        padding: 12,
+        borderWidth: 1.5,
+        borderColor: NAVY,
+        borderRadius: 6,
+        backgroundColor: '#f0f9ff',
+      },
+    },
+      React.createElement(Text, { style: { fontSize: 8, color: NAVY, fontWeight: 'bold', marginBottom: 4 } }, 'ATRIBUIÇÃO HELEXIA'),
+      React.createElement(Text, { style: { fontSize: 16, fontWeight: 'bold', color: NAVY } }, fmtBRL(d.helexiaCS3Effect)),
+      React.createElement(Text, { style: { fontSize: 8, color: '#475569', marginTop: 4 } },
+        `de ${fmtBRL(d.totalCustomerBenefit)} de economia total (${pct(d.helexiaCS3Effect, d.totalCustomerBenefit)})`
+      ),
+      React.createElement(Text, { style: { fontSize: 7, color: '#64748b', marginTop: 6, fontStyle: 'italic' } },
+        `Único componente que gera PPA. Os demais (${fmtBRL(d.totalCustomerBenefit - d.helexiaCS3Effect)}) já existiriam sem a Helexia.`
+      )
+    )
   );
+}
+
+function ProposalDocument({ project, result, generatedAt }: { project: Project; result: SimulationResult; generatedAt: string }) {
+  const pages = [
+    React.createElement(CoverPage, { project, generatedAt, key: 'cover' }),
+    React.createElement(SummaryPage, { project, result, key: 'summary' }),
+    React.createElement(UsinaPage, { project, key: 'usina' }),
+    React.createElement(ConsumptionPage, { project, key: 'cons' }),
+    React.createElement(TariffComparisonPage, { project, key: 'tariff' }),
+    React.createElement(CumulativeEconomyPage, { project, result, key: 'cum' }),
+    React.createElement(PerUCEconomyPage, { project, result, key: 'peruc' }),
+    React.createElement(BankPage, { project, result, key: 'bank' }),
+  ];
+  if (result.attribution) {
+    pages.push(React.createElement(AttributionPage, { project, result, key: 'attr' }));
+  }
+  pages.push(React.createElement(PremissasPage, { project, key: 'prem' }));
+  pages.push(React.createElement(NotesPage, { project, key: 'notes' }));
+  return React.createElement(Document, null, ...pages);
 }
 
 export async function generatePDF(project: Project, result: SimulationResult): Promise<Blob> {

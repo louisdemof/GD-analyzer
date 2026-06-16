@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
   const navigate = useNavigate();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -79,6 +79,18 @@ export function Dashboard() {
             className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
           >
             Demo Belo Alimentos
+          </button>
+          <button
+            onClick={() => { loadCopelDemo(); navigate('/project/copel-demo'); }}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Demo COPEL (PR)
+          </button>
+          <button
+            onClick={() => { loadCopelDemo2(); navigate('/project/copel-demo-2'); }}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Simulação 2 COPEL
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -202,7 +214,7 @@ export function Dashboard() {
                         <h3 className="font-semibold text-slate-800 truncate">{p.clientName || 'Sem nome'}</h3>
                         <p className="text-xs text-slate-500 mt-1">{p.plant.name || 'Planta nao definida'}</p>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1">
                         <button onClick={(e) => handleDuplicate(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Duplicar">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                         </button>

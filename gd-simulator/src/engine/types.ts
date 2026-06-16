@@ -29,6 +29,19 @@ export interface Distributor {
     ICMS: number;         // e.g. 0.17
     PIS: number;          // e.g. 0.0153
     COFINS: number;       // e.g. 0.0703
+    // Escopo da isenção de ICMS sobre kWh compensado (Lei 14.300/22 + convênio ICMS estadual).
+    //   'TE_TUSD' (default, retrocompat): isenção cobre TE+TUSD → SCEE elimina toda a parcela de ICMS.
+    //   'TE_ONLY': isenção apenas sobre TE → ICMS sobre TUSD-Fio B continua sendo cobrado na fatura
+    //              da energia compensada. Comum em PR, SC, RS, SP e outros estados pós-LC 194/2022.
+    //   'NONE': sem isenção — cliente paga ICMS sobre TE + TUSD do kWh compensado.
+    //              Equivalente a project.scenarios.icmsExempt === false (override).
+    icmsScope?: 'TE_TUSD' | 'TE_ONLY' | 'NONE';
+    // Isenção de PIS/COFINS sobre kWh compensado pela GD.
+    //   true (default) — STJ Tema 986 + Lei 13.169/15: federal exemption applies.
+    //   false — compensated kWh ainda paga PIS+COFINS (leak adicional no cenário COM).
+    // Sits on the distribuidora alongside icmsScope so both tax-isenção settings live together.
+    // Per-project override is via this same field (distributor instance is project-scoped).
+    pisCofinsExempt?: boolean;
   };
   // Computed (derived from above)
   FA?: number;            // TE_FP / TE_PT — computed on load
@@ -38,6 +51,11 @@ export interface Distributor {
   T_ARSV?: number;        // all-in Grupo A no horário reservado — present only if A_RSV_TUSD_TE set
   T_BRSV?: number;        // all-in Grupo B no horário reservado — present only if B_RSV_TUSD_TE set
   T_A_DEMANDA?: number;   // all-in Grupo A demanda (R$/kW/mês) — present only if A_FP_DEMANDA set
+  // TUSD-only all-in tariffs (computed). Usados quando icmsScope === 'TE_ONLY':
+  // a isenção cobre só TE, e o ICMS sobre TUSD continua sendo cobrado sobre o kWh compensado.
+  T_AFP_TUSD?: number;    // = computeAllInTariff(A_FP_TUSD_TE − A_TE_FP, taxes)
+  T_APT_TUSD?: number;    // = computeAllInTariff(A_PT_TUSD_TE − A_TE_PT, taxes)
+  T_B3_TUSD?: number;     // = computeAllInTariff(B_TUSD, taxes)
 }
 
 // A consumption unit (UC)
@@ -129,6 +147,9 @@ export interface Project {
     // the average kW billed under the optimal DC (computed from demandaMedidaMensal).
     // Equivalent to running the demanda optimizer's recommended DC for billing.
     useOptimizedDemand?: boolean;
+    // When true, run the 5-scenario value-attribution decomposition (Bare → +Bank → +OwnGen → +BATdistrib → +CS3).
+    // Adds ~2.5× simulation compute. Result lands in SimulationResult.attribution.
+    runAttribution?: boolean;
   };
   // Rateio: allocated by the optimiser or manually set
   rateio: RateioAllocation;
@@ -158,6 +179,67 @@ export interface SimulationResult {
   // Detailed per-UC monthly data for bank dynamics view
   ucDetailsCOM: Record<string, UCMonthlyDetail[]>;
   ucDetailsSEM: Record<string, UCMonthlyDetail[]>;
+  // Optional value-attribution decomposition (set only when project.scenarios.runAttribution = true)
+  attribution?: AttributionResult;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Value attribution: decompose customer benefit into asset-source components.
+//
+// Sequential scenario subtraction:
+//   Bare         = no own plants, no opening bank, no BAT distribution, no CS3
+//   + Bank       = opening bank ON
+//   + OwnGen     = each UC's own plant ON (NHS plant for NHS, BAT plant for BAT, ...)
+//   + BATDistrib = BAT surplus distribution to NHS/AMD ON (=SEM scenario)
+//   + CS3        = Helexia HCS03 plant ON (=COM scenario)
+//
+// Each component's incremental value = cost(scenario_n) − cost(scenario_n+1).
+// This is what the customer can attribute to each asset source.
+// Only the CS3 component is what the customer pays PPA for.
+// ──────────────────────────────────────────────────────────────────────────
+export interface AttributionFlags {
+  includeOpeningBank: boolean;
+  includeOwnGen: boolean;
+  includeBATDistrib: boolean;
+  includeCS3: boolean;
+}
+
+export type AttributionScenarioName = 'bare' | 'withBank' | 'withOwnGen' | 'withBATdistrib' | 'withCS3';
+
+export interface AttributionScenario {
+  name: AttributionScenarioName;
+  label: string;          // PT-BR human-readable label for UI
+  flags: AttributionFlags;
+  totalRedeCost: number;  // R$ — total residual grid bill across all UCs
+  totalPPACost: number;   // R$ — only non-zero for withCS3
+  totalIcmsAdditional: number;
+  totalCost: number;      // totalRedeCost + totalPPACost + totalIcmsAdditional
+  monthlyCost: number[];  // R$ per month (totalCost decomposed monthly)
+}
+
+export interface AttributionDecomposition {
+  bareBaseline: number;          // total grid cost with no assets at all
+  initialBankEffect: number;     // bare → +Bank
+  ownPlantsEffect: number;       // +Bank → +OwnGen
+  batDistribEffect: number;      // +OwnGen → +BATdistrib
+  helexiaCS3Effect: number;      // +BATdistrib → +CS3 (= SEM − COM, headline Eco)
+  totalCustomerBenefit: number;  // bare − withCS3 (sum of all 4 effects above)
+}
+
+export interface AttributionMonthly {
+  monthIndex: number;
+  label: string;
+  bareBaseline: number;
+  initialBankEffect: number;
+  ownPlantsEffect: number;
+  batDistribEffect: number;
+  helexiaCS3Effect: number;
+}
+
+export interface AttributionResult {
+  scenarios: AttributionScenario[];
+  decomposition: AttributionDecomposition;
+  monthly: AttributionMonthly[];
 }
 
 export interface MonthlyResult {
@@ -167,8 +249,8 @@ export interface MonthlyResult {
   ppaCost: number;        // R$ PPA paid to Helexia
   // Per scenario
   sem: { totalCost: number };
-  com: { redeCost: number; totalCost: number; icmsAdditional: number };
-  economia: number;       // sem.totalCost - com.totalCost - icmsAdditional
+  com: { redeCost: number; totalCost: number; icmsAdditional: number; pisCofinsAdditional: number };
+  economia: number;       // sem.totalCost - com.totalCost - icmsAdditional - pisCofinsAdditional
   economiaAcum: number;   // running total
 }
 
@@ -200,6 +282,13 @@ export interface UCMonthlyDetail {
   costRede: number;
   ownGenerationUsed: number;
   icmsAdditional: number;
+  pisCofinsAdditional: number;
+  // Residual kWh per posto that paid grid tariff this month (consumption − total compensation,
+  // where total = own-gen + CS3 + BAT credits + bank draws). residualFP includes the FP-regular
+  // portion only when consRSV > 0; otherwise FP-posto residual is reported under residualFP.
+  residualFP: number;
+  residualPT: number;
+  residualRSV: number;
 }
 
 // Default rateio periods for 24 months
@@ -215,41 +304,42 @@ export function buildPeriods(contractMonths: number): { start: number; end: numb
   if (contractMonths <= 12) {
     return [{ start: 0, end: contractMonths - 1 }];
   }
-  if (contractMonths <= 24) {
-    return [
-      { start: 0, end: 3 },
-      { start: 4, end: 9 },
-      { start: 10, end: 15 },
-      { start: 16, end: contractMonths - 1 },
-    ];
-  }
-  if (contractMonths <= 36) {
-    return [
-      { start: 0, end: 3 },
-      { start: 4, end: 9 },
-      { start: 10, end: 15 },
-      { start: 16, end: 23 },
-      { start: 24, end: contractMonths - 1 },
-    ];
-  }
-  if (contractMonths <= 48) {
-    return [
-      { start: 0, end: 3 },
-      { start: 4, end: 9 },
-      { start: 10, end: 15 },
-      { start: 16, end: 23 },
-      { start: 24, end: 35 },
-      { start: 36, end: contractMonths - 1 },
-    ];
-  }
-  // 60 months
-  return [
-    { start: 0, end: 3 },
-    { start: 4, end: 9 },
-    { start: 10, end: 15 },
-    { start: 16, end: 23 },
-    { start: 24, end: 35 },
-    { start: 36, end: 47 },
-    { start: 48, end: contractMonths - 1 },
-  ];
+  const lastIdx = contractMonths - 1;
+  const raw =
+    contractMonths <= 24
+      ? [
+          { start: 0, end: 3 },
+          { start: 4, end: 9 },
+          { start: 10, end: 15 },
+          { start: 16, end: lastIdx },
+        ]
+      : contractMonths <= 36
+      ? [
+          { start: 0, end: 3 },
+          { start: 4, end: 9 },
+          { start: 10, end: 15 },
+          { start: 16, end: 23 },
+          { start: 24, end: lastIdx },
+        ]
+      : contractMonths <= 48
+      ? [
+          { start: 0, end: 3 },
+          { start: 4, end: 9 },
+          { start: 10, end: 15 },
+          { start: 16, end: 23 },
+          { start: 24, end: 35 },
+          { start: 36, end: lastIdx },
+        ]
+      : [
+          { start: 0, end: 3 },
+          { start: 4, end: 9 },
+          { start: 10, end: 15 },
+          { start: 16, end: 23 },
+          { start: 24, end: 35 },
+          { start: 36, end: 47 },
+          { start: 48, end: lastIdx },
+        ];
+  return raw
+    .filter(p => p.start <= lastIdx)
+    .map(p => ({ start: p.start, end: Math.min(p.end, lastIdx) }));
 }

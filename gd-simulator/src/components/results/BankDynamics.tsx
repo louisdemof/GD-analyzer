@@ -171,7 +171,7 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Início</th>
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Fim</th>
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Custo Rede</th>
-                  <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Injeção CS3</th>
+                  <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Injeção Helexia</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Início</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Fim</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Custo Rede</th>

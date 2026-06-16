@@ -18,7 +18,9 @@ interface Props {
   degradationPct?: number;
   lossPct?: number;
   performanceFactor?: number;
-  onProjectFieldChange?: (updates: Partial<Pick<Project, 'generationSource' | 'helexiaPlantCode' | 'degradationPct' | 'lossPct' | 'performanceFactor'>>) => void;
+  tariffEscalationPPA?: number;
+  tariffEscalationDistributor?: number;
+  onProjectFieldChange?: (updates: Partial<Pick<Project, 'generationSource' | 'helexiaPlantCode' | 'degradationPct' | 'lossPct' | 'performanceFactor' | 'tariffEscalationPPA' | 'tariffEscalationDistributor'>>) => void;
 }
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -35,6 +37,8 @@ export function PlantForm({
   degradationPct = 0.5,
   lossPct = 0,
   performanceFactor = 1.0,
+  tariffEscalationPPA = 0,
+  tariffEscalationDistributor = 0,
   onProjectFieldChange,
 }: Props) {
   const update = (field: keyof Plant, value: unknown) => {
@@ -190,6 +194,46 @@ export function PlantForm({
             onChange={e => update('contractStartMonth', e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Reajuste anual PPA (% a.a.)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={20}
+              step={0.1}
+              value={+(tariffEscalationPPA * 100).toFixed(2)}
+              onChange={e => onProjectFieldChange?.({ tariffEscalationPPA: parseFloat(e.target.value) / 100 || 0 })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
+            <span className="text-sm text-slate-500">%</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">
+            Composto Y2+. Tipicamente IGPM/IPCA (3-5%/ano).
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Reajuste anual Distribuidora (% a.a.)
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={20}
+              step={0.1}
+              value={+(tariffEscalationDistributor * 100).toFixed(2)}
+              onChange={e => onProjectFieldChange?.({ tariffEscalationDistributor: parseFloat(e.target.value) / 100 || 0 })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+            />
+            <span className="text-sm text-slate-500">%</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">
+            Aplicado FP/Ponta/Reservado/Demanda. ANEEL típico 5-8%/ano.
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Duracao do Contrato</label>
@@ -420,7 +464,7 @@ export function PlantForm({
               <input
                 value={plant.name}
                 onChange={e => update('name', e.target.value)}
-                placeholder="Ex: CS3 Cassilandia"
+                placeholder="Ex: HAP02 Alto Paraná"
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
             </div>

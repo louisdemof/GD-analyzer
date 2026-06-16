@@ -1,21 +1,35 @@
-import type { MonthlyResult } from '../../engine/types';
+import type { ConsumptionUnit, MonthlyResult } from '../../engine/types';
 
 interface Props {
   months: MonthlyResult[];
+  ucs: ConsumptionUnit[];
 }
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
-export function CostWaterfall({ months }: Props) {
+function consumoMes(ucs: ConsumptionUnit[], m: number): number {
+  let sum = 0;
+  for (const uc of ucs) {
+    sum += (uc.consumptionFP[m] ?? 0)
+      + (uc.consumptionPT[m] ?? 0)
+      + (uc.consumptionReservado?.[m] ?? 0);
+  }
+  return sum;
+}
+
+export function CostWaterfall({ months, ucs }: Props) {
+  const monthlyConsumo = months.map(m => consumoMes(ucs, m.monthIndex));
   const totals = {
+    consumo: monthlyConsumo.reduce((a, v) => a + v, 0),
     generation: months.reduce((a, m) => a + m.generation, 0),
     sem: months.reduce((a, m) => a + m.sem.totalCost, 0),
     rede: months.reduce((a, m) => a + m.com.redeCost, 0),
     ppa: months.reduce((a, m) => a + m.ppaCost, 0),
     comTotal: months.reduce((a, m) => a + m.com.totalCost, 0),
     icms: months.reduce((a, m) => a + m.com.icmsAdditional, 0),
+    pisCofins: months.reduce((a, m) => a + (m.com.pisCofinsAdditional ?? 0), 0),
     economia: months.reduce((a, m) => a + m.economia, 0),
   };
 
@@ -25,20 +39,23 @@ export function CostWaterfall({ months }: Props) {
         <thead>
           <tr className="border-b border-slate-200">
             <th className="text-left py-2 px-2 text-slate-500">Mês</th>
+            <th className="text-right py-2 px-2 text-slate-500">Consumo (kWh)</th>
             <th className="text-right py-2 px-2 text-slate-500">Geração (kWh)</th>
             <th className="text-right py-2 px-2 text-slate-500">Custo SEM</th>
             <th className="text-right py-2 px-2 text-slate-500 bg-slate-50" style={{ borderLeft: '2px solid #e2e8f0' }}>Custo Rede COM</th>
             <th className="text-right py-2 px-2 text-slate-500 bg-slate-50">Custo PPA</th>
             <th className="text-right py-2 px-2 text-slate-500 bg-slate-50 font-semibold" style={{ borderRight: '2px solid #e2e8f0' }}>Total COM</th>
             <th className="text-right py-2 px-2 text-slate-500">ICMS Add.</th>
+            <th className="text-right py-2 px-2 text-slate-500">PIS/COFINS Add.</th>
             <th className="text-right py-2 px-2 text-slate-500 font-semibold">Economia</th>
             <th className="text-right py-2 px-2 text-slate-500 font-semibold">Acumulada</th>
           </tr>
         </thead>
         <tbody>
-          {months.map(m => (
+          {months.map((m, i) => (
             <tr key={m.monthIndex} className="border-b border-slate-50 hover:bg-slate-50">
               <td className="py-1.5 px-2 font-medium">{m.label}</td>
+              <td className="py-1.5 px-2 text-right font-mono">{monthlyConsumo[i].toLocaleString('pt-BR')}</td>
               <td className="py-1.5 px-2 text-right font-mono">{m.generation.toLocaleString('pt-BR')}</td>
               <td className="py-1.5 px-2 text-right font-mono">{formatBRL(m.sem.totalCost)}</td>
               <td className="py-1.5 px-2 text-right font-mono bg-slate-50/50 text-blue-700" style={{ borderLeft: '2px solid #e2e8f0' }}>
@@ -52,6 +69,9 @@ export function CostWaterfall({ months }: Props) {
               </td>
               <td className="py-1.5 px-2 text-right font-mono text-orange-600">
                 {m.com.icmsAdditional > 0 ? formatBRL(m.com.icmsAdditional) : '—'}
+              </td>
+              <td className="py-1.5 px-2 text-right font-mono text-orange-600">
+                {(m.com.pisCofinsAdditional ?? 0) > 0 ? formatBRL(m.com.pisCofinsAdditional ?? 0) : '—'}
               </td>
               <td className={`py-1.5 px-2 text-right font-mono font-semibold ${
                 m.economia >= 0 ? 'text-teal-700' : 'text-red-600'
@@ -69,6 +89,7 @@ export function CostWaterfall({ months }: Props) {
         <tfoot>
           <tr className="border-t-2 border-slate-300 font-semibold">
             <td className="py-2 px-2">TOTAL</td>
+            <td className="py-2 px-2 text-right font-mono">{totals.consumo.toLocaleString('pt-BR')}</td>
             <td className="py-2 px-2 text-right font-mono">{totals.generation.toLocaleString('pt-BR')}</td>
             <td className="py-2 px-2 text-right font-mono">{formatBRL(totals.sem)}</td>
             <td className="py-2 px-2 text-right font-mono text-blue-700 bg-slate-50/50" style={{ borderLeft: '2px solid #e2e8f0' }}>
@@ -81,6 +102,7 @@ export function CostWaterfall({ months }: Props) {
               {formatBRL(totals.comTotal)}
             </td>
             <td className="py-2 px-2 text-right font-mono text-orange-600">{formatBRL(totals.icms)}</td>
+            <td className="py-2 px-2 text-right font-mono text-orange-600">{formatBRL(totals.pisCofins)}</td>
             <td className="py-2 px-2 text-right font-mono text-teal-700">{formatBRL(totals.economia)}</td>
             <td className="py-2 px-2 text-right font-mono text-teal-700">
               {formatBRL(months[months.length - 1]?.economiaAcum ?? 0)}

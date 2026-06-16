@@ -5,6 +5,8 @@ import { createDefaultRateio } from '../engine/optimiser';
 import { DISTRIBUTORS } from '../data/distributors';
 import sampleData from '../../reference/SAMPLE_DATA.json';
 import beloData from '../../reference/BELO_ALIMENTOS_DEMO.json';
+import copelData from '../../reference/COPEL_DEMO.json';
+import copelData2 from '../../reference/COPEL_DEMO_2.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
@@ -45,6 +47,8 @@ interface ProjectStore {
   // Demo data
   loadDemoProject: () => void;
   loadBeloAlimentosDemo: () => void;
+  loadCopelDemo: () => void;
+  loadCopelDemo2: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -59,6 +63,27 @@ interface ProjectStore {
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// Re-span an existing rateio so its periods cover exactly months 0..contractMonths-1.
+// Preserves the per-UC allocation fractions. Returns null when there's nothing to
+// re-span (no periods) so the caller can rebuild a default rateio instead.
+function respanRateio(rateio: RateioAllocation, contractMonths: number): RateioAllocation | null {
+  const lastIdx = contractMonths - 1;
+  if (!rateio || !rateio.periods || rateio.periods.length === 0) return null;
+  // Keep periods that start within the contract, clamp their ends.
+  const sorted = [...rateio.periods].sort((a, b) => a.start - b.start);
+  const kept = sorted
+    .filter(p => p.start <= lastIdx)
+    .map(p => ({ ...p, end: Math.min(p.end, lastIdx) }));
+  if (kept.length === 0) return null;
+  // Ensure the tail is covered: stretch the last kept period to the contract end.
+  kept[kept.length - 1] = { ...kept[kept.length - 1], end: lastIdx };
+  return {
+    periods: kept,
+    // Span changed → previous optimisation is stale; flag for re-optimisation.
+    isOptimised: false,
+  };
 }
 
 export const useProjectStore = create<ProjectStore>()(
@@ -107,11 +132,25 @@ export const useProjectStore = create<ProjectStore>()(
             if (grupoA.length === 0) return false;
             return grupoA.every(uc => !uc.demandaFaturadaFP || uc.demandaFaturadaFP === 0);
           };
+          // Reseed when persisted demo lacks the icmsScope field (added recently).
+          // Without this, old cached COPEL demos keep defaulting to TE_TUSD and the
+          // TE_ONLY toggle in the JSON never takes effect.
+          const missingIcmsScope = (projectId: string): boolean => {
+            const p = merged.find(x => x.id === projectId);
+            if (!p) return false;
+            return p.distributor?.taxes?.icmsScope === undefined;
+          };
           if (isStale('belo-alimentos-demo') || missingDemandaCheck('belo-alimentos-demo')) {
             get().loadBeloAlimentosDemo();
           }
           if (isStale('copasul-cs3-demo') || missingDemandaCheck('copasul-cs3-demo')) {
             get().loadDemoProject();
+          }
+          if (isStale('copel-demo') || missingDemandaCheck('copel-demo') || missingIcmsScope('copel-demo')) {
+            get().loadCopelDemo();
+          }
+          if (isStale('copel-demo-2') || missingDemandaCheck('copel-demo-2') || missingIcmsScope('copel-demo-2')) {
+            get().loadCopelDemo2();
           }
         } catch {
           set({ isLoaded: true });
@@ -268,11 +307,26 @@ export const useProjectStore = create<ProjectStore>()(
         }),
       })),
 
-      updatePlant: (projectId, plant) => set(state => ({
-        projects: state.projects.map(p =>
-          p.id === projectId ? { ...p, plant, updatedAt: new Date().toISOString() } : p
-        ),
-      })),
+      updatePlant: (projectId, plant) => {
+        set(state => ({
+          projects: state.projects.map(p => {
+            if (p.id !== projectId) return p;
+            const updated = { ...p, plant, updatedAt: new Date().toISOString() };
+            // If the contract (PPA) duration changed, re-span the rateio so its
+            // periods cover the new month range. Otherwise the tail months fall
+            // outside every period, get zero injected credits, and the economy
+            // is understated. Allocation fractions are preserved.
+            const oldMonths = p.plant.contractMonths || 24;
+            const newMonths = plant.contractMonths || 24;
+            if (newMonths !== oldMonths) {
+              updated.rateio = respanRateio(updated.rateio, newMonths) ?? createDefaultRateio(updated);
+            }
+            return updated;
+          }),
+        }));
+        const updated = get().projects.find(p => p.id === projectId);
+        if (updated) saveProjectToDB(updated).catch(() => {});
+      },
 
       updateDistributor: (projectId, distributor) => set(state => ({
         projects: state.projects.map(p =>
@@ -347,6 +401,64 @@ export const useProjectStore = create<ProjectStore>()(
 
         set(state => {
           const withoutDemo = state.projects.filter(p => p.id !== 'belo-alimentos-demo');
+          return {
+            projects: [...withoutDemo, project],
+            currentProjectId: project.id,
+          };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      loadCopelDemo: () => {
+        const demo = copelData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'copel-demo',
+          clientName: demo.clientName,
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'copel-demo');
+          return {
+            projects: [...withoutDemo, project],
+            currentProjectId: project.id,
+          };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      loadCopelDemo2: () => {
+        const demo = copelData2.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'copel-demo-2',
+          clientName: demo.clientName,
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'copel-demo-2');
           return {
             projects: [...withoutDemo, project],
             currentProjectId: project.id,
@@ -478,6 +590,8 @@ function migrateProject(p: Record<string, unknown>): Project {
         ICMS: (taxes.ICMS as number) ?? 0.17,
         PIS: (taxes.PIS as number) ?? 0.0153,
         COFINS: (taxes.COFINS as number) ?? 0.0703,
+        icmsScope: (taxes.icmsScope as 'TE_TUSD' | 'TE_ONLY' | undefined) ?? 'TE_TUSD',
+        pisCofinsExempt: (taxes.pisCofinsExempt as boolean | undefined) ?? true,
       },
     },
     plant: {

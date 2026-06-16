@@ -9,6 +9,8 @@ import { BankDynamics } from '../components/results/BankDynamics';
 import { RateioTable } from '../components/results/RateioTable';
 import { ScenarioPanel } from '../components/results/ScenarioPanel';
 import { SensitivityAnalysis } from '../components/results/SensitivityAnalysis';
+import { AttributionPanel } from '../components/results/AttributionPanel';
+import { TaxBreakdownPanel } from '../components/results/TaxBreakdownPanel';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
@@ -16,7 +18,7 @@ import { generatePDF, downloadPDF } from '../engine/pdf';
 import { exportResultsExcel } from '../engine/excel';
 import { exportConsumptionExcel } from '../engine/consumptionExcel';
 
-type ResultTab = 'resumo' | 'mensal' | 'banco' | 'rateio' | 'sensibilidades' | 'sensibilidade-geracao';
+type ResultTab = 'resumo' | 'detalhe-impostos' | 'mensal' | 'banco' | 'rateio' | 'atribuicao' | 'sensibilidades' | 'sensibilidade-geracao';
 
 export function Results() {
   const { id } = useParams<{ id: string }>();
@@ -96,15 +98,23 @@ export function Results() {
     const worker = new OptimiserWorker();
     workerRef.current = worker;
 
-    // 60-second timeout
+    // Adaptive timeout — coordinate descent scales O(nUCs² × nPeriods × steps × passes).
+    // 24m × ≤8 UCs:  fast (60s plenty)
+    // 60m × 18 UCs:  medium (~2 min)
+    // 120m × 18 UCs: slow  (~5 min worst case before convergence)
+    const nUCs = project.ucs.length;
+    const months = project.plant.contractMonths || 24;
+    const isLargeProject = nUCs > 6 && months > 36;
+    const adaptiveMs = isLargeProject ? 300_000 : 60_000; // 5 min vs 60s
+    const timeoutSec = Math.round(adaptiveMs / 1000);
     timeoutRef.current = setTimeout(() => {
       worker.terminate();
       workerRef.current = null;
       setIsOptimising(false);
       setOptimProgress(null);
-      setToast('Optimização excedeu 60 segundos. Tente reduzir o número de UCs.');
+      setToast(`Optimização excedeu ${timeoutSec}s. Tente reduzir o número de UCs ou meses do contrato.`);
       setTimeout(() => setToast(null), 8000);
-    }, 60000);
+    }, adaptiveMs);
 
     worker.onmessage = (e: MessageEvent) => {
       if (e.data.type === 'progress') {
@@ -193,9 +203,11 @@ export function Results() {
 
   const tabs: { key: ResultTab; label: string }[] = [
     { key: 'resumo', label: 'Resumo Executivo' },
+    { key: 'detalhe-impostos', label: 'Detalhe Impostos' },
     { key: 'mensal', label: 'Análise Mensal' },
     { key: 'banco', label: 'Banco de Créditos' },
     { key: 'rateio', label: 'Rateio' },
+    ...(result.attribution ? [{ key: 'atribuicao' as ResultTab, label: 'Atribuição' }] : []),
     { key: 'sensibilidades', label: 'Sensibilidades' },
     { key: 'sensibilidade-geracao', label: 'Sensibilidade Geracao' },
   ];
@@ -306,7 +318,8 @@ export function Results() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
-        {tab === 'resumo' && <CostWaterfall months={result.months} />}
+        {tab === 'resumo' && <CostWaterfall months={result.months} ucs={project.ucs} />}
+        {tab === 'detalhe-impostos' && <TaxBreakdownPanel project={project} result={result} />}
         {tab === 'mensal' && <MonthlyChart months={result.months} />}
         {tab === 'banco' && (
           <BankDynamics
@@ -376,6 +389,9 @@ export function Results() {
               onRateioChange={handleRateioChange}
             />
           </div>
+        )}
+        {tab === 'atribuicao' && result.attribution && (
+          <AttributionPanel attribution={result.attribution} plantName={project.plant.name} />
         )}
         {tab === 'sensibilidades' && (
           <ScenarioPanel

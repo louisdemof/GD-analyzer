@@ -221,7 +221,7 @@ function generateTemplate(contractStart: string): XLSX.WorkBook {
   // Sheet 3: Usina_Helexia
   const plantData = [
     ['Campo', 'Valor', 'Unidade', 'Observacao'],
-    ['Nome_Usina', 'CS3 Cassilândia', '—', 'Nome da usina Helexia'],
+    ['Nome_Usina', 'HAP02 Alto Paraná', '—', 'Nome da usina Helexia'],
     ['Capacidade_kWac', 625, 'kWac', 'Potência AC instalada'],
     ['PPA_RS_kWh', 0.4425, 'R$/kWh', 'Tarifa PPA take-or-pay'],
     ['Mes_Inicio', contractStart, 'YYYY-MM', 'Início do contrato'],

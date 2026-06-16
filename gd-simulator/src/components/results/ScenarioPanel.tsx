@@ -28,7 +28,7 @@ export function ScenarioPanel({
         checked={scenarios.icmsExempt}
         onChange={v => onChange({ icmsExempt: v })}
         label="Isencao ICMS ativa"
-        description="Lei 14.300/2022 — SCEE minigeracao"
+        description="Lei 14.300/2022 — SCEE minigeracao. Escopo (TE só vs TE+TUSD) e isenção PIS/COFINS configurados na distribuidora."
       />
 
       <Toggle
@@ -43,6 +43,13 @@ export function ScenarioPanel({
         onChange={v => onChange({ useOptimizedDemand: v })}
         label="Aplicar DC otimizada na simulação"
         description="Usa a demanda contratada ótima (calculada na aba Demanda) para faturar SEM e COM. Reduz o total da fatura em ambos cenários."
+      />
+
+      <Toggle
+        checked={!!scenarios.runAttribution}
+        onChange={v => onChange({ runAttribution: v })}
+        label="Decompor economia por origem (Atribuição)"
+        description="Roda 5 cenários (Sem ativos → +Banco → +Geração própria → +BAT distrib → +Usina Helexia) para isolar a contribuição da Helexia da economia que viria dos ativos pré-existentes do cliente. Adiciona ~2,5× compute."
       />
 
       <div>

@@ -31,13 +31,20 @@ function computeMarginalValues(
   const matrix: MarginalValues = {};
   const contractMonths = project.plant.contractMonths || 24;
   const dist = computeDerivedTariffs(project.distributor);
-  const T_AFP = dist.T_AFP ?? 0.5;
-  const T_APT = dist.T_APT ?? 1;
-  const T_ARSV = dist.T_ARSV ?? T_AFP;  // RSV falls back to FP when no irrigante tariff
-  const T_B3 = dist.T_B3 ?? 1;
-  const T_BRSV = dist.T_BRSV ?? T_B3;
+  const T_AFP_base = dist.T_AFP ?? 0.5;
+  const T_APT_base = dist.T_APT ?? 1;
+  const T_ARSV_base = dist.T_ARSV ?? T_AFP_base;
+  const T_B3_base = dist.T_B3 ?? 1;
+  const T_BRSV_base = dist.T_BRSV ?? T_B3_base;
   const discount = project.scenarios.competitorDiscount || 0;
-  const T_B3_eff = discount > 0 ? T_B3 * (1 - discount) : T_B3;
+  const T_B3_eff_base = discount > 0 ? T_B3_base * (1 - discount) : T_B3_base;
+
+  // Annual escalation factors — apply per-month based on yearIdx = floor(m/12)
+  const escDist = project.tariffEscalationDistributor ?? 0;
+  const escPPA = project.tariffEscalationPPA ?? 0;
+  const ppaBase = project.plant.ppaRateRsBRLkWh;
+  const escAt = (m: number) => Math.pow(1 + escDist, Math.floor(m / 12));
+  const ppaEscAt = (m: number) => Math.pow(1 + escPPA, Math.floor(m / 12));
 
   const lockedUCs = project.batBank ? ['bat'] : [];
 
@@ -51,11 +58,17 @@ function computeMarginalValues(
     const semDetails = semResult.ucDetailsSEM[uc.id];
 
     // Look ahead: find the next month where this UC has SEM cost > 0
-    // to determine the future value of preserved bank kWh
+    // to determine the future value of preserved bank kWh (using future-month escalated tariff)
     function futureMonthTariff(fromMonth: number): number {
       for (let fm = fromMonth + 1; fm < contractMonths; fm++) {
         const fsd = semDetails?.[fm];
         if (fsd && fsd.costRede > 0) {
+          const fEsc = escAt(fm);
+          const T_AFP = T_AFP_base * fEsc;
+          const T_APT = T_APT_base * fEsc;
+          const T_ARSV = T_ARSV_base * fEsc;
+          const T_B3_eff = T_B3_eff_base * fEsc;
+          const T_BRSV = T_BRSV_base * fEsc;
           const fConsFP = uc.consumptionFP[fm] || 0;
           const fConsRSV = (uc.consumptionReservado || [])[fm] || 0;
           if (!uc.isGrupoA) {
@@ -71,7 +84,8 @@ function computeMarginalValues(
             : T_AFP;
         }
       }
-      return project.plant.ppaRateRsBRLkWh; // no future cost month → PPA value
+      // No future cost month → fall back to escalated PPA at last month
+      return ppaBase * ppaEscAt(contractMonths - 1);
     }
 
     for (let m = 0; m < contractMonths; m++) {
@@ -82,8 +96,16 @@ function computeMarginalValues(
         continue;
       }
 
+      // Apply month-specific escalation to tariffs
+      const esc = escAt(m);
+      const T_AFP = T_AFP_base * esc;
+      const T_APT = T_APT_base * esc;
+      const T_ARSV = T_ARSV_base * esc;
+      const T_B3_eff = T_B3_eff_base * esc;
+      const T_BRSV = T_BRSV_base * esc;
+
       if (sd.costRede > 0) {
-        // Direct saving: credit offsets rede cost at grid tariff
+        // Direct saving: credit offsets rede cost at escalated grid tariff
         const consFP = uc.consumptionFP[m] || 0;
         const consRSV = (uc.consumptionReservado || [])[m] || 0;
         if (!uc.isGrupoA) {
@@ -98,8 +120,7 @@ function computeMarginalValues(
         }
       } else if (sd.bankDraw > 0) {
         // Bank conservation: credit prevents bank draw, preserving
-        // bank for future months when grid tariff will be saved.
-        // Value = future tariff × fraction of consumption covered by draw
+        // bank for future months when grid tariff will be saved (escalated).
         const consumption = (uc.consumptionFP[m] || 0)
           + ((uc.consumptionPT || [])[m] || 0)
           + ((uc.consumptionReservado || [])[m] || 0);
@@ -107,8 +128,8 @@ function computeMarginalValues(
         const futureTariff = futureMonthTariff(m);
         values.push(futureTariff * bankFraction * 0.85);
       } else {
-        // Own gen covers everything, no bank draw — minimal value
-        values.push(project.plant.ppaRateRsBRLkWh * 0.3);
+        // Own gen covers everything, no bank draw — minimal value (escalated PPA)
+        values.push(ppaBase * ppaEscAt(m) * 0.3);
       }
     }
     matrix[uc.id] = values;

@@ -29,8 +29,26 @@ export function computeICMSPerKWh(allInTariff: number, icmsRate: number): number
 }
 
 /**
+ * PIS+COFINS embedded per kWh (for the case when federal exemption doesn't apply).
+ * Mirrors computeICMSPerKWh's "por fora extraction" convention so the leak math
+ * stays consistent with the ICMS additional formula already used elsewhere.
+ */
+export function computePisCofinsPerKWh(
+  allInTariff: number,
+  pisRate: number,
+  cofinsRate: number,
+): number {
+  const r = pisRate + cofinsRate;
+  if (r <= 0) return 0;
+  return allInTariff * r / (1 + r);
+}
+
+/**
  * Compute all derived tariff fields for a distributor.
- * Returns a new Distributor with FA, T_B3, T_AFP, T_APT populated.
+ * Returns a new Distributor with FA, T_B3, T_AFP, T_APT and the TUSD-only
+ * variants (T_AFP_TUSD, T_APT_TUSD, T_B3_TUSD) populated. The TUSD-only
+ * tariffs are used when distributor.taxes.icmsScope === 'TE_ONLY': isenção
+ * cobre só TE, então o leak de ICMS no kWh compensado é calculado sobre TUSD.
  */
 export function computeDerivedTariffs(dist: Distributor): Distributor {
   const FA = computeFA(dist.tariffs.A_TE_FP, dist.tariffs.A_TE_PT);
@@ -50,6 +68,13 @@ export function computeDerivedTariffs(dist: Distributor): Distributor {
     ? computeAllInTariff(dist.tariffs.A_FP_DEMANDA, dist.taxes)
     : undefined;
 
+  // TUSD-only sem-tributos = (TUSD+TE) − TE. ANEEL feed already gives TE separately.
+  const A_FP_TUSD_only = Math.max(0, dist.tariffs.A_FP_TUSD_TE - dist.tariffs.A_TE_FP);
+  const A_PT_TUSD_only = Math.max(0, dist.tariffs.A_PT_TUSD_TE - dist.tariffs.A_TE_PT);
+  const T_AFP_TUSD = computeAllInTariff(A_FP_TUSD_only, dist.taxes);
+  const T_APT_TUSD = computeAllInTariff(A_PT_TUSD_only, dist.taxes);
+  const T_B3_TUSD = computeAllInTariff(dist.tariffs.B_TUSD, dist.taxes);
+
   return {
     ...dist,
     FA,
@@ -59,5 +84,8 @@ export function computeDerivedTariffs(dist: Distributor): Distributor {
     T_ARSV,
     T_BRSV,
     T_A_DEMANDA,
+    T_AFP_TUSD,
+    T_APT_TUSD,
+    T_B3_TUSD,
   };
 }

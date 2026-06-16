@@ -447,6 +447,77 @@ export function DistributorForm({ distributor, onChange }: Props) {
             )}
           </div>
         </div>
+
+        {/* ICMS scope — TE+TUSD vs TE only (state-driven) */}
+        <div className="mt-4">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <label className="text-sm font-medium text-slate-700">Escopo da isenção de ICMS</label>
+            <div className="relative group">
+              <span className="text-slate-400 cursor-help text-xs">?</span>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                Define se a isenção de ICMS sobre kWh compensado pela GD cobre só a parcela TE (energia) ou TE+TUSD. Pós-LC 194/2022, vários estados (PR/SC/RS/SP) isentam só TE → o ICMS sobre TUSD-Fio B continua sendo cobrado sobre o kWh compensado. Aplica-se quando "Isencao ICMS ativa" está ligada nos Cenários.
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {([
+              { v: 'TE_TUSD', label: 'TE + TUSD (total)', desc: 'Isenção cobre tarifa completa — sem leak de ICMS' },
+              { v: 'TE_ONLY', label: 'TE apenas (parcial)', desc: 'TUSD-Fio B segue tributado sobre kWh compensado' },
+              { v: 'NONE', label: 'Sem isenção', desc: 'ICMS cobrado sobre TE + TUSD do kWh compensado' },
+            ] as const).map(opt => {
+              const active = (d.taxes.icmsScope ?? 'TE_TUSD') === opt.v;
+              return (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => onChange(computeDerivedTariffs({
+                    ...distributor,
+                    taxes: { ...distributor.taxes, icmsScope: opt.v },
+                  }))}
+                  className={`flex-1 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${active ? 'border-teal-500 bg-teal-50 text-teal-900' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}
+                >
+                  <div className="font-medium">{opt.label}</div>
+                  <div className="text-[10px] opacity-75 mt-0.5">{opt.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* PIS/COFINS isenção (federal, per-client) */}
+        <div className="mt-4">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <label className="text-sm font-medium text-slate-700">Isenção de PIS/COFINS sobre kWh compensado</label>
+            <div className="relative group">
+              <span className="text-slate-400 cursor-help text-xs">?</span>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+                Federal — STJ Tema 986 / Lei 13.169/2015. Maioria dos clientes consegue (ação judicial ou regime), mas caso-a-caso. Desligue se o cliente não tem isenção: PIS+COFINS continuará sendo cobrado sobre o kWh compensado.
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {([
+              { v: true, label: 'Isenta (padrão)', desc: 'STJ Tema 986 — não cobra PIS/COFINS sobre compensação' },
+              { v: false, label: 'Não isenta', desc: 'Cliente paga PIS+COFINS sobre kWh compensado (leak)' },
+            ] as const).map(opt => {
+              const active = (d.taxes.pisCofinsExempt ?? true) === opt.v;
+              return (
+                <button
+                  key={String(opt.v)}
+                  type="button"
+                  onClick={() => onChange(computeDerivedTariffs({
+                    ...distributor,
+                    taxes: { ...distributor.taxes, pisCofinsExempt: opt.v },
+                  }))}
+                  className={`flex-1 text-left px-3 py-2 rounded-lg border text-xs transition-colors ${active ? 'border-teal-500 bg-teal-50 text-teal-900' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}
+                >
+                  <div className="font-medium">{opt.label}</div>
+                  <div className="text-[10px] opacity-75 mt-0.5">{opt.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Computed values — read-only summary */}

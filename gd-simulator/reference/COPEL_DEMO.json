@@ -1,0 +1,128 @@
+{
+  "project": {
+    "id": "copel-demo",
+    "clientName": "Cliente COPEL Paraná (Demo)",
+    "distributor": {
+      "id": "COPEL-DIS",
+      "name": "Copel Distribuição",
+      "state": "PR",
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.472, DE 17 DE JUNHO DE 2025",
+      "tariffs": {
+        "B_TUSD": 0.36667,
+        "B_TE": 0.27575,
+        "A_FP_TUSD_TE": 0.37842,
+        "A_PT_TUSD_TE": 1.62525,
+        "A_TE_FP": 0.25751,
+        "A_TE_PT": 0.41369,
+        "A_FP_DEMANDA": 20.78
+      },
+      "taxes": {
+        "ICMS": 0.29,
+        "PIS": 0.0153,
+        "COFINS": 0.0703,
+        "icmsScope": "TE_ONLY"
+      }
+    },
+    "plant": {
+      "id": "hap02-alto-parana-02",
+      "name": "HAP02 Alto Paraná 02",
+      "capacityKWac": 1000,
+      "distributor": "COPEL-DIS",
+      "p50Profile": [
+        195980,
+        185400,
+        163850,
+        182840,
+        220480,
+        218710,
+        235240,
+        250700,
+        220950,
+        228130,
+        217600,
+        248770,
+        195980,
+        185400,
+        163850
+      ],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.5,
+      "contractStartMonth": "2026-04",
+      "contractMonths": 15
+    },
+    "ucs": [
+      {
+        "id": "copel-uc-01",
+        "name": "UC Cliente Paraná — Matriz",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          0,
+          0,
+          0,
+          21374,
+          36016,
+          75260,
+          122101,
+          219925,
+          263584,
+          320998,
+          322093,
+          255021,
+          0,
+          0,
+          0
+        ],
+        "consumptionPT": [
+          0,
+          0,
+          0,
+          2001,
+          3895,
+          7415,
+          13151,
+          23343,
+          22974,
+          30146,
+          30399,
+          22346,
+          0,
+          0,
+          0
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 700,
+        "demandaFaturadaFP": 700,
+        "demandaMedidaMensal": [
+          0,
+          0,
+          0,
+          78.12,
+          133.56,
+          218.40,
+          342.72,
+          508.20,
+          673.68,
+          732.48,
+          763.56,
+          724.92,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false
+    },
+    "growthRate": 0,
+    "generationDegradation": 0.005,
+    "performanceFactor": 0.95,
+    "rateio": {
+      "periods": [],
+      "isOptimised": false
+    }
+  }
+}

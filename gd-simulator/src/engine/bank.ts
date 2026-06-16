@@ -1,5 +1,5 @@
 import type { ConsumptionUnit, Distributor, Project, RateioAllocation, UCMonthlyDetail } from './types';
-import { computeICMSPerKWh } from './tariff';
+import { computeICMSPerKWh, computePisCofinsPerKWh } from './tariff';
 
 interface BankSimParams {
   uc: ConsumptionUnit;
@@ -9,12 +9,19 @@ interface BankSimParams {
   includeCS3Credits: boolean; // false for SEM, true for COM
   batCreditsPerMonth: number[]; // BAT bank credits flowing to this UC per month (T+1 applied)
   icmsExempt: boolean;
+  pisCofinsExempt: boolean;
   competitorDiscount: number; // only affects Grupo B SEM scenario
   isSEM: boolean;
   contractMonths: number;     // typically 24, but can be 12-60
   // Annual escalation rate applied to all distributor tariffs (FP, PT, RSV, demanda, B).
   // Compounds from year 0 (no scaling for first 12 months).
   tariffEscalationDistributor?: number; // default 0
+  // Attribution toggles — default to true to preserve existing simulate behavior.
+  // Set to false to isolate the marginal value of an asset source for the
+  // value-attribution decomposition (see types.ts AttributionFlags).
+  includeOpeningBank?: boolean; // default true — false zeroes uc.openingBank
+  includeOwnGen?: boolean;       // default true — false zeroes uc.ownGeneration
+  includeBATDistrib?: boolean;   // default true — false zeroes batCreditsPerMonth
 }
 
 export interface BankSimResult {
@@ -22,6 +29,7 @@ export interface BankSimResult {
   finalBank: number;
   totalCostRede: number;
   totalIcmsAdditional: number;
+  totalPisCofinsAdditional: number;
 }
 
 function getRateioFraction(
@@ -29,13 +37,24 @@ function getRateioFraction(
   ucId: string,
   monthIndex: number
 ): number {
-  for (const period of rateio.periods) {
+  const periods = rateio.periods;
+  if (periods.length === 0) return 0;
+  for (const period of periods) {
     if (monthIndex >= period.start && monthIndex <= period.end) {
       const alloc = period.allocations.find(a => a.ucId === ucId);
       return alloc ? alloc.fraction : 0;
     }
   }
-  return 0;
+  // Month falls outside every defined period — this happens when the contract
+  // (PPA) duration is extended after the rateio was built, leaving the tail
+  // months uncovered. Fall back to the nearest period so injected credits are
+  // still allocated instead of silently dropping to zero (which understates the
+  // economy). Months before the first period use the first; months after the
+  // last use the last.
+  const sorted = [...periods].sort((a, b) => a.start - b.start);
+  const fallback = monthIndex < sorted[0].start ? sorted[0] : sorted[sorted.length - 1];
+  const alloc = fallback.allocations.find(a => a.ucId === ucId);
+  return alloc ? alloc.fraction : 0;
 }
 
 /**
@@ -59,9 +78,12 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   const {
     uc, distributor, generation, rateio,
     includeCS3Credits, batCreditsPerMonth,
-    icmsExempt, competitorDiscount, isSEM,
+    icmsExempt, pisCofinsExempt, competitorDiscount, isSEM,
     contractMonths,
     tariffEscalationDistributor = 0,
+    includeOpeningBank = true,
+    includeOwnGen = true,
+    includeBATDistrib = true,
   } = params;
 
   const FA = distributor.FA ?? 0;
@@ -71,12 +93,22 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   const T_ARSV_base = distributor.T_ARSV ?? T_AFP_base;
   const T_BRSV_base = distributor.T_BRSV ?? T_B3_base;
   const T_A_DEMANDA_base = distributor.T_A_DEMANDA ?? 0;
+  const T_AFP_TUSD_base = distributor.T_AFP_TUSD ?? 0;
+  const T_APT_TUSD_base = distributor.T_APT_TUSD ?? 0;
+  const T_B3_TUSD_base = distributor.T_B3_TUSD ?? 0;
+  const icmsScope = distributor.taxes.icmsScope ?? 'TE_TUSD';
+  // Effective exemption: NONE scope forces "no isenção" regardless of the scenarios toggle.
+  const effectiveIcmsExempt = icmsScope === 'NONE' ? false : icmsExempt;
+  const icmsRate = distributor.taxes.ICMS;
+  const pisRate = distributor.taxes.PIS;
+  const cofinsRate = distributor.taxes.COFINS;
   const demandaFaturadaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
 
   const monthlyDetails: UCMonthlyDetail[] = [];
-  let bank = uc.openingBank;
+  let bank = includeOpeningBank ? uc.openingBank : 0;
   let totalCostRede = 0;
   let totalIcmsAdditional = 0;
+  let totalPisCofinsAdditional = 0;
 
   for (let m = 0; m < contractMonths; m++) {
     const bankStart = bank;
@@ -90,14 +122,19 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     const T_B3 = T_B3_base * escFactor;
     const T_BRSV = T_BRSV_base * escFactor;
     const T_A_DEMANDA = T_A_DEMANDA_base * escFactor;
+    const T_AFP_TUSD = T_AFP_TUSD_base * escFactor;
+    const T_APT_TUSD = T_APT_TUSD_base * escFactor;
+    const T_B3_TUSD = T_B3_TUSD_base * escFactor;
     const demandaMensal = demandaFaturadaKW * T_A_DEMANDA;
 
     // Credit sources — all FP-equivalent kWh
     const cs3Credits = includeCS3Credits
       ? generation[m] * getRateioFraction(rateio, uc.id, m)
       : 0;
-    const batCredits = batCreditsPerMonth[m] || 0;
-    const ownGen = (uc.ownGeneration && uc.ownGeneration[m]) ? uc.ownGeneration[m] : 0;
+    const batCredits = includeBATDistrib ? (batCreditsPerMonth[m] || 0) : 0;
+    const ownGen = (includeOwnGen && uc.ownGeneration && uc.ownGeneration[m])
+      ? uc.ownGeneration[m]
+      : 0;
 
     // Total for reporting
     const totalNewCredits = cs3Credits + batCredits + ownGen;
@@ -108,6 +145,10 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     let bankDraw = 0;
     let costRede = 0;
     let icmsAdditional = 0;
+    let pisCofinsAdditional = 0;
+    let monthlyResidualFP = 0;
+    let monthlyResidualPT = 0;
+    let monthlyResidualRSV = 0;
 
     if (uc.isGrupoA) {
       const consFP = uc.consumptionFP[m] || 0;
@@ -151,8 +192,10 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
 
       // Row 36: Custo — allocate credits FP-regular first, then RSV (same posto,
       // maximizes customer savings within the FP-posto bucket), then surplus to PT via FA.
+      let resFP = 0, resPT = 0, resRSV = 0;
       if (bank > 0) {
         costRede = 0;
+        // Bank still positive means everything got covered (or already in bank).
       } else {
         const totalPool = ownGen + cs3Credits + batCredits + bankStart;
         const fpUncovered = Math.max(0, consFP - totalPool);
@@ -162,18 +205,57 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
         const ptCoveredBySurplus = remAfterRSV * FA;
         const ptUncovered = Math.max(0, consPT - ptCoveredBySurplus);
         costRede = fpUncovered * T_AFP + rsvUncovered * T_ARSV + ptUncovered * T_APT;
+        resFP = fpUncovered;
+        resRSV = rsvUncovered;
+        resPT = ptUncovered;
       }
+      // Compensated per posto = consumption − residual. Used by tax-leak formulas
+      // below and by the Detalhe Impostos UI for compensação visualization.
+      const compFP = Math.max(0, consFP - resFP);
+      const compPT = Math.max(0, consPT - resPT);
+      const compRSV = Math.max(0, consRSV - resRSV);
 
-      // ICMS additional on compensated credits
-      if (!icmsExempt) {
-        const icmsFP = computeICMSPerKWh(T_AFP, distributor.taxes.ICMS);
-        const icmsPT = computeICMSPerKWh(T_APT, distributor.taxes.ICMS);
-        icmsAdditional = creditsFPApplied * icmsFP + creditsPTApplied * icmsPT;
+      // ICMS additional on compensated credits — scope-aware:
+      //   scope=NONE or !icmsExempt    → leak = ICMS sobre tarifa completa (TUSD+TE)
+      //   scope=TE_ONLY + icmsExempt   → leak = ICMS sobre TUSD apenas (TE isento)
+      //   scope=TE_TUSD + icmsExempt   → leak = 0 (isenção total)
+      // Leak base = compensação real (own-gen + plant + bank draws + BAT), NOT só creditsXXApplied
+      // (que rastreia apenas auto-comp de own-gen). Fix do bug pré-existente onde plant não vazava.
+      if (!effectiveIcmsExempt) {
+        const icmsFP = computeICMSPerKWh(T_AFP, icmsRate);
+        const icmsPT = computeICMSPerKWh(T_APT, icmsRate);
+        icmsAdditional = compFP * icmsFP + compPT * icmsPT;
         if (hasRSV) {
-          const icmsRSV = computeICMSPerKWh(T_ARSV, distributor.taxes.ICMS);
-          icmsAdditional += creditsRSVApplied * icmsRSV;
+          const icmsRSV = computeICMSPerKWh(T_ARSV, icmsRate);
+          icmsAdditional += compRSV * icmsRSV;
+        }
+      } else if (icmsScope === 'TE_ONLY') {
+        const icmsFP = computeICMSPerKWh(T_AFP_TUSD, icmsRate);
+        const icmsPT = computeICMSPerKWh(T_APT_TUSD, icmsRate);
+        icmsAdditional = compFP * icmsFP + compPT * icmsPT;
+        // Reservado: sem dado TUSD/TE separado, aproximamos pela razão FP-equiv.
+        if (hasRSV) {
+          const ratio = T_AFP > 0 ? T_AFP_TUSD / T_AFP : 0;
+          icmsAdditional += compRSV * computeICMSPerKWh(T_ARSV, icmsRate) * ratio;
         }
       }
+
+      // PIS/COFINS additional — só vaza se cliente não tem isenção federal.
+      if (!pisCofinsExempt) {
+        const pcFP = computePisCofinsPerKWh(T_AFP, pisRate, cofinsRate);
+        const pcPT = computePisCofinsPerKWh(T_APT, pisRate, cofinsRate);
+        pisCofinsAdditional = compFP * pcFP + compPT * pcPT;
+        if (hasRSV) {
+          const pcRSV = computePisCofinsPerKWh(T_ARSV, pisRate, cofinsRate);
+          pisCofinsAdditional += compRSV * pcRSV;
+        }
+      }
+
+      // Persist residual kWh for downstream consumers (Detalhe Impostos UI).
+      // Inline assignment for monthlyDetails.push() below.
+      monthlyResidualFP = resFP;
+      monthlyResidualPT = resPT;
+      monthlyResidualRSV = resRSV;
 
     } else {
       // ── Grupo B: single-posto logic, optional reservado split for SEM billing ──
@@ -208,18 +290,40 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
 
       costRede = residualFP * effectiveT_B + residualRSV * effectiveT_BRSV;
 
-      // ICMS additional (preserve existing semantics: on total credits applied)
-      if (!icmsExempt && creditsApplied > 0) {
-        const icmsB = computeICMSPerKWh(T_B3, distributor.taxes.ICMS);
-        if (hasRSV) {
-          const icmsBRSV = computeICMSPerKWh(T_BRSV, distributor.taxes.ICMS);
-          icmsAdditional = creditsToFP * icmsB + creditsToRSV * icmsBRSV;
-        } else {
+      // ICMS additional (scope-aware, same logic as Grupo A)
+      if (creditsApplied > 0) {
+        if (!effectiveIcmsExempt) {
+          const icmsB = computeICMSPerKWh(T_B3, icmsRate);
+          if (hasRSV) {
+            const icmsBRSV = computeICMSPerKWh(T_BRSV, icmsRate);
+            icmsAdditional = creditsToFP * icmsB + creditsToRSV * icmsBRSV;
+          } else {
+            icmsAdditional = creditsApplied * icmsB;
+          }
+        } else if (icmsScope === 'TE_ONLY') {
+          const icmsB = computeICMSPerKWh(T_B3_TUSD, icmsRate);
           icmsAdditional = creditsApplied * icmsB;
+          if (hasRSV) {
+            const ratio = T_B3 > 0 ? T_B3_TUSD / T_B3 : 0;
+            icmsAdditional = (creditsApplied - creditsToRSV) * icmsB
+              + creditsToRSV * computeICMSPerKWh(T_BRSV, icmsRate) * ratio;
+          }
+        }
+        if (!pisCofinsExempt) {
+          const pcB = computePisCofinsPerKWh(T_B3, pisRate, cofinsRate);
+          if (hasRSV) {
+            const pcBRSV = computePisCofinsPerKWh(T_BRSV, pisRate, cofinsRate);
+            pisCofinsAdditional = creditsToFP * pcB + creditsToRSV * pcBRSV;
+          } else {
+            pisCofinsAdditional = creditsApplied * pcB;
+          }
         }
       }
 
       bank = Math.max(0, totalAvail - consTotal);
+      monthlyResidualFP = residualFP;
+      monthlyResidualRSV = residualRSV;
+      // PT not applicable for Grupo B
     }
 
     // Demanda contratada — charged every month regardless of SEM/COM (not compensated by SCEE).
@@ -227,6 +331,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
 
     totalCostRede += costRede;
     totalIcmsAdditional += icmsAdditional;
+    totalPisCofinsAdditional += pisCofinsAdditional;
 
     const hasRSVReport = (uc.consumptionReservado?.[m] ?? 0) > 0;
     monthlyDetails.push({
@@ -242,6 +347,10 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       costRede,
       ownGenerationUsed: ownGen,
       icmsAdditional,
+      pisCofinsAdditional,
+      residualFP: monthlyResidualFP,
+      residualPT: monthlyResidualPT,
+      residualRSV: monthlyResidualRSV,
     });
   }
 
@@ -250,67 +359,164 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     finalBank: bank,
     totalCostRede,
     totalIcmsAdditional,
+    totalPisCofinsAdditional,
   };
 }
 
 /**
- * Compute BAT credit distribution per month per target UC.
- * BAT has own generation and consumption — only surplus flows out.
+ * BAT-the-UC monthly bill detail (grid bill, bank evolution).
+ * Used to include BAT in cost summing and attribution decomposition.
  */
-export function computeBATCredits(
-  project: Project
-): Record<string, number[]> {
-  const result: Record<string, number[]> = {};
+export interface BATMonthlyBill {
+  monthIndex: number;
+  costRede: number;
+  icmsAdditional: number;
+  pisCofinsAdditional: number;
+  bankStart: number;
+  bankDraw: number;
+  bankEnd: number;
+  surplusOut: number;       // FP-equiv kWh flowing to NHS/AMD this month
+  residualFP: number;       // grid kWh (FP) BAT pays
+  residualPT: number;       // grid kWh (PT) BAT pays
+}
 
-  if (!project.batBank) return result;
+export interface BATSimResult {
+  /** Credits flowing TO other UCs (NHS/AMD) per month, T+1 lagged */
+  creditsByUC: Record<string, number[]>;
+  /** BAT-the-UC's own grid bills, bank evolution, etc. */
+  monthlyBills: BATMonthlyBill[];
+  /** BAT bank at end of contract */
+  finalBank: number;
+  /** Sum of monthlyBills.costRede */
+  totalCostRede: number;
+  /** Sum of monthlyBills.icmsAdditional */
+  totalIcmsAdditional: number;
+  /** Sum of monthlyBills.pisCofinsAdditional */
+  totalPisCofinsAdditional: number;
+}
+
+interface BATSimParams {
+  project: Project;
+  contractMonths: number;
+  icmsExempt: boolean;
+  pisCofinsExempt: boolean;
+  tariffEscalationDistributor?: number;
+  // Attribution flags — default to true (preserves existing behavior).
+  includeOpeningBank?: boolean;
+  includeOwnGen?: boolean;
+  includeBATDistrib?: boolean;
+}
+
+/**
+ * Simulate BAT-the-UC: tracks own consumption × plant × bank dynamics,
+ * computes residual grid bill (the piece previously dropped on the floor),
+ * AND distributes plant surplus to NHS/AMD with T+1 lag.
+ *
+ * Replaces the old computeBATCredits — which only returned the credit flow
+ * and silently discarded BAT's residual consumption (~R$ 2.5M of grid bills
+ * over 10y for the Copasul demo).
+ */
+export function computeBATCredits(params: BATSimParams): BATSimResult {
+  const {
+    project,
+    contractMonths,
+    icmsExempt,
+    pisCofinsExempt,
+    tariffEscalationDistributor = 0,
+    includeOpeningBank = true,
+    includeOwnGen = true,
+    includeBATDistrib = true,
+  } = params;
+
+  const cm = contractMonths;
+  const empty = (): BATSimResult => ({
+    creditsByUC: {},
+    monthlyBills: [],
+    finalBank: 0,
+    totalCostRede: 0,
+    totalIcmsAdditional: 0,
+    totalPisCofinsAdditional: 0,
+  });
+
+  if (!project.batBank) return empty();
 
   const bat = project.batBank;
   const batUC = project.ucs.find(uc => uc.id === 'bat');
 
-  const cm = project.plant.contractMonths || 24;
+  const FA = project.distributor.FA ?? 0.6;
+  const T_AFP_base = project.distributor.T_AFP ?? 0;
+  const T_APT_base = project.distributor.T_APT ?? 0;
+  const T_AFP_TUSD_base = project.distributor.T_AFP_TUSD ?? 0;
+  const T_APT_TUSD_base = project.distributor.T_APT_TUSD ?? 0;
+  const icms = project.distributor.taxes.ICMS ?? 0;
+  const pis = project.distributor.taxes.PIS ?? 0;
+  const cofins = project.distributor.taxes.COFINS ?? 0;
+  const icmsScope = project.distributor.taxes.icmsScope ?? 'TE_TUSD';
+  const effectiveIcmsExempt = icmsScope === 'NONE' ? false : icmsExempt;
+
   const nhsCredits: number[] = new Array(cm).fill(0);
   const amdCredits: number[] = new Array(cm).fill(0);
+  const monthlyBills: BATMonthlyBill[] = [];
 
+  // Legacy fallback: BAT bank with no UC attached (just dribbles credits out).
+  // Kept for backward compatibility with projects that have batBank but no
+  // batUC entry. No grid-bill tracking applies (there's no UC to pay bills).
   if (!batUC) {
-    let remaining = bat.openingKWh;
-    const draw = bat.openingKWh / cm;
+    let remaining = includeOpeningBank ? bat.openingKWh : 0;
+    const draw = remaining / cm;
     for (let m = 0; m < cm; m++) {
       const d = Math.min(draw, remaining);
       remaining -= d;
-      if (m + 1 < cm) {
+      if (includeBATDistrib && m + 1 < cm) {
         nhsCredits[m + 1] += d * bat.toNHSPct;
         amdCredits[m + 1] += d * bat.toAMDPct;
       }
     }
-    result[bat.nhsUCId] = nhsCredits;
-    result[bat.amdUCId] = amdCredits;
-    return result;
+    return {
+      creditsByUC: {
+        [bat.nhsUCId]: nhsCredits,
+        [bat.amdUCId]: amdCredits,
+      },
+      monthlyBills: [],
+      finalBank: remaining,
+      totalCostRede: 0,
+      totalIcmsAdditional: 0,
+      totalPisCofinsAdditional: 0,
+    };
   }
 
-  const FA = project.distributor.FA ?? 0.6;
-  let batBank = bat.openingKWh;
+  let batBank = includeOpeningBank ? bat.openingKWh : 0;
+  let totalCostRede = 0;
+  let totalIcmsAdditional = 0;
+  let totalPisCofinsAdditional = 0;
 
   for (let m = 0; m < cm; m++) {
-    const gen = (batUC.ownGeneration && batUC.ownGeneration[m]) ? batUC.ownGeneration[m] : 0;
+    const yearIdx = Math.floor(m / 12);
+    const escFactor = Math.pow(1 + tariffEscalationDistributor, yearIdx);
+    const T_AFP = T_AFP_base * escFactor;
+    const T_APT = T_APT_base * escFactor;
+    const T_AFP_TUSD = T_AFP_TUSD_base * escFactor;
+    const T_APT_TUSD = T_APT_TUSD_base * escFactor;
+
+    const gen = (includeOwnGen && batUC.ownGeneration && batUC.ownGeneration[m])
+      ? batUC.ownGeneration[m]
+      : 0;
     const consFP = batUC.consumptionFP[m] || 0;
     const consPT = batUC.consumptionPT[m] || 0;
+    const bankStart = batBank;
 
-    // Apply generation to BAT's own consumption
-    // BAT surplus calculation uses FA for energy accounting
-    // (determines how much surplus flows to NHS/AMD via T+1 transfer)
+    // Step 1 — own gen autocompensa BAT FP first, then crosses posto via FA for PT
     const genAppliedFP = Math.min(gen, consFP);
     let remainingGen = gen - genAppliedFP;
-
     const genForPT = remainingGen * FA;
     const genAppliedPT = Math.min(genForPT, consPT);
     const genUsedAsFP = FA > 0 ? genAppliedPT / FA : 0;
     remainingGen = remainingGen - genUsedAsFP;
-
     const surplus = Math.max(0, remainingGen);
 
-    // Residual consumption draws from BAT stranded bank
-    let residualFP = consFP - genAppliedFP;
-    let residualPT = consPT - genAppliedPT;
+    // Step 2 — residual after own gen draws from BAT bank
+    let residualFP = Math.max(0, consFP - genAppliedFP);
+    let residualPT = Math.max(0, consPT - genAppliedPT);
     let bankDraw = 0;
 
     if (residualFP > 0 && batBank > 0) {
@@ -318,22 +524,73 @@ export function computeBATCredits(
       bankDraw += drawFP;
       residualFP -= drawFP;
     }
-    if (residualPT > 0 && (batBank - bankDraw) > 0) {
+    if (residualPT > 0 && batBank - bankDraw > 0) {
       const avail = batBank - bankDraw;
-      const drawPT = Math.min(avail, residualPT / FA);
+      const ptCovered = Math.min(avail * FA, residualPT);
+      const drawPT = FA > 0 ? ptCovered / FA : 0;
       bankDraw += drawPT;
+      residualPT -= ptCovered;
     }
-
     batBank = Math.max(0, batBank - bankDraw);
 
-    // Surplus flows to target UCs with T+1 lag
-    if (surplus > 0 && m + 1 < cm) {
+    // Step 3 — anything residual pays grid (this is what was missing before)
+    const costRede = residualFP * T_AFP + residualPT * T_APT;
+    let icmsAdditional = 0;
+    let pisCofinsAdditional = 0;
+    if (!effectiveIcmsExempt) {
+      const icmsFP = computeICMSPerKWh(T_AFP, icms);
+      const icmsPT = computeICMSPerKWh(T_APT, icms);
+      // ICMS additional applies to credits that offset consumption (own gen autocomp counts here).
+      icmsAdditional = genAppliedFP * icmsFP + genAppliedPT * icmsPT;
+    } else if (icmsScope === 'TE_ONLY') {
+      const icmsFP = computeICMSPerKWh(T_AFP_TUSD, icms);
+      const icmsPT = computeICMSPerKWh(T_APT_TUSD, icms);
+      icmsAdditional = genAppliedFP * icmsFP + genAppliedPT * icmsPT;
+    }
+    if (!pisCofinsExempt) {
+      const pcFP = computePisCofinsPerKWh(T_AFP, pis, cofins);
+      const pcPT = computePisCofinsPerKWh(T_APT, pis, cofins);
+      pisCofinsAdditional = genAppliedFP * pcFP + genAppliedPT * pcPT;
+    }
+
+    // Step 4 — surplus distributes to NHS/AMD with T+1 lag (only when flag on)
+    if (includeBATDistrib && surplus > 0 && m + 1 < cm) {
       nhsCredits[m + 1] += surplus * bat.toNHSPct;
       amdCredits[m + 1] += surplus * bat.toAMDPct;
     }
+    // Note: when includeBATDistrib=false, surplus is wasted (NOT banked back).
+    // This mirrors the F-section configuration in the Excel — BAT plant is configured
+    // to send surplus out, not to grow its own bank. Toggling the flag isolates the
+    // distribution effect without redirecting surplus into the bank (which would
+    // distort the attribution by inflating bank value).
+
+    totalCostRede += costRede;
+    totalIcmsAdditional += icmsAdditional;
+    totalPisCofinsAdditional += pisCofinsAdditional;
+
+    monthlyBills.push({
+      monthIndex: m,
+      costRede,
+      icmsAdditional,
+      pisCofinsAdditional,
+      bankStart,
+      bankDraw,
+      bankEnd: batBank,
+      surplusOut: includeBATDistrib ? surplus : 0,
+      residualFP,
+      residualPT,
+    });
   }
 
-  result[bat.nhsUCId] = nhsCredits;
-  result[bat.amdUCId] = amdCredits;
-  return result;
+  return {
+    creditsByUC: {
+      [bat.nhsUCId]: nhsCredits,
+      [bat.amdUCId]: amdCredits,
+    },
+    monthlyBills,
+    finalBank: batBank,
+    totalCostRede,
+    totalIcmsAdditional,
+    totalPisCofinsAdditional,
+  };
 }
