@@ -1,8 +1,9 @@
 import React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet, pdf } from '@react-pdf/renderer';
 import type { Project, SimulationResult } from './types';
-import { runSimulation } from './simulation';
+import { runSimulation, computeSimulationMonths, getAllPlants } from './simulation';
 import { computeDerivedTariffs } from './tariff';
+import { computeTaxBreakdown } from './taxBreakdown';
 
 // Brand colours
 const NAVY = '#004B70';
@@ -111,42 +112,90 @@ interface StackedChartSeries {
   label: string;
 }
 
-function StackedBarChart({ months, series, width = 515, height = 130 }: {
+function StackedBarChart({ months, series, width = 515, height = 130, showValues = false, showSegmentValues = false, supportNegative = false }: {
   months: string[];
   series: StackedChartSeries[];
   width?: number;
   height?: number;
+  showValues?: boolean;
+  showSegmentValues?: boolean;
+  supportNegative?: boolean;
 }) {
   const n = months.length;
-  const barGap = 2;
-  const barWidth = Math.max(4, (width - barGap * (n - 1)) / n);
+  const barWidth = Math.max(4, (width - 2 * (n - 1)) / n);
   const totals = months.map((_, i) => series.reduce((acc, s) => acc + (s.data[i] || 0), 0));
-  const maxTotal = Math.max(1, ...totals);
+  const maxTotal = supportNegative ? Math.max(1, ...totals.map(Math.abs)) : Math.max(1, ...totals);
+  const abbr = (v: number): string =>
+    Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `${Math.round(v / 1e3)}k` : `${Math.round(v)}`;
+  const labelStep = n > 18 ? 2 : 1;
+  const showTopValues = showValues && barWidth >= 10;
 
-  const bars = months.map((label, i) => {
-    const segments = series.map((s) => {
-      const val = s.data[i] || 0;
-      return { h: (val / maxTotal) * height, color: s.color };
-    });
-    return React.createElement(View, {
+  const topValues = showTopValues ? months.map((_, i) =>
+    React.createElement(Text, {
       key: i,
       style: {
         width: barWidth,
-        marginRight: i === n - 1 ? 0 : barGap,
-        height,
-        flexDirection: 'column-reverse',
+        marginRight: i === n - 1 ? 0 : 2,
+        fontSize: barWidth >= 18 ? 6 : 5,
+        textAlign: 'center',
+        color: NAVY,
+        fontWeight: 'bold',
       },
+    }, totals[i] > 0 && i % labelStep === 0 ? abbr(totals[i]) : '')
+  ) : null;
+
+  const showSegLabels = showSegmentValues && barWidth >= 14;
+  const half = supportNegative ? height / 2 : height;
+
+  const bars = months.map((label, i) => {
+    if (supportNegative) {
+      const val = series[0]?.data[i] || 0;
+      const color = val >= 0 ? series[0].color : '#dc2626';
+      const h = Math.min(half, (Math.abs(val) / maxTotal) * half);
+      const showLbl = showSegLabels && h >= 8 && val !== 0;
+      const top = React.createElement(View, {
+        style: { width: barWidth, height: half, flexDirection: 'column-reverse' },
+      }, val > 0 && React.createElement(View, {
+        style: { width: barWidth, height: h, backgroundColor: color, justifyContent: 'center', alignItems: 'center' },
+      }, showLbl && React.createElement(Text, {
+        style: { fontSize: barWidth >= 22 ? 6 : 5, color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
+      }, abbr(val))));
+      const bottom = React.createElement(View, {
+        style: { width: barWidth, height: half, flexDirection: 'column' },
+      }, val < 0 && React.createElement(View, {
+        style: { width: barWidth, height: h, backgroundColor: color, justifyContent: 'center', alignItems: 'center' },
+      }, showLbl && React.createElement(Text, {
+        style: { fontSize: barWidth >= 22 ? 6 : 5, color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
+      }, abbr(val))));
+      return React.createElement(View, {
+        key: i,
+        style: { width: barWidth, marginRight: i === n - 1 ? 0 : 2, height, flexDirection: 'column' },
+      }, top, bottom);
+    }
+    const segments = series.map((s) => {
+      const val = s.data[i] || 0;
+      return { h: (val / maxTotal) * height, color: s.color, val };
+    });
+    return React.createElement(View, {
+      key: i,
+      style: { width: barWidth, marginRight: i === n - 1 ? 0 : 2, height, flexDirection: 'column-reverse' },
     },
-      ...segments.map((seg, j) =>
-        React.createElement(View, { key: j, style: { width: barWidth, height: seg.h, backgroundColor: seg.color } })
-      )
+      ...segments.map((seg, j) => {
+        const showLbl = showSegLabels && seg.h >= 8 && seg.val > 0;
+        return React.createElement(View, {
+          key: j,
+          style: { width: barWidth, height: seg.h, backgroundColor: seg.color, justifyContent: 'center', alignItems: 'center' },
+        }, showLbl && React.createElement(Text, {
+          style: { fontSize: barWidth >= 22 ? 6 : 5, color: '#ffffff', fontWeight: 'bold', textAlign: 'center' },
+        }, abbr(seg.val)));
+      })
     );
   });
 
   const labels = months.map((label, i) =>
     React.createElement(Text, {
       key: i,
-      style: { width: barWidth, marginRight: i === n - 1 ? 0 : barGap, fontSize: 5, textAlign: 'center', color: '#64748b' },
+      style: { width: barWidth, marginRight: i === n - 1 ? 0 : 2, fontSize: 5, textAlign: 'center', color: '#64748b' },
     }, label)
   );
 
@@ -162,14 +211,19 @@ function StackedBarChart({ months, series, width = 515, height = 130 }: {
   );
 
   return React.createElement(View, null,
-    React.createElement(View, { style: { flexDirection: 'row', alignItems: 'flex-end', width, height, marginBottom: 2 } }, ...bars),
+    showTopValues && topValues && React.createElement(View, { style: { flexDirection: 'row', width, marginBottom: 1 } }, ...topValues),
+    React.createElement(View, {
+      style: { flexDirection: 'row', alignItems: supportNegative ? 'center' : 'flex-end', width, height, marginBottom: 2, position: 'relative' },
+    }, ...bars, supportNegative && React.createElement(View, {
+      style: { position: 'absolute', left: 0, right: 0, top: height / 2, height: 0.5, backgroundColor: '#64748b' },
+    })),
     React.createElement(View, { style: { flexDirection: 'row', width } }, ...labels),
     legend,
   );
 }
 
 function computeAggregateConsumption(project: Project): { fp: number[]; pt: number[]; rsv: number[] } {
-  const cm = project.plant.contractMonths || 24;
+  const cm = computeSimulationMonths(project);
   const growth = project.growthRate ?? 0.025;
   const fp: number[] = new Array(cm).fill(0);
   const pt: number[] = new Array(cm).fill(0);
@@ -195,15 +249,20 @@ function Header({ clientName, plantName }: { clientName: string; plantName: stri
 }
 
 function CoverPage({ project, generatedAt }: { project: Project; generatedAt: string }) {
+  const plants = getAllPlants(project);
+  const totalKWac = plants.reduce((acc, p) => acc + (p.capacityKWac || 0), 0);
+  const subtitle = plants.length === 1 ? project.plant.name : `${plants.length} usinas — ${totalKWac.toLocaleString('pt-BR')} kWac total`;
+  const plantNames = plants.length > 1 ? plants.map(p => p.name).join(' + ') : null;
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(View, { style: s.coverCenter },
       React.createElement(Image, { src: '/GD-analyzer/Helexia_main_logo_screen_L.png', style: { width: 180, marginBottom: 30 } }),
       React.createElement(Text, { style: s.coverTitle }, project.clientName),
-      React.createElement(Text, { style: s.coverSubtitle }, project.plant.name),
+      React.createElement(Text, { style: s.coverSubtitle }, subtitle),
+      plantNames && React.createElement(Text, { style: { ...s.coverSubtitle, fontSize: 10 } }, plantNames),
       React.createElement(Text, { style: s.coverSubtitle }, `${project.distributor.name} — ${project.distributor.state}`),
       React.createElement(Text, { style: s.coverTag }, 'Proposta Comercial — Geracao Distribuida'),
       React.createElement(Text, { style: { fontSize: 9, color: '#94a3b8', marginTop: 8 } },
-        `Contrato: ${project.plant.contractStartMonth} — ${project.plant.contractMonths} meses`)
+        `Contrato: ${project.plant.contractStartMonth} — ${project.plant.contractMonths} meses PPA (principal) · ${computeSimulationMonths(project)} meses simulados`)
     ),
     React.createElement(Text, { style: s.coverDate },
       `Documento gerado em ${new Date(generatedAt).toLocaleDateString('pt-BR')}`)
@@ -216,9 +275,8 @@ function durationLabel(months: number): string {
 
 function SummaryPage({ project, result }: { project: Project; result: SimulationResult }) {
   const sm = result.summary;
-  const cm = project.plant.contractMonths || 24;
-  const maxCost = Math.max(sm.baselineSEM, sm.totalPPACost + (sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost));
-  const barScale = 300 / (maxCost || 1);
+  const cm = computeSimulationMonths(project);
+  const barScale = 300 / (Math.max(sm.baselineSEM, sm.totalPPACost + (sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost)) || 1);
 
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
@@ -238,22 +296,83 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
         )
       )
     ),
-    // Cost waterfall
-    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 8 } }, `Decomposicao de Custos (${durationLabel(cm)})`),
-    ...(() => {
+    // Cost decomposition — two stacked rows (Cenário atual vs Cenário Helexia)
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 8 } }, `Decomposição de Custos (${durationLabel(cm)})`),
+    (() => {
       const pcAdd = result.months.reduce((acc, m) => acc + (m.com.pisCofinsAdditional ?? 0), 0);
-      const rows: { label: string; value: number; color: string }[] = [
-        { label: 'SEM Helexia (baseline)', value: sm.baselineSEM, color: '#6692A8' },
-        { label: 'COM Helexia — Rede', value: sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost, color: NAVY },
-        { label: 'COM Helexia — PPA', value: sm.totalPPACost, color: TEAL },
+      const redeVal = sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost - pcAdd;
+      const baselineWidth = Math.max(2, sm.baselineSEM * barScale);
+      const ecoPctRaw = sm.baselineSEM > 0 ? (sm.economiaLiquida / sm.baselineSEM) * 100 : 0;
+      const ecoPctStr = `${ecoPctRaw >= 0 ? '' : '−'}${Math.abs(ecoPctRaw).toFixed(1)}%`;
+      const segs: { label: string; value: number; color: string; isEconomia?: boolean }[] = [
+        { label: 'Rede', value: redeVal, color: NAVY },
+        { label: 'PPA Helexia', value: sm.totalPPACost, color: TEAL },
       ];
-      if (pcAdd > 0) rows.push({ label: 'PIS/COFINS adicional', value: pcAdd, color: '#b45309' });
-      rows.push({ label: 'Economia Liquida', value: sm.economiaLiquida, color: LIME });
-      return rows.map((row, i) =>
-        React.createElement(View, { key: i, style: s.waterfallRow },
-          React.createElement(Text, { style: s.waterfallLabel }, row.label),
-          React.createElement(View, { style: { ...s.waterfallBar, width: Math.max(2, Math.abs(row.value) * barScale), backgroundColor: row.color } }),
-          React.createElement(Text, { style: s.waterfallValue }, fmtBRL(row.value))
+      if (pcAdd > 0) segs.push({ label: 'PIS/COFINS adicional', value: pcAdd, color: '#b45309' });
+      segs.push({ label: 'Economia Líquida', value: Math.max(0, sm.economiaLiquida), color: LIME, isEconomia: true });
+      const extra = sm.economiaLiquida < 0 ? Math.abs(sm.economiaLiquida) : 0;
+      return React.createElement(View, null,
+        React.createElement(View, { style: s.waterfallRow },
+          React.createElement(Text, { style: s.waterfallLabel }, 'Cenário atual (sem GD)'),
+          React.createElement(View, { style: { ...s.waterfallBar, width: baselineWidth, backgroundColor: '#6692A8' } }),
+          React.createElement(Text, { style: s.waterfallValue }, fmtBRL(sm.baselineSEM))
+        ),
+        React.createElement(View, { style: s.waterfallRow },
+          React.createElement(Text, { style: s.waterfallLabel }, 'Cenário Helexia'),
+          React.createElement(View, { style: { flexDirection: 'row', alignItems: 'center', height: 16, borderRadius: 3, overflow: 'hidden' } },
+            ...segs.map((seg, i) =>
+              React.createElement(View, {
+                key: i,
+                style: { width: Math.max(0, seg.value * barScale), height: 16, backgroundColor: seg.color, justifyContent: 'center', alignItems: 'center' },
+              }, seg.isEconomia && seg.value * barScale >= 24 && React.createElement(Text, { style: { fontSize: 7, fontWeight: 'bold', color: '#365314' } }, ecoPctStr))
+            ),
+            extra > 0 && React.createElement(View, {
+              style: { width: Math.max(2, extra * barScale), height: 16, backgroundColor: '#dc2626', justifyContent: 'center', alignItems: 'center' },
+            }, extra * barScale >= 24 && React.createElement(Text, { style: { fontSize: 7, fontWeight: 'bold', color: '#ffffff' } }, ecoPctStr))
+          ),
+          React.createElement(Text, { style: s.waterfallValue }, fmtBRL(sm.baselineSEM - sm.economiaLiquida))
+        ),
+        React.createElement(View, { style: { flexDirection: 'row', marginTop: 4, marginLeft: '30%', alignItems: 'center' } },
+          React.createElement(Text, { style: { fontSize: 11, fontWeight: 'bold', color: sm.economiaLiquida >= 0 ? '#15803d' : '#dc2626' } },
+            `Economia: ${fmtBRL(sm.economiaLiquida)} (${ecoPctStr} da fatura atual)`)
+        ),
+        React.createElement(View, { style: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4, marginLeft: '30%', gap: 12 } },
+          ...segs.map((seg, i) => {
+            const pct = sm.baselineSEM > 0 ? (seg.value / sm.baselineSEM) * 100 : 0;
+            return React.createElement(View, { key: i, style: { flexDirection: 'row', alignItems: 'center', marginRight: 12 } },
+              React.createElement(View, { style: { width: 8, height: 8, backgroundColor: seg.color, marginRight: 4, borderRadius: 1 } }),
+              React.createElement(Text, { style: { fontSize: 7, color: '#475569' } }, `${seg.label}: ${fmtBRL(seg.value)} (${pct.toFixed(1)}%)`)
+            );
+          }),
+          extra > 0 && React.createElement(View, { style: { flexDirection: 'row', alignItems: 'center' } },
+            React.createElement(View, { style: { width: 8, height: 8, backgroundColor: '#dc2626', marginRight: 4, borderRadius: 1 } }),
+            React.createElement(Text, { style: { fontSize: 7, color: '#dc2626' } },
+              `Custo extra COM: ${fmtBRL(extra)} (${(extra / Math.max(1, sm.baselineSEM) * 100).toFixed(1)}% da fatura atual)`)
+          )
+        )
+      );
+    })(),
+    // Monthly net economy chart
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 6, marginTop: 16 } }, `Economia Líquida Mensal (${durationLabel(cm)})`),
+    (() => {
+      const labels = result.months.map(m => m.label);
+      const eco = result.months.map(m => Math.round(m.economia));
+      const sum = eco.reduce((a, b) => a + b, 0);
+      const avg = sum / Math.max(1, eco.length);
+      const peak = Math.max(...eco);
+      const low = Math.min(...eco);
+      const peakLabel = labels[eco.indexOf(peak)];
+      const lowLabel = labels[eco.indexOf(low)];
+      return React.createElement(View, null,
+        StackedBarChart({
+          months: labels,
+          series: [{ key: 'eco', data: eco, color: LIME, label: 'Economia (R$)' }],
+          supportNegative: true,
+          showSegmentValues: true,
+        }),
+        React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 } },
+          React.createElement(Text, { style: { fontSize: 8, color: '#64748b' } }, `Soma ${durationLabel(cm)}: ${fmtBRL(sum)} · Média mensal: ${fmtBRL(avg)}`),
+          React.createElement(Text, { style: { fontSize: 8, color: '#64748b' } }, `Pico: ${fmtBRL(peak)} (${peakLabel}) · Mínimo: ${fmtBRL(low)} (${lowLabel})`)
         )
       );
     })(),
@@ -304,9 +423,91 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
 }
 
 function BankPage({ project, result }: { project: Project; result: SimulationResult }) {
+  const n = result.months.length;
+  const bankEnd = new Array(n).fill(0);
+  const creditsReceived = new Array(n).fill(0);
+  const bankDraw = new Array(n).fill(0);
+  let totalInjected = 0;
+  let totalDrained = 0;
+  for (const ucId in result.ucDetailsCOM) {
+    const det = result.ucDetailsCOM[ucId];
+    for (let i = 0; i < n && i < det.length; i++) {
+      bankEnd[i] += det[i].bankEnd ?? 0;
+      creditsReceived[i] += det[i].creditsReceived ?? 0;
+      bankDraw[i] += det[i].bankDraw ?? 0;
+      totalInjected += det[i].creditsReceived ?? 0;
+      totalDrained += det[i].bankDraw ?? 0;
+    }
+  }
+  const openingBank = project.ucs.reduce((acc, u) => acc + (u.openingBank || 0), 0);
+  const expired = Math.max(0, openingBank + totalInjected - totalDrained - (bankEnd[n - 1] ?? 0));
+  const labels = result.months.map(m => m.label);
+  const peak = Math.max(...bankEnd);
+  const peakIdx = bankEnd.indexOf(peak);
+  const finalBank = bankEnd[n - 1] ?? 0;
+  const ppaRate = project.plant.ppaRateRsBRLkWh;
+
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
-    React.createElement(Text, { style: s.sectionTitle }, 'Banco de Creditos por UC'),
+    React.createElement(Text, { style: s.sectionTitle }, 'Banco de Créditos — Evolução Mensal'),
+    React.createElement(Text, { style: { ...s.noteText, marginBottom: 6 } },
+      'Saldo do banco de créditos (kWh, somado entre UCs) ao final de cada mês. Cresce quando a geração excede o consumo no mês; drena quando o consumo excede a geração (ou após o fim do PPA).'),
+    React.createElement(Text, { style: { ...s.noteText, marginBottom: 10, fontStyle: 'italic', color: '#475569' } },
+      'Validade dos créditos: 60 meses a partir do mês de injeção (Lei 14.300/2022, Art. 5º). Créditos não utilizados após esse prazo expiram. A data de 2045 referenciada na transição (Art. 27) trata de regras de compensação para instalações pré-2023, não a validade dos créditos.'),
+    expired > 100 && React.createElement(View, {
+      style: { padding: 6, backgroundColor: '#fef3c7', borderRadius: 4, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#f59e0b' },
+    },
+      React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: '#92400e' } }, 'Créditos expirados detectados'),
+      React.createElement(Text, { style: { fontSize: 7, color: '#78350f', marginTop: 2 } },
+        `Aproximadamente ${fmtKWh(expired)} de créditos não foram utilizados dentro do prazo de 60 meses e expiraram. Considere ajustar o sizing da usina ou o rateio para reduzir esse desperdício.`)
+    ),
+    React.createElement(View, { style: s.kpiRow },
+      React.createElement(View, { key: 'peak', style: { ...s.kpiCard, borderLeftWidth: 3, borderLeftColor: TEAL } },
+        React.createElement(Text, { style: s.kpiLabel }, 'Pico do banco'),
+        React.createElement(Text, { style: s.kpiValue }, fmtKWh(peak)),
+        React.createElement(Text, { style: s.kpiSub }, labels[peakIdx] || '')
+      ),
+      React.createElement(View, { key: 'final', style: { ...s.kpiCard, borderLeftWidth: 3, borderLeftColor: NAVY } },
+        React.createElement(Text, { style: s.kpiLabel }, 'Banco residual final'),
+        React.createElement(Text, { style: s.kpiValue }, fmtKWh(finalBank)),
+        React.createElement(Text, { style: s.kpiSub }, `${fmtBRL(finalBank * ppaRate)} @ PPA`)
+      ),
+      React.createElement(View, { key: 'totinj', style: { ...s.kpiCard, borderLeftWidth: 3, borderLeftColor: LIME } },
+        React.createElement(Text, { style: s.kpiLabel }, 'Créditos injetados total'),
+        React.createElement(Text, { style: s.kpiValue }, fmtKWh(creditsReceived.reduce((a, b) => a + b, 0))),
+        React.createElement(Text, { style: s.kpiSub }, `${n}m`)
+      )
+    ),
+    StackedBarChart({
+      months: labels,
+      series: [{ key: 'bank', data: bankEnd, color: TEAL, label: 'Saldo do banco (kWh)' }],
+      showValues: true,
+    }),
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginTop: 14, marginBottom: 6 } }, 'Valores mensais do banco (kWh) — Ano 1'),
+    (() => {
+      const count = Math.min(12, n);
+      return React.createElement(View, { style: s.table },
+        React.createElement(View, { style: s.tableHeader },
+          ...['Mês', 'Créditos injetados', 'Banco drenado', 'Saldo do banco'].map((h, i) =>
+            React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: '25%', textAlign: i === 0 ? 'left' : 'right' } }, h)
+          )
+        ),
+        ...labels.slice(0, count).map((lab, i) =>
+          React.createElement(View, { key: i, style: i % 2 ? s.tableRowAlt : s.tableRow },
+            React.createElement(Text, { style: { ...s.tableCell, width: '25%' } }, lab),
+            React.createElement(Text, { style: { ...s.tableCell, width: '25%', textAlign: 'right' } }, fmtKWh(creditsReceived[i] || 0)),
+            React.createElement(Text, { style: { ...s.tableCell, width: '25%', textAlign: 'right' } }, fmtKWh(bankDraw[i] || 0)),
+            React.createElement(Text, { style: { ...s.tableCellBold, width: '25%', textAlign: 'right', color: TEAL } }, fmtKWh(bankEnd[i] || 0))
+          )
+        )
+      );
+    })(),
+    (() => {
+      const [y0, m0] = project.plant.contractStartMonth.split('-').map(Number);
+      const dateStr = y0 && m0 ? new Date(y0, m0 - 1 + n, 0).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : `mês ${n}`;
+      return React.createElement(Text, { style: { ...s.sectionTitle, marginTop: 18 } },
+        `Banco de Créditos por UC — Saldo Final (${dateStr}, mês ${n} do contrato)`);
+    })(),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
         ...['UC', 'Grupo', 'Banco COM (kWh)', 'Banco SEM (kWh)', 'Delta Helexia', 'Valor @ PPA'].map((h, i) =>
@@ -324,11 +525,11 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
         )
       )
     ),
-    // Sensitivity table
+    // Sensitivity table (scales main plant + additional plants p50)
     React.createElement(Text, { style: { ...s.sectionTitle, marginTop: 20 } }, 'Sensibilidade de Geracao'),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Cenario', `Geracao ${durationLabel(project.plant.contractMonths || 24)}`, 'PPA (R$)', 'Economia (R$)', 'Reducao (%)'].map((h, i) =>
+        ...['Cenario', `Geracao ${durationLabel(computeSimulationMonths(project))}`, 'PPA (R$)', 'Economia (R$)', 'Reducao (%)'].map((h, i) =>
           React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: '20%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
@@ -337,12 +538,11 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
         { label: 'P50 Base', mult: 1.00, color: NAVY },
         { label: 'P10 Otimista', mult: 1.10, color: TEAL },
       ].map((scenario, i) => {
+        const scale = (arr: number[]) => arr.map(v => Math.round(v * scenario.mult));
         const scaledProject = {
           ...project,
-          plant: {
-            ...project.plant,
-            p50Profile: project.plant.p50Profile.map(v => Math.round(v * scenario.mult)),
-          },
+          plant: { ...project.plant, p50Profile: scale(project.plant.p50Profile) },
+          additionalPlants: (project.additionalPlants ?? []).map(p => ({ ...p, p50Profile: scale(p.p50Profile) })),
         };
         let simResult;
         try { simResult = runSimulation(scaledProject); } catch { return null; }
@@ -364,22 +564,31 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
 
 function PremissasPage({ project }: { project: Project }) {
   const dist = project.distributor;
-  const plant = project.plant;
-  const premissas = [
+  const premissas: [string, string][] = [
     ['Distribuidora', `${dist.name} (${dist.state})`],
     ['Resolucao', dist.resolution],
     ['Tarifa B3 (TUSD+TE)', `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`],
     ['Tarifa A FP (TUSD+TE)', `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`],
     ['Tarifa A PT (TUSD+TE)', `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`],
-    ...(dist.tariffs.A_FP_DEMANDA ? [['Demanda A FP', `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`]] : []),
+    ...(dist.tariffs.A_FP_DEMANDA ? [['Demanda A FP', `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`] as [string, string]] : []),
     ['ICMS', `${(dist.taxes.ICMS * 100).toFixed(0)}%`],
     ['PIS/COFINS', `${(dist.taxes.PIS * 100).toFixed(2)}% / ${(dist.taxes.COFINS * 100).toFixed(2)}%`],
     ['', ''],
-    ['Usina', plant.name],
-    ['Potencia AC', `${plant.capacityKWac} kWac`],
-    ['PPA', `R$ ${plant.ppaRateRsBRLkWh.toFixed(4)}/kWh`],
-    ['Inicio Contrato', plant.contractStartMonth],
-    ['Prazo', `${plant.contractMonths} meses`],
+    ...(() => {
+      const plants = getAllPlants(project);
+      const rows: [string, string][] = [];
+      plants.forEach((p, idx) => {
+        rows.push([idx === 0 ? 'Usina principal' : `Usina adicional ${idx}`, p.name]);
+        rows.push(['  ↳ Potência AC', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
+        rows.push(['  ↳ PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
+        rows.push(['  ↳ Prazo PPA', `${p.contractMonths} meses`]);
+      });
+      const totalKWac = plants.reduce((acc, p) => acc + (p.capacityKWac || 0), 0);
+      if (plants.length > 1) rows.push(['Capacidade AC total', `${totalKWac.toLocaleString('pt-BR')} kWac`]);
+      rows.push(['Início Contrato', project.plant.contractStartMonth]);
+      rows.push(['Horizonte de simulação', `${computeSimulationMonths(project)} meses`]);
+      return rows;
+    })(),
     ['', ''],
     ['Isencao ICMS', project.scenarios.icmsExempt ? 'Sim' : 'Nao'],
     ['Desconto Concorrente (Plin)', project.scenarios.competitorDiscount > 0 ? `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%` : 'Nao'],
@@ -408,7 +617,7 @@ function NotesPage({ project }: { project: Project }) {
     React.createElement(Text, { style: s.noteTitle }, 'Lei 14.300/2022 — SCEE Autoconsumo Remoto'),
     React.createElement(Text, { style: s.noteText }, 'O Sistema de Compensacao de Energia Eletrica (SCEE) permite que a energia injetada pela usina solar gere creditos que compensam o consumo das Unidades Consumidoras (UCs) do cliente, mesmo que em enderecos diferentes, dentro da mesma area de concessao.'),
     React.createElement(Text, { style: s.noteTitle }, 'Rateio Fixo por Periodos'),
-    React.createElement(Text, { style: s.noteText }, `A alocacao dos creditos entre as UCs segue o modelo de rateio fixo por periodos ao longo do contrato de ${durationLabel(project.plant.contractMonths || 24)}. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.`),
+    React.createElement(Text, { style: s.noteText }, `A alocacao dos creditos entre as UCs segue o modelo de rateio fixo por periodos ao longo do contrato de ${durationLabel(computeSimulationMonths(project))}. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.`),
     React.createElement(Text, { style: s.noteTitle }, 'Validade dos Creditos'),
     React.createElement(Text, { style: s.noteText }, 'Conforme regulamentacao vigente, os creditos de energia gerados no ambito do SCEE tem validade ate 2045, podendo ser acumulados no banco de creditos da distribuidora e utilizados em faturas futuras.'),
     !project.scenarios.icmsExempt && React.createElement(View, null,
@@ -421,46 +630,68 @@ function NotesPage({ project }: { project: Project }) {
   );
 }
 
-// ─── NEW: Usina page — plant specs + P50 chart ───────────────────
+// ─── Usina page — multi-plant specs + per-plant generation chart ──
 function UsinaPage({ project }: { project: Project }) {
-  const plant = project.plant;
-  const cm = plant.contractMonths || 24;
+  const horizon = computeSimulationMonths(project);
   const degradation = project.generationDegradation ?? 0.005;
   const perfFactor = project.performanceFactor ?? 1.0;
-  const rawProfile = plant.useActual && plant.actualProfile ? plant.actualProfile : plant.p50Profile;
-  const extP50 = pdfExtendGeneration(rawProfile, cm, degradation);
-  const extEffective = extP50.map(v => Math.round(v * perfFactor));
-  const totalP50 = extP50.reduce((a, b) => a + b, 0);
-  const totalEffective = extEffective.reduce((a, b) => a + b, 0);
-  const labels = monthLabels(plant.contractStartMonth, cm);
+  const plants = getAllPlants(project);
+  // Per-plant effective generation series (each extended to min(contractMonths, horizon), padded 0)
+  const perPlant = plants.map(p => {
+    const cap = Math.min(p.contractMonths || horizon, horizon);
+    const raw = p.useActual && p.actualProfile ? p.actualProfile : p.p50Profile;
+    const ext = pdfExtendGeneration(raw, cap, degradation).map(v => Math.round(v * perfFactor));
+    while (ext.length < horizon) ext.push(0);
+    return ext;
+  });
+  const combined = perPlant[0].map((_, i) => perPlant.reduce((acc, ser) => acc + (ser[i] ?? 0), 0));
+  const labels = monthLabels(project.plant.contractStartMonth, horizon);
+  const totalKWac = plants.reduce((acc, p) => acc + (p.capacityKWac || 0), 0);
+  const totalCombined = combined.reduce((a, b) => a + b, 0);
+  const y1count = Math.min(12, horizon);
+  const year1Total = combined.slice(0, y1count).reduce((a, b) => a + b, 0);
+  const year1Avg = year1Total / Math.max(1, y1count);
+  const year1Peak = Math.max(...combined.slice(0, y1count));
+  const year1Low = Math.min(...combined.slice(0, y1count));
 
-  // Year 1 breakdown
-  const year1Labels = labels.slice(0, Math.min(12, cm));
-  const year1P50 = extEffective.slice(0, Math.min(12, cm));
-  const year1Total = year1P50.reduce((a, b) => a + b, 0);
-  const year1Avg = year1Total / year1Labels.length;
-  const year1Peak = Math.max(...year1P50);
-  const year1Low = Math.min(...year1P50);
+  const specRows: [string, string][] = [];
+  plants.forEach((p, idx) => {
+    const total = perPlant[idx].reduce((a, b) => a + b, 0);
+    specRows.push([idx === 0 ? 'Usina principal' : `Usina adicional ${idx}`, p.name]);
+    specRows.push(['  ↳ Potência', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
+    specRows.push(['  ↳ PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
+    specRows.push(['  ↳ Prazo PPA', `${p.contractMonths} meses`]);
+    specRows.push([`  ↳ Geração efetiva (${p.contractMonths}m)`, fmtKWh(total)]);
+  });
 
-  const specs: [string, string][] = [
-    ['Usina', plant.name],
-    ['Potência AC', `${plant.capacityKWac.toLocaleString('pt-BR')} kWac`],
+  const combinedRows: [string, string][] = [
+    ['Número de usinas', `${plants.length}`],
+    ['Capacidade AC total', `${totalKWac.toLocaleString('pt-BR')} kWac`],
     ['Distribuidora', `${project.distributor.name} — ${project.distributor.state}`],
-    ['Fonte de geração', plant.useActual && plant.actualProfile ? 'Dados reais medidos' : 'P50 PVsyst'],
     ['Degradação anual', fmtPct(degradation)],
     ['Fator de performance', fmtPct(perfFactor)],
-    ['Geração Ano 1 (efetiva)', fmtKWh(year1Total)],
-    ['Geração média mensal', fmtKWh(Math.round(year1Avg))],
-    ['Pico mensal (Ano 1)', fmtKWh(year1Peak)],
-    ['Mínimo mensal (Ano 1)', fmtKWh(year1Low)],
-    [`Geração total ${durationLabel(cm)}`, fmtKWh(totalEffective)],
+    ['Geração combinada Ano 1', fmtKWh(year1Total)],
+    ['Média mensal Ano 1', fmtKWh(Math.round(year1Avg))],
+    ['Pico/Mínimo mensal Ano 1', `${fmtKWh(year1Peak)} / ${fmtKWh(year1Low)}`],
+    [`Geração combinada total ${durationLabel(horizon)}`, fmtKWh(totalCombined)],
   ];
 
+  const palette = ['#004B70', '#2F927B', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'];
+
   return React.createElement(Page, { size: 'A4', style: s.page },
-    React.createElement(Header, { clientName: project.clientName, plantName: plant.name }),
-    React.createElement(Text, { style: s.sectionTitle }, 'Usina Solar'),
+    React.createElement(Header, { clientName: project.clientName, plantName: plants.length === 1 ? project.plant.name : `${plants.length} usinas (${totalKWac.toLocaleString('pt-BR')} kWac)` }),
+    React.createElement(Text, { style: s.sectionTitle }, plants.length === 1 ? 'Usina Solar' : `Usinas Solares (${plants.length})`),
+    React.createElement(View, { style: { marginBottom: 10 } },
+      ...specRows.map(([label, value], i) =>
+        React.createElement(View, { key: i, style: s.premissaRow },
+          React.createElement(Text, { style: { ...s.premissaLabel, fontWeight: label.startsWith('  ') ? 'normal' : 'bold' } }, label),
+          React.createElement(Text, { style: s.premissaValue }, value)
+        )
+      )
+    ),
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginTop: 8, marginBottom: 6 } }, 'Resumo combinado'),
     React.createElement(View, { style: { marginBottom: 14 } },
-      ...specs.map(([label, value], i) =>
+      ...combinedRows.map(([label, value], i) =>
         React.createElement(View, { key: i, style: s.premissaRow },
           React.createElement(Text, { style: s.premissaLabel }, label),
           React.createElement(Text, { style: s.premissaValue }, value)
@@ -468,41 +699,66 @@ function UsinaPage({ project }: { project: Project }) {
       )
     ),
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 6 } },
-      `Perfil de geração mensal (${plant.useActual && plant.actualProfile ? 'medida real' : 'P50 PVsyst'}${perfFactor < 1 ? ` × ${(perfFactor * 100).toFixed(0)}%` : ''})`
+      `Perfil de geração mensal — ${plants.length} usina${plants.length > 1 ? 's' : ''}${perfFactor < 1 ? ` × ${(perfFactor * 100).toFixed(0)}%` : ''}`
     ),
     StackedBarChart({
       months: labels,
-      series: [
-        { key: 'gen', data: extEffective, color: TEAL, label: `Geração efetiva (kWh)` },
-      ],
+      series: plants.map((p, idx) => ({
+        key: `plant-${idx}`,
+        data: perPlant[idx],
+        color: palette[idx % palette.length],
+        label: `${p.name.split(' ')[0]} (${p.capacityKWac} kWac)`,
+      })),
+      showValues: true,
+      showSegmentValues: true,
     }),
-    perfFactor < 1.0 && React.createElement(Text, { style: { fontSize: 7, color: '#94a3b8', marginTop: 10, textAlign: 'center' } },
-      `P50 bruto total: ${fmtKWh(totalP50)} — haircut ${(perfFactor * 100).toFixed(0)}% aplicado para refletir subperformance real`
-    ),
-    // Monthly table (Year 1)
-    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginTop: 18, marginBottom: 6 } },
-      'Geração mensal — Ano 1'
-    ),
-    React.createElement(View, { style: s.table },
-      React.createElement(View, { style: s.tableHeader },
-        ...['Mês', 'Geração (kWh)', '% do total'].map((h, i) =>
-          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '25%' : '37.5%', textAlign: i === 0 ? 'left' : 'right' } }, h)
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginTop: 14, marginBottom: 6 } }, 'Geração mensal por usina (kWh) — Ano 1'),
+    (() => {
+      const count = Math.min(12, horizon);
+      const monthSlice = labels.slice(0, count);
+      const headers = ['Mês', ...plants.map(p => p.name.split(' ')[0]), 'Total'];
+      const colW = `${(100 / headers.length).toFixed(2)}%`;
+      const rows = monthSlice.map((lab, i) => {
+        const cells: (string | number)[] = [lab];
+        plants.forEach((_, pi) => cells.push(perPlant[pi][i] ?? 0));
+        cells.push(plants.reduce((acc, _, pi) => acc + (perPlant[pi][i] ?? 0), 0));
+        return cells;
+      });
+      const footer: (string | number)[] = ['Total Ano 1'];
+      plants.forEach((_, pi) => footer.push(perPlant[pi].slice(0, count).reduce((a, b) => a + b, 0)));
+      footer.push(combined.slice(0, count).reduce((a, b) => a + b, 0));
+      return React.createElement(View, { style: s.table },
+        React.createElement(View, { style: s.tableHeader },
+          ...headers.map((h, i) =>
+            React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: colW, textAlign: i === 0 ? 'left' : 'right' } }, h)
+          )
+        ),
+        ...rows.map((row, ri) =>
+          React.createElement(View, { key: ri, style: ri % 2 ? s.tableRowAlt : s.tableRow },
+            ...row.map((cell, ci) =>
+              React.createElement(Text, {
+                key: ci,
+                style: { ...(ci === row.length - 1 ? s.tableCellBold : s.tableCell), width: colW, textAlign: ci === 0 ? 'left' : 'right', color: ci === row.length - 1 ? TEAL : undefined },
+              }, ci === 0 ? String(cell) : fmtKWh(cell as number))
+            )
+          )
+        ),
+        React.createElement(View, { style: { ...s.tableRow, borderTopWidth: 1, borderTopColor: '#cbd5e1', backgroundColor: '#f8fafc' } },
+          ...footer.map((cell, ci) =>
+            React.createElement(Text, {
+              key: ci,
+              style: { ...s.tableCellBold, width: colW, textAlign: ci === 0 ? 'left' : 'right', color: NAVY },
+            }, ci === 0 ? String(cell) : fmtKWh(cell as number))
+          )
         )
-      ),
-      ...year1Labels.map((lab, i) =>
-        React.createElement(View, { key: i, style: i % 2 ? s.tableRowAlt : s.tableRow },
-          React.createElement(Text, { style: { ...s.tableCell, width: '25%' } }, lab),
-          React.createElement(Text, { style: { ...s.tableCell, width: '37.5%', textAlign: 'right' } }, fmtKWh(year1P50[i])),
-          React.createElement(Text, { style: { ...s.tableCell, width: '37.5%', textAlign: 'right' } }, fmtPct(year1P50[i] / Math.max(1, year1Total)))
-        )
-      ),
-    ),
+      );
+    })()
   );
 }
 
 // ─── NEW: Consumption page — client baseline ─────────────────────
 function ConsumptionPage({ project }: { project: Project }) {
-  const cm = project.plant.contractMonths || 24;
+  const cm = computeSimulationMonths(project);
   const agg = computeAggregateConsumption(project);
   const labels = monthLabels(project.plant.contractStartMonth, cm);
   const totalFP = agg.fp.reduce((a, b) => a + b, 0);
@@ -600,50 +856,103 @@ function TariffComparisonPage({ project }: { project: Project }) {
   const hasARSV = hasGrupoA && T_ARSV !== undefined && project.ucs.some(u => u.isGrupoA && u.consumptionReservado && u.consumptionReservado.some(v => v > 0));
   const hasBRSV = hasGrupoB && T_BRSV !== undefined && project.ucs.some(u => !u.isGrupoA && u.consumptionReservado && u.consumptionReservado.some(v => v > 0));
 
-  interface Row {
-    posto: string;
-    tariff: number;
-    conversion: string;
-    effectivePPA: number;
-    show: boolean;
-  }
+  // Tax-scope context
+  const ICMS = project.distributor.taxes.ICMS;
+  const PC = project.distributor.taxes.PIS + project.distributor.taxes.COFINS;
+  const icmsScope = project.distributor.taxes.icmsScope ?? 'TE_TUSD';
+  const pisCofinsExempt = project.distributor.taxes.pisCofinsExempt ?? true;
+  const effectiveIcmsExempt = icmsScope === 'NONE' ? false : project.scenarios.icmsExempt;
+  const showIcmsCol = !effectiveIcmsExempt || icmsScope === 'TE_ONLY';
+  const showPcCol = !pisCofinsExempt;
+  const grossUp = (1 - PC) * (1 - ICMS);
 
-  const rows: Row[] = [
-    { posto: 'Grupo A — Fora Ponta', tariff: T_AFP, conversion: '1:1 (mesmo posto)', effectivePPA: ppa, show: hasGrupoA },
-    { posto: 'Grupo A — Ponta', tariff: T_APT, conversion: `via FA = TE_FP/TE_PT = ${FA.toFixed(3)}`, effectivePPA: FA > 0 ? ppa / FA : 0, show: hasGrupoA },
-    { posto: 'Grupo A — Reservado', tariff: T_ARSV ?? 0, conversion: '1:1 (mesmo posto que FP)', effectivePPA: ppa, show: hasARSV },
-    { posto: 'Grupo B', tariff: T_B3, conversion: '1:1 (sem posto)', effectivePPA: ppa, show: hasGrupoB },
-    { posto: 'Grupo B — Reservado', tariff: T_BRSV ?? 0, conversion: '1:1 (sem posto)', effectivePPA: ppa, show: hasBRSV },
+  // ICMS leak "por dentro" on the compensated kWh (per kWh, given gross te/tusd rates).
+  const icmsLeak = (teTusdSum: number, tusd: number): number => {
+    if (effectiveIcmsExempt) {
+      return icmsScope === 'TE_ONLY' ? (tusd * ICMS) / (1 + ICMS) : 0;
+    }
+    return (teTusdSum * ICMS) / (1 + ICMS);
+  };
+  const pcLeak = (teTusdSum: number): number => (pisCofinsExempt ? 0 : (teTusdSum * PC) / (1 + PC));
+
+  // Per-posto sem-impostos te/tusd rates grossed-up to all-in (so leak base matches the bill).
+  const breakdown = (kind: 'FP_A' | 'PT_A' | 'RSV_A' | 'B' | 'RSV_B'): { te: number; tusd: number } => {
+    const t = project.distributor.tariffs;
+    switch (kind) {
+      case 'FP_A':
+        return { te: t.A_TE_FP / grossUp, tusd: Math.max(0, (t.A_FP_TUSD_TE - t.A_TE_FP) / grossUp) };
+      case 'PT_A':
+        return { te: t.A_TE_PT / grossUp, tusd: Math.max(0, (t.A_PT_TUSD_TE - t.A_TE_PT) / grossUp) };
+      case 'RSV_A': {
+        const base = (t.A_RSV_TUSD_TE ?? 0) / grossUp;
+        const ratio = (t.A_TE_FP + (t.A_FP_TUSD_TE - t.A_TE_FP)) > 0 ? t.A_TE_FP / t.A_FP_TUSD_TE : 0;
+        return { te: base * ratio, tusd: base * (1 - ratio) };
+      }
+      case 'B':
+        return { te: t.B_TE / grossUp, tusd: t.B_TUSD / grossUp };
+      case 'RSV_B': {
+        const base = (t.B_RSV_TUSD_TE ?? 0) / grossUp;
+        const ratio = (t.B_TE + t.B_TUSD) > 0 ? t.B_TE / (t.B_TE + t.B_TUSD) : 0;
+        return { te: base * ratio, tusd: base * (1 - ratio) };
+      }
+    }
+  };
+
+  interface TRow { posto: string; breakdown: 'FP_A' | 'PT_A' | 'RSV_A' | 'B' | 'RSV_B'; tariff: number; conversion: string; effectivePPA: number; show: boolean; }
+  const rows: TRow[] = [
+    { posto: 'Grupo A — Fora Ponta', breakdown: 'FP_A', tariff: T_AFP, conversion: '1:1 mesmo posto', effectivePPA: ppa, show: hasGrupoA },
+    { posto: 'Grupo A — Ponta', breakdown: 'PT_A', tariff: T_APT, conversion: `FA = ${FA.toFixed(3)}`, effectivePPA: FA > 0 ? ppa / FA : 0, show: hasGrupoA },
+    { posto: 'Grupo A — Reservado', breakdown: 'RSV_A', tariff: T_ARSV ?? 0, conversion: '1:1 (= FP)', effectivePPA: ppa, show: hasARSV },
+    { posto: 'Grupo B', breakdown: 'B', tariff: T_B3, conversion: '1:1 (sem posto)', effectivePPA: ppa, show: hasGrupoB },
+    { posto: 'Grupo B — Reservado', breakdown: 'RSV_B', tariff: T_BRSV ?? 0, conversion: '1:1 (= B)', effectivePPA: ppa, show: hasBRSV },
   ];
+
+  const colW = `${(100 / (5 + (showIcmsCol ? 1 : 0) + (showPcCol ? 1 : 0))).toFixed(2)}%`;
+  const headers = ['Posto', 'Tarifa atual (com trib.)', 'Conversão', 'PPA efetivo'];
+  if (showIcmsCol) headers.push('ICMS adicional');
+  if (showPcCol) headers.push('PIS/COFINS adicional');
+  headers.push('Economia/kWh');
 
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'De Onde Vem a Economia'),
-    React.createElement(Text, { style: { ...s.noteText, marginBottom: 12 } },
-      `Cada kWh consumido em cada posto é compensado por créditos gerados pela usina. Para postos no mesmo "bucket" (ex: Fora Ponta e Reservado), a compensação é 1:1. Para postos diferentes (FP → PT), aplica-se o Fator de Ajuste (FA = TE_FP / TE_PT) que preserva o valor em TE do crédito.`
+    React.createElement(Text, { style: { ...s.noteText, marginBottom: 8 } },
+      'Por kWh compensado pelos créditos da usina, ao lado da tarifa que o cliente deixa de pagar. As colunas de leaks só aparecem quando o tipo de isenção configurado deixa o respectivo tributo incidir.'
+    ),
+    React.createElement(Text, { style: { ...s.noteText, marginBottom: 10, fontStyle: 'italic' } },
+      `Configuração ativa: Isenção ICMS = ${effectiveIcmsExempt ? (icmsScope === 'TE_ONLY' ? 'TE apenas (TUSD tributado)' : 'TE+TUSD total') : 'Sem isenção (TE+TUSD tributados)'} · PIS/COFINS = ${pisCofinsExempt ? 'isento' : 'tributado'}`
     ),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Posto', 'Tarifa atual (com trib.)', 'Conversão', 'PPA efetivo', 'Economia/kWh'].map((h, i) =>
-          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '24%' : i === 2 ? '28%' : '16%', textAlign: i < 1 ? 'left' : i === 2 ? 'center' : 'right' } }, h)
+        ...headers.map((h, i) =>
+          React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: colW, textAlign: i === 0 ? 'left' : i === 2 ? 'center' : 'right', fontSize: 7.5 } }, h)
         )
       ),
       ...rows.filter(r => r.show).map((r, i) => {
-        const eco = r.tariff - r.effectivePPA;
-        return React.createElement(View, { key: i, style: i % 2 ? s.tableRowAlt : s.tableRow },
-          React.createElement(Text, { style: { ...s.tableCell, width: '24%' } }, r.posto),
-          React.createElement(Text, { style: { ...s.tableCell, width: '16%', textAlign: 'right' } }, fmtRate(r.tariff)),
-          React.createElement(Text, { style: { ...s.tableCell, width: '28%', textAlign: 'center' } }, r.conversion),
-          React.createElement(Text, { style: { ...s.tableCell, width: '16%', textAlign: 'right' } }, fmtRate(r.effectivePPA)),
-          React.createElement(Text, { style: { ...s.tableCellBold, width: '16%', textAlign: 'right', color: eco >= 0 ? TEAL : '#dc2626' } }, fmtRate(eco)),
-        );
+        const { te, tusd } = breakdown(r.breakdown);
+        const teTusd = te + tusd;
+        const icmsAdd = icmsLeak(teTusd, tusd);
+        const pcAdd = pcLeak(teTusd);
+        const eco = r.tariff - r.effectivePPA - icmsAdd - pcAdd;
+        const cells: React.ReactElement[] = [
+          React.createElement(Text, { key: 'posto', style: { ...s.tableCell, width: colW, fontSize: 7.5 } }, r.posto),
+          React.createElement(Text, { key: 'tariff', style: { ...s.tableCell, width: colW, textAlign: 'right', fontSize: 7.5 } }, fmtRate(r.tariff)),
+          React.createElement(Text, { key: 'conv', style: { ...s.tableCell, width: colW, textAlign: 'center', fontSize: 7.5 } }, r.conversion),
+          React.createElement(Text, { key: 'ppa', style: { ...s.tableCell, width: colW, textAlign: 'right', fontSize: 7.5 } }, fmtRate(r.effectivePPA)),
+        ];
+        if (showIcmsCol) cells.push(React.createElement(Text, { key: 'icms', style: { ...s.tableCell, width: colW, textAlign: 'right', color: icmsAdd > 0 ? '#b45309' : '#94a3b8', fontSize: 7.5 } }, icmsAdd > 0 ? `−${fmtRate(icmsAdd)}` : '—'));
+        if (showPcCol) cells.push(React.createElement(Text, { key: 'pc', style: { ...s.tableCell, width: colW, textAlign: 'right', color: pcAdd > 0 ? '#b45309' : '#94a3b8', fontSize: 7.5 } }, pcAdd > 0 ? `−${fmtRate(pcAdd)}` : '—'));
+        cells.push(React.createElement(Text, { key: 'eco', style: { ...s.tableCellBold, width: colW, textAlign: 'right', color: eco >= 0 ? TEAL : '#dc2626', fontSize: 7.5 } }, fmtRate(eco)));
+        return React.createElement(View, { key: i, style: i % 2 ? s.tableRowAlt : s.tableRow }, ...cells);
       })
     ),
     React.createElement(Text, { style: { ...s.noteTitle, marginTop: 14 } }, 'Como interpretar'),
     React.createElement(Text, { style: s.noteText },
-      `• Posto "Fora Ponta" e "Reservado" compartilham o mesmo bucket — créditos FP compensam 1:1 em ambos, mas a tarifa aplicada na fatura difere.\n` +
-      `• Para compensar 1 kWh de Ponta, são injetados 1/FA = ${FA > 0 ? (1 / FA).toFixed(3) : 'n/a'} kWh de créditos FP. O PPA efetivo no Ponta é, portanto, R$ ${ppa.toFixed(2)} × ${FA > 0 ? (1 / FA).toFixed(3) : '—'} = ${fmtRate(FA > 0 ? ppa / FA : 0)}.\n` +
-      `• A coluna "Economia/kWh" positiva indica posto onde o GD gera valor líquido. Valor negativo indica posto onde o cliente paga mais que a tarifa economizada — geralmente compensado pelos ganhos em Ponta.`
+      `• Tarifa atual = T_sem / ((1−PIS−COFINS) × (1−ICMS)) — preço all-in que o cliente paga por kWh sem GD.\n` +
+      `• PPA efetivo = ${fmtRate(ppa)} (FP/RSV/B), ${FA > 0 ? `R$ ${ppa.toFixed(4)}/${FA.toFixed(3)} = ${fmtRate(ppa / FA)} (PT — 1 kWh PT exige 1/FA = ${(1 / FA).toFixed(3)} kWh FP-equiv)` : '—'}.\n` +
+      (showIcmsCol ? `• ICMS adicional = parcela de ICMS que ainda incide sobre o kWh compensado. Com escopo "TE apenas", ICMS continua sendo cobrado sobre a parcela TUSD.\n` : '') +
+      (showPcCol ? `• PIS/COFINS adicional = aplica quando a isenção federal não vale para este cliente (STJ Tema 986 caso a caso).\n` : '') +
+      `• Economia/kWh = Tarifa atual − PPA efetivo − ICMS adicional − PIS/COFINS adicional. Positiva = cliente lucra por kWh compensado nesse posto; negativa = PPA + leaks superam a tarifa evitada.`
     ),
     hasARSV && React.createElement(View, { style: { marginTop: 10 } },
       React.createElement(Text, { style: { ...s.noteTitle, color: '#b45309' } }, 'Observação — Horário Reservado'),
@@ -656,7 +965,6 @@ function TariffComparisonPage({ project }: { project: Project }) {
 
 // ─── NEW: Cumulative economia trajectory ─────────────────────────
 function CumulativeEconomyPage({ project, result }: { project: Project; result: SimulationResult }) {
-  const cm = project.plant.contractMonths || 24;
   const economias = result.months.map(m => m.economia);
   const acum = result.months.map(m => m.economiaAcum);
   const labels = result.months.map(m => m.label);
@@ -706,7 +1014,68 @@ function CumulativeEconomyPage({ project, result }: { project: Project; result: 
         `A geração mensal da usina supera o consumo mensal do cliente — o excedente vai para o banco de créditos. A economia direta mensal fica negativa (PPA paga por kWh que não substituiu tarifa imediatamente), mas o valor fica acumulado no banco (R$ ${sm.bancoNetHelexia.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}), resultando em VALOR TOTAL positivo de ${fmtBRL(sm.valorTotal)}.`
       )
     ),
-    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 4, marginTop: 4 } },
+    // Grouped vertical bar chart: SEM total vs (PPA + Rede residual) stacked
+    React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 6, marginTop: 4 } },
+      'Custo Mensal — Cenário atual vs Cenário Helexia'
+    ),
+    (() => {
+      const labels2 = result.months.map(m => m.label);
+      const sem = result.months.map(m => m.sem.totalCost);
+      const ppaArr = result.months.map(m => m.ppaCost);
+      const redeArr = result.months.map(m => m.com.redeCost);
+      const maxV = Math.max(1, ...sem, ...result.months.map((_, t) => ppaArr[t] + redeArr[t]));
+      const cnt = labels2.length;
+      const groupGap = Math.max(0, cnt - 1) * 3;
+      const barW = Math.max(3, (515 - (cnt * 1 + groupGap)) / (cnt * 2));
+      const labelStep = cnt > 18 ? 2 : 1;
+      const abbr = (v: number) => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : `${Math.round(v)}`;
+      const chartH = 140;
+      return React.createElement(View, null,
+        React.createElement(View, { style: { flexDirection: 'row', alignItems: 'flex-end', width: 515, height: chartH, marginBottom: 2 } },
+          ...labels2.map((_, t) => {
+            const hSem = (sem[t] / maxV) * chartH;
+            const hPpa = (ppaArr[t] / maxV) * chartH;
+            const hRede = (redeArr[t] / maxV) * chartH;
+            const isLast = t === cnt - 1;
+            return React.createElement(View, { key: t, style: { flexDirection: 'row', marginRight: isLast ? 0 : 3, alignItems: 'flex-end' } },
+              React.createElement(View, { style: { width: barW, height: hSem, backgroundColor: NAVY, marginRight: 1 } }),
+              React.createElement(View, { style: { width: barW, height: hPpa + hRede, flexDirection: 'column-reverse' } },
+                React.createElement(View, { style: { width: barW, height: hPpa, backgroundColor: TEAL } }),
+                React.createElement(View, { style: { width: barW, height: hRede, backgroundColor: '#94a3b8' } })
+              )
+            );
+          })
+        ),
+        React.createElement(View, { style: { flexDirection: 'row', width: 515, marginTop: 2 } },
+          ...labels2.map((lab, t) => {
+            const w = barW * 2 + 1;
+            const isLast = t === cnt - 1;
+            return React.createElement(Text, { key: t, style: { width: w, marginRight: isLast ? 0 : 3, fontSize: 5, textAlign: 'center', color: '#64748b' } }, t % labelStep === 0 ? lab : '');
+          })
+        ),
+        React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 4 } },
+          React.createElement(Text, { style: { fontSize: 7, color: '#64748b' } },
+            `SEM total: ${abbr(sem.reduce((a, b) => a + b, 0))} · COM total: ${abbr(ppaArr.reduce((a, b) => a + b, 0) + redeArr.reduce((a, b) => a + b, 0))}`),
+          React.createElement(Text, { style: { fontSize: 7, color: TEAL, fontWeight: 'bold' } },
+            `Economia acumulada final: ${fmtBRL(acum[acum.length - 1] ?? 0)}`)
+        ),
+        React.createElement(View, { style: { flexDirection: 'row', gap: 12, marginTop: 4, justifyContent: 'center' } },
+          React.createElement(View, { style: { flexDirection: 'row', alignItems: 'center', marginRight: 12 } },
+            React.createElement(View, { style: { width: 8, height: 8, backgroundColor: NAVY, marginRight: 4 } }),
+            React.createElement(Text, { style: { fontSize: 7 } }, 'Cenário atual (sem GD)')
+          ),
+          React.createElement(View, { style: { flexDirection: 'row', alignItems: 'center', marginRight: 12 } },
+            React.createElement(View, { style: { width: 8, height: 8, backgroundColor: TEAL, marginRight: 4 } }),
+            React.createElement(Text, { style: { fontSize: 7 } }, 'Cenário Helexia — PPA')
+          ),
+          React.createElement(View, { style: { flexDirection: 'row', alignItems: 'center' } },
+            React.createElement(View, { style: { width: 8, height: 8, backgroundColor: '#94a3b8', marginRight: 4 } }),
+            React.createElement(Text, { style: { fontSize: 7 } }, 'Cenário Helexia — Rede residual')
+          )
+        )
+      );
+    })(),
+    React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginBottom: 6, marginTop: 14 } },
       'Economia direta mensal (tarifa evitada − PPA) e acumulada'
     ),
     React.createElement(Text, { style: { fontSize: 7, color: '#94a3b8', marginBottom: 6 } },
@@ -783,6 +1152,104 @@ function PerUCEconomyPage({ project, result }: { project: Project; result: Simul
       `PPA total = ${fmtBRL(result.summary.totalPPACost)}.\n` +
       `Economia líquida = ∆ Rede − PPA = ${fmtBRL(totalDelta - result.summary.totalPPACost)} ≈ ${fmtBRL(result.summary.economiaLiquida)} (diferença devido a custos não alocados).`
     ),
+  );
+}
+
+// ─── NEW: Taxes page — per-UC per-posto tax breakdown ────────────
+function TaxesPage({ project, result }: { project: Project; result: SimulationResult }) {
+  const tb = computeTaxBreakdown(project, result);
+  const PC = tb.distributor.pisRate + tb.distributor.cofinsRate;
+  const scopeLabel =
+    tb.distributor.icmsScope === 'TE_ONLY' ? 'TE apenas (parcial)' :
+    tb.distributor.icmsScope === 'NONE' ? 'Sem isenção' :
+    'TE+TUSD (total)';
+  const pcLabel = tb.distributor.pisCofinsExempt ? 'Sim (isento)' : 'Não (tributado)';
+  const icmsLabel = tb.scenarios.icmsExempt ? 'Sim' : 'Não';
+
+  return React.createElement(Page, { size: 'A4', style: s.page },
+    React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
+    React.createElement(Text, { style: s.sectionTitle }, 'Detalhe de Impostos por UC'),
+    React.createElement(Text, { style: { ...s.noteText, marginBottom: 6 } },
+      'Composição da fatura por componente (TE / TUSD sem impostos, PIS+COFINS, ICMS), comparando Cenário atual (sem GD) vs Cenário Helexia — Rede residual + PPA. Reflete exatamente o que o simulador computa.'
+    ),
+    React.createElement(View, { style: { padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, marginBottom: 10 } },
+      React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: NAVY, marginBottom: 2 } }, 'Configuração ativa'),
+      React.createElement(Text, { style: { fontSize: 7, color: '#475569' } },
+        `${tb.distributor.name} (${tb.distributor.state}) · ICMS ${(tb.distributor.icmsRate * 100).toFixed(0)}% · PIS+COFINS ${(PC * 100).toFixed(2)}%`),
+      React.createElement(Text, { style: { fontSize: 7, color: '#475569' } },
+        `Isenção ICMS: ${icmsLabel} · Escopo: ${scopeLabel} · Isenção PIS/COFINS: ${pcLabel}`)
+    ),
+    ...tb.ucs.map((uc, idx) => {
+      const comRede = uc.totalCOM - (uc.ppaHelexia ?? 0);
+      return React.createElement(View, {
+        key: idx,
+        style: { marginBottom: 14, borderWidth: 0.5, borderColor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' },
+      },
+        React.createElement(View, { style: { backgroundColor: '#f1f5f9', padding: 4 } },
+          React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: NAVY } }, `${uc.ucName}  (${uc.tariffGroup} · ${uc.isGrupoA ? 'Grupo A' : 'Grupo B'})`)
+        ),
+        ...uc.postos.map((p, pi) =>
+          React.createElement(View, { key: pi },
+            React.createElement(View, { style: { backgroundColor: '#fafafa', paddingHorizontal: 4, paddingVertical: 2, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' } },
+              React.createElement(Text, { style: { fontSize: 7, color: '#475569' } },
+                `Posto ${p.posto} · SEM residual: ${fmtKWh(p.consumoSEM)} · COM residual: ${fmtKWh(p.consumoCOM)} · COM compensado: ${fmtKWh(p.compensadoCOM)}`)
+            ),
+            React.createElement(View, { style: { flexDirection: 'row', backgroundColor: '#f8fafc', paddingHorizontal: 4, paddingVertical: 2 } },
+              React.createElement(Text, { style: { width: '38%', fontSize: 7, fontWeight: 'bold' } }, 'Componente'),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'SEM (R$)'),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'Rede COM'),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'Total COM'),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, '∆ (R$)')
+            ),
+            ...p.lines.map((line, li) =>
+              React.createElement(View, { key: li, style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 1, backgroundColor: li % 2 ? '#ffffff' : '#fcfcfc' } },
+                React.createElement(Text, { style: { width: '38%', fontSize: 6.5, color: '#475569' } }, line.label),
+                React.createElement(Text, { style: { width: '15.5%', fontSize: 6.5, textAlign: 'right' } }, fmtBRL(line.sem)),
+                React.createElement(Text, { style: { width: '15.5%', fontSize: 6.5, textAlign: 'right' } }, fmtBRL(line.com)),
+                React.createElement(Text, { style: { width: '15.5%', fontSize: 6.5, textAlign: 'right' } }, fmtBRL(line.com)),
+                React.createElement(Text, { style: { width: '15.5%', fontSize: 6.5, textAlign: 'right', color: line.delta >= 0 ? TEAL : '#dc2626' } }, fmtBRL(line.delta))
+              )
+            ),
+            React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#f1f5f9', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
+              React.createElement(Text, { style: { width: '38%', fontSize: 7, fontWeight: 'bold' } }, `Subtotal ${p.posto}`),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(p.subtotalSEM)),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(p.subtotalCOM)),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(p.subtotalCOM)),
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: p.subtotalSEM - p.subtotalCOM >= 0 ? TEAL : '#dc2626' } }, fmtBRL(p.subtotalSEM - p.subtotalCOM))
+            )
+          )
+        ),
+        uc.demanda && React.createElement(View, null,
+          React.createElement(View, { style: { backgroundColor: '#fafafa', paddingHorizontal: 4, paddingVertical: 2, borderTopWidth: 0.5, borderTopColor: '#e2e8f0' } },
+            React.createElement(Text, { style: { fontSize: 7, color: '#475569' } }, `Demanda contratada (${uc.demanda.kW} kW × ${uc.demanda.months} meses) — não compensada por SCEE`)
+          ),
+          React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#f1f5f9', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
+            React.createElement(Text, { style: { width: '38%', fontSize: 7, fontWeight: 'bold' } }, 'Subtotal Demanda'),
+            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
+            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
+            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
+            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#94a3b8' } }, '—')
+          )
+        ),
+        uc.ppaHelexia !== undefined && React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#dbeafe', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
+          React.createElement(Text, { style: { width: '38%', fontSize: 7, fontWeight: 'bold', color: NAVY } }, 'PPA Helexia'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: NAVY } }, fmtBRL(uc.ppaHelexia)),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#dc2626' } }, `−${fmtBRL(uc.ppaHelexia)}`)
+        ),
+        React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 3, backgroundColor: '#dcfce7', borderTopWidth: 1, borderTopColor: '#475569' } },
+          React.createElement(Text, { style: { width: '38%', fontSize: 8, fontWeight: 'bold' } }, 'TOTAL UC'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 8, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.totalSEM)),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 8, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(comRede)),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 8, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.totalCOM)),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 8, fontWeight: 'bold', textAlign: 'right', color: uc.totalSEM - uc.totalCOM >= 0 ? TEAL : '#dc2626' } }, fmtBRL(uc.totalSEM - uc.totalCOM))
+        )
+      );
+    }),
+    React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8', marginTop: 8, fontStyle: 'italic' } },
+      'Tax components calculados "por dentro" (T_sem / ((1−PIS−COFINS) × (1−ICMS))). Cada linha soma à tarifa all-in × kWh que cai na fatura. Subtotais COM incluem leak sobre kWh compensado (ICMS sobre TUSD quando escopo "TE apenas"; PIS+COFINS quando não isento). Total COM = Rede COM + PPA Helexia. Economia = SEM − Total COM.'
+    )
   );
 }
 
@@ -878,8 +1345,11 @@ function ProposalDocument({ project, result, generatedAt }: { project: Project; 
     React.createElement(ConsumptionPage, { project, key: 'cons' }),
     React.createElement(TariffComparisonPage, { project, key: 'tariff' }),
     React.createElement(CumulativeEconomyPage, { project, result, key: 'cum' }),
-    React.createElement(PerUCEconomyPage, { project, result, key: 'peruc' }),
+    ...(project.ucs.filter(u => u.id !== 'bat').length > 1
+      ? [React.createElement(PerUCEconomyPage, { project, result, key: 'peruc' })]
+      : []),
     React.createElement(BankPage, { project, result, key: 'bank' }),
+    React.createElement(TaxesPage, { project, result, key: 'taxes' }),
   ];
   if (result.attribution) {
     pages.push(React.createElement(AttributionPage, { project, result, key: 'attr' }));
