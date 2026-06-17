@@ -359,6 +359,9 @@ export function ProjectEditor() {
               performanceFactor={project.performanceFactor ?? 1.0}
               tariffEscalationPPA={project.tariffEscalationPPA ?? 0}
               tariffEscalationDistributor={project.tariffEscalationDistributor ?? 0}
+              simulationMonths={project.simulationMonths}
+              additionalPlants={project.additionalPlants ?? []}
+              onAdditionalPlantsChange={plants => updateProject(project.id, { additionalPlants: plants })}
               onProjectFieldChange={updates => updateProject(project.id, updates)}
             />
             <AdditionalPlants

@@ -20,7 +20,10 @@ interface Props {
   performanceFactor?: number;
   tariffEscalationPPA?: number;
   tariffEscalationDistributor?: number;
-  onProjectFieldChange?: (updates: Partial<Pick<Project, 'generationSource' | 'helexiaPlantCode' | 'degradationPct' | 'lossPct' | 'performanceFactor' | 'tariffEscalationPPA' | 'tariffEscalationDistributor'>>) => void;
+  simulationMonths?: number;
+  additionalPlants?: Plant[];
+  onAdditionalPlantsChange?: (plants: Plant[]) => void;
+  onProjectFieldChange?: (updates: Partial<Pick<Project, 'generationSource' | 'helexiaPlantCode' | 'degradationPct' | 'lossPct' | 'performanceFactor' | 'tariffEscalationPPA' | 'tariffEscalationDistributor' | 'simulationMonths'>>) => void;
 }
 
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -39,6 +42,9 @@ export function PlantForm({
   performanceFactor = 1.0,
   tariffEscalationPPA = 0,
   tariffEscalationDistributor = 0,
+  simulationMonths,
+  additionalPlants = [],
+  onAdditionalPlantsChange,
   onProjectFieldChange,
 }: Props) {
   const update = (field: keyof Plant, value: unknown) => {
@@ -181,7 +187,7 @@ export function PlantForm({
       {/* Common fields: PPA rate and contract start */}
       <div className="grid grid-cols-2 gap-3">
         <CurrencyInput
-          label="PPA Rate (R$/kWh)"
+          label="PPA Rate (R$/kWh) — cliente paga"
           prefix="R$"
           value={plant.ppaRateRsBRLkWh}
           onChange={v => update('ppaRateRsBRLkWh', v)}
@@ -194,6 +200,35 @@ export function PlantForm({
             onChange={e => update('contractStartMonth', e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
           />
+        </div>
+        <div>
+          <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1">
+            Taxa intermediação (%)
+            <span
+              className="text-slate-400 cursor-help"
+              title="Percentual do PPA capturado por um intermediário (broker, originador, etc.). Cliente continua pagando o PPA cheio na fatura — o custo dele não muda. Helexia recebe líquido = PPA × (1 − taxa). Aparece na aba &quot;Recebimento Helexia&quot;."
+            >?</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step={0.1}
+              min={0}
+              max={100}
+              value={+((plant.intermediationFeePct ?? 0) * 100).toFixed(2)}
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                update('intermediationFeePct', isNaN(v) ? 0 : Math.max(0, Math.min(1, v / 100)));
+              }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono text-right"
+            />
+            <span className="text-sm text-slate-500">%</span>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {(plant.intermediationFeePct ?? 0) > 0
+              ? `→ Helexia líquido R$ ${(plant.ppaRateRsBRLkWh * (1 - (plant.intermediationFeePct ?? 0))).toFixed(4)}/kWh`
+              : 'sem intermediário'}
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -236,26 +271,92 @@ export function PlantForm({
           </p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Duracao do Contrato</label>
-          <select
+          <label className="block text-sm font-medium text-slate-700 mb-1">Prazo PPA (meses)</label>
+          <input
+            type="number"
+            min={1}
+            max={240}
             value={plant.contractMonths || 24}
-            onChange={e => update('contractMonths', Number(e.target.value))}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-          >
-            {[12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180].map(m => (
-              <option key={m} value={m}>{m} meses ({m / 12} {m / 12 === 1 ? 'ano' : 'anos'})</option>
-            ))}
-          </select>
+            onChange={e => update('contractMonths', Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono text-right"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">
+            Apenas desta usina (principal). Cada usina adicional tem seu próprio prazo.
+          </p>
           {plant.contractStartMonth && (
             <p className="text-xs text-slate-400 mt-1">
-              Termino: {(() => {
+              Término PPA: {(() => {
                 const [y, mo] = plant.contractStartMonth.split('-').map(Number);
                 const end = new Date(y, mo - 1 + (plant.contractMonths || 24), 0);
                 return end.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
               })()}
             </p>
           )}
+          {additionalPlants.length > 0 && onAdditionalPlantsChange && (() => {
+            const inSync = additionalPlants.every(p => p.contractMonths === plant.contractMonths);
+            if (inSync) {
+              return (
+                <p className="text-[11px] text-teal-600 mt-1">
+                  ✓ Prazo PPA sincronizado com {additionalPlants.length} usina(s) adicional(is)
+                </p>
+              );
+            }
+            return (
+              <div className="mt-1 rounded border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
+                <p className="mb-1">
+                  Prazos diferentes: {additionalPlants
+                    .filter(p => p.contractMonths !== plant.contractMonths)
+                    .map(p => `${p.name.split(' ')[0]} (${p.contractMonths}m)`).join(', ')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onAdditionalPlantsChange(additionalPlants.map(p => ({ ...p, contractMonths: plant.contractMonths })))}
+                  className="text-amber-900 underline hover:no-underline"
+                >
+                  Aplicar prazo {plant.contractMonths}m a todas as usinas adicionais
+                </button>
+              </div>
+            );
+          })()}
         </div>
+      </div>
+
+      {/* Horizonte de simulação (simulationMonths) */}
+      <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-3">
+        <label className="flex items-center gap-1 text-sm font-medium text-slate-700 mb-1">
+          Horizonte de simulação (meses)
+          <span
+            className="text-slate-400 cursor-help"
+            title="Quantidade total de meses simulados nos resultados. Por padrão = prazo PPA da usina mais longa. Pode ser maior para visualizar drain do banco após o fim do PPA (ex: PPA 15m + simulação 30m = vê 15m de PPA + 15m de bank draw-down)."
+          >?</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            max={360}
+            value={simulationMonths ?? (plant.contractMonths || 24)}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10);
+              onProjectFieldChange?.({ simulationMonths: (isNaN(v) || v <= 0) ? undefined : v });
+            }}
+            className="w-32 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono text-right"
+          />
+          {simulationMonths != null && simulationMonths !== (plant.contractMonths || 24) && (
+            <button
+              type="button"
+              onClick={() => onProjectFieldChange?.({ simulationMonths: undefined })}
+              className="text-xs text-blue-700 underline hover:no-underline"
+            >
+              Resetar (= prazo PPA)
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-slate-500 mt-1">
+          {(simulationMonths ?? 0) > (plant.contractMonths || 24)
+            ? `+${(simulationMonths ?? 0) - (plant.contractMonths || 24)} meses pós-PPA (bank drain visível)`
+            : 'Igual ao prazo PPA (sem cauda pós-contrato)'}
+        </p>
       </div>
 
       {generationSource === 'helexia_plant' ? (
