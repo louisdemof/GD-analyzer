@@ -303,7 +303,7 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
       const redeVal = sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost - pcAdd;
       const baselineWidth = Math.max(2, sm.baselineSEM * barScale);
       const ecoPctRaw = sm.baselineSEM > 0 ? (sm.economiaLiquida / sm.baselineSEM) * 100 : 0;
-      const ecoPctStr = `${ecoPctRaw >= 0 ? '' : '−'}${Math.abs(ecoPctRaw).toFixed(1)}%`;
+      const ecoPctStr = `${ecoPctRaw >= 0 ? '' : '-'}${Math.abs(ecoPctRaw).toFixed(1)}%`;
       const segs: { label: string; value: number; color: string; isEconomia?: boolean }[] = [
         { label: 'Rede', value: redeVal, color: NAVY },
         { label: 'PPA Helexia', value: sm.totalPPACost, color: TEAL },
@@ -440,7 +440,34 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
     }
   }
   const openingBank = project.ucs.reduce((acc, u) => acc + (u.openingBank || 0), 0);
-  const expired = Math.max(0, openingBank + totalInjected - totalDrained - (bankEnd[n - 1] ?? 0));
+  // Credit expiration via FIFO aging: a credit added to the bank expires only if it
+  // sits unused for 60 months (Lei 14.300/2022, Art. 5º). For any horizon ≤ 60 months
+  // nothing can expire — this avoids falsely flagging same-month-compensated energy.
+  const CREDIT_VALIDITY = 60;
+  let expired = 0;
+  {
+    const fifo: { month: number; amount: number }[] = [];
+    if (openingBank > 0) fifo.push({ month: -1, amount: openingBank });
+    let prevBank = openingBank;
+    for (let i = 0; i < n; i++) {
+      // Expire credits older than the validity window.
+      while (fifo.length && i - fifo[0].month >= CREDIT_VALIDITY) {
+        expired += fifo.shift()!.amount;
+      }
+      // Net credits added to the bank this month (surplus after in-month compensation).
+      const added = Math.max(0, bankEnd[i] - prevBank + bankDraw[i]);
+      // The bank draw consumes the oldest credits first (FIFO).
+      let draw = bankDraw[i];
+      while (draw > 1e-6 && fifo.length) {
+        const head = fifo[0];
+        const take = Math.min(head.amount, draw);
+        head.amount -= take; draw -= take;
+        if (head.amount <= 1e-6) fifo.shift();
+      }
+      if (added > 0) fifo.push({ month: i, amount: added });
+      prevBank = bankEnd[i];
+    }
+  }
   const labels = result.months.map(m => m.label);
   const peak = Math.max(...bankEnd);
   const peakIdx = bankEnd.indexOf(peak);
@@ -579,9 +606,9 @@ function PremissasPage({ project }: { project: Project }) {
       const rows: [string, string][] = [];
       plants.forEach((p, idx) => {
         rows.push([idx === 0 ? 'Usina principal' : `Usina adicional ${idx}`, p.name]);
-        rows.push(['  ↳ Potência AC', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
-        rows.push(['  ↳ PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
-        rows.push(['  ↳ Prazo PPA', `${p.contractMonths} meses`]);
+        rows.push(['  - Potência AC', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
+        rows.push(['  - PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
+        rows.push(['  - Prazo PPA', `${p.contractMonths} meses`]);
       });
       const totalKWac = plants.reduce((acc, p) => acc + (p.capacityKWac || 0), 0);
       if (plants.length > 1) rows.push(['Capacidade AC total', `${totalKWac.toLocaleString('pt-BR')} kWac`]);
@@ -658,10 +685,10 @@ function UsinaPage({ project }: { project: Project }) {
   plants.forEach((p, idx) => {
     const total = perPlant[idx].reduce((a, b) => a + b, 0);
     specRows.push([idx === 0 ? 'Usina principal' : `Usina adicional ${idx}`, p.name]);
-    specRows.push(['  ↳ Potência', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
-    specRows.push(['  ↳ PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
-    specRows.push(['  ↳ Prazo PPA', `${p.contractMonths} meses`]);
-    specRows.push([`  ↳ Geração efetiva (${p.contractMonths}m)`, fmtKWh(total)]);
+    specRows.push(['  - Potência', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
+    specRows.push(['  - PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
+    specRows.push(['  - Prazo PPA', `${p.contractMonths} meses`]);
+    specRows.push([`  - Geração efetiva (${p.contractMonths}m)`, fmtKWh(total)]);
   });
 
   const combinedRows: [string, string][] = [
@@ -940,19 +967,19 @@ function TariffComparisonPage({ project }: { project: Project }) {
           React.createElement(Text, { key: 'conv', style: { ...s.tableCell, width: colW, textAlign: 'center', fontSize: 7.5 } }, r.conversion),
           React.createElement(Text, { key: 'ppa', style: { ...s.tableCell, width: colW, textAlign: 'right', fontSize: 7.5 } }, fmtRate(r.effectivePPA)),
         ];
-        if (showIcmsCol) cells.push(React.createElement(Text, { key: 'icms', style: { ...s.tableCell, width: colW, textAlign: 'right', color: icmsAdd > 0 ? '#b45309' : '#94a3b8', fontSize: 7.5 } }, icmsAdd > 0 ? `−${fmtRate(icmsAdd)}` : '—'));
-        if (showPcCol) cells.push(React.createElement(Text, { key: 'pc', style: { ...s.tableCell, width: colW, textAlign: 'right', color: pcAdd > 0 ? '#b45309' : '#94a3b8', fontSize: 7.5 } }, pcAdd > 0 ? `−${fmtRate(pcAdd)}` : '—'));
+        if (showIcmsCol) cells.push(React.createElement(Text, { key: 'icms', style: { ...s.tableCell, width: colW, textAlign: 'right', color: icmsAdd > 0 ? '#b45309' : '#94a3b8', fontSize: 7.5 } }, icmsAdd > 0 ? `-${fmtRate(icmsAdd)}` : '—'));
+        if (showPcCol) cells.push(React.createElement(Text, { key: 'pc', style: { ...s.tableCell, width: colW, textAlign: 'right', color: pcAdd > 0 ? '#b45309' : '#94a3b8', fontSize: 7.5 } }, pcAdd > 0 ? `-${fmtRate(pcAdd)}` : '—'));
         cells.push(React.createElement(Text, { key: 'eco', style: { ...s.tableCellBold, width: colW, textAlign: 'right', color: eco >= 0 ? TEAL : '#dc2626', fontSize: 7.5 } }, fmtRate(eco)));
         return React.createElement(View, { key: i, style: i % 2 ? s.tableRowAlt : s.tableRow }, ...cells);
       })
     ),
     React.createElement(Text, { style: { ...s.noteTitle, marginTop: 14 } }, 'Como interpretar'),
     React.createElement(Text, { style: s.noteText },
-      `• Tarifa atual = T_sem / ((1−PIS−COFINS) × (1−ICMS)) — preço all-in que o cliente paga por kWh sem GD.\n` +
+      `• Tarifa atual = T_sem / ((1-PIS-COFINS) × (1-ICMS)) — preço all-in que o cliente paga por kWh sem GD.\n` +
       `• PPA efetivo = ${fmtRate(ppa)} (FP/RSV/B), ${FA > 0 ? `R$ ${ppa.toFixed(4)}/${FA.toFixed(3)} = ${fmtRate(ppa / FA)} (PT — 1 kWh PT exige 1/FA = ${(1 / FA).toFixed(3)} kWh FP-equiv)` : '—'}.\n` +
       (showIcmsCol ? `• ICMS adicional = parcela de ICMS que ainda incide sobre o kWh compensado. Com escopo "TE apenas", ICMS continua sendo cobrado sobre a parcela TUSD.\n` : '') +
       (showPcCol ? `• PIS/COFINS adicional = aplica quando a isenção federal não vale para este cliente (STJ Tema 986 caso a caso).\n` : '') +
-      `• Economia/kWh = Tarifa atual − PPA efetivo − ICMS adicional − PIS/COFINS adicional. Positiva = cliente lucra por kWh compensado nesse posto; negativa = PPA + leaks superam a tarifa evitada.`
+      `• Economia/kWh = Tarifa atual - PPA efetivo - ICMS adicional - PIS/COFINS adicional. Positiva = cliente lucra por kWh compensado nesse posto; negativa = PPA + leaks superam a tarifa evitada.`
     ),
     hasARSV && React.createElement(View, { style: { marginTop: 10 } },
       React.createElement(Text, { style: { ...s.noteTitle, color: '#b45309' } }, 'Observação — Horário Reservado'),
@@ -988,7 +1015,7 @@ function CumulativeEconomyPage({ project, result }: { project: Project; result: 
       React.createElement(View, { style: s.kpiCard },
         React.createElement(Text, { style: s.kpiLabel }, 'Economia direta'),
         React.createElement(Text, { style: { ...s.kpiValue, color: sm.economiaLiquida >= 0 ? TEAL : '#dc2626' } }, fmtBRL(sm.economiaLiquida)),
-        React.createElement(Text, { style: s.kpiSub }, 'tarifa evitada − PPA')
+        React.createElement(Text, { style: s.kpiSub }, 'tarifa evitada - PPA')
       ),
       React.createElement(View, { style: s.kpiCard },
         React.createElement(Text, { style: s.kpiLabel }, 'Banco Net Helexia'),
@@ -1076,7 +1103,7 @@ function CumulativeEconomyPage({ project, result }: { project: Project; result: 
       );
     })(),
     React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginBottom: 6, marginTop: 14 } },
-      'Economia direta mensal (tarifa evitada − PPA) e acumulada'
+      'Economia direta mensal (tarifa evitada - PPA) e acumulada'
     ),
     React.createElement(Text, { style: { fontSize: 7, color: '#94a3b8', marginBottom: 6 } },
       'Valores negativos indicam mês onde o PPA superou a tarifa evitada; excedente foi acumulado no banco de créditos.'
@@ -1117,11 +1144,11 @@ function PerUCEconomyPage({ project, result }: { project: Project; result: Simul
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'Benefício por Unidade Consumidora'),
     React.createElement(Text, { style: { ...s.noteText, marginBottom: 14 } },
-      `Mostramos aqui a redução do custo de rede de cada UC pela compensação de créditos GD. O custo do PPA Helexia é compartilhado pela usina e não está alocado individualmente por UC — a economia líquida total (∆ rede − PPA) aparece no Resumo Executivo.`
+      `Mostramos aqui a redução do custo de rede de cada UC pela compensação de créditos GD. O custo do PPA Helexia é compartilhado pela usina e não está alocado individualmente por UC — a economia líquida total (Var. rede - PPA) aparece no Resumo Executivo.`
     ),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Unidade Consumidora', 'Grupo', 'Rede SEM', 'Rede COM', 'ICMS add.', '∆ Rede (ganho)', '% redução'].map((h, i) =>
+        ...['Unidade Consumidora', 'Grupo', 'Rede SEM', 'Rede COM', 'ICMS add.', 'Var. Rede (ganho)', '% redução'].map((h, i) =>
           React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '26%' : i === 1 ? '10%' : '12.8%', textAlign: i < 2 ? 'left' : 'right' } }, h)
         )
       ),
@@ -1148,9 +1175,9 @@ function PerUCEconomyPage({ project, result }: { project: Project; result: Simul
       ),
     ),
     React.createElement(Text, { style: { ...s.noteText, marginTop: 16, fontStyle: 'italic' } },
-      `∆ Rede total = ${fmtBRL(totalDelta)} (valor total que a compensação entrega ao cliente, antes do PPA).\n` +
+      `Var. Rede total = ${fmtBRL(totalDelta)} (valor total que a compensação entrega ao cliente, antes do PPA).\n` +
       `PPA total = ${fmtBRL(result.summary.totalPPACost)}.\n` +
-      `Economia líquida = ∆ Rede − PPA = ${fmtBRL(totalDelta - result.summary.totalPPACost)} ≈ ${fmtBRL(result.summary.economiaLiquida)} (diferença devido a custos não alocados).`
+      `Economia líquida = Var. Rede - PPA = ${fmtBRL(totalDelta - result.summary.totalPPACost)} ~${fmtBRL(result.summary.economiaLiquida)} (diferença devido a custos não alocados).`
     ),
   );
 }
@@ -1199,7 +1226,7 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
               React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'SEM (R$)'),
               React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'Rede COM'),
               React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'Total COM'),
-              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, '∆ (R$)')
+              React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, 'Var. (R$)')
             ),
             ...p.lines.map((line, li) =>
               React.createElement(View, { key: li, style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 1, backgroundColor: li % 2 ? '#ffffff' : '#fcfcfc' } },
@@ -1236,7 +1263,7 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
           React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
           React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
           React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: NAVY } }, fmtBRL(uc.ppaHelexia)),
-          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#dc2626' } }, `−${fmtBRL(uc.ppaHelexia)}`)
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#dc2626' } }, `-${fmtBRL(uc.ppaHelexia)}`)
         ),
         React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 3, backgroundColor: '#dcfce7', borderTopWidth: 1, borderTopColor: '#475569' } },
           React.createElement(Text, { style: { width: '38%', fontSize: 8, fontWeight: 'bold' } }, 'TOTAL UC'),
@@ -1248,7 +1275,7 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
       );
     }),
     React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8', marginTop: 8, fontStyle: 'italic' } },
-      'Tax components calculados "por dentro" (T_sem / ((1−PIS−COFINS) × (1−ICMS))). Cada linha soma à tarifa all-in × kWh que cai na fatura. Subtotais COM incluem leak sobre kWh compensado (ICMS sobre TUSD quando escopo "TE apenas"; PIS+COFINS quando não isento). Total COM = Rede COM + PPA Helexia. Economia = SEM − Total COM.'
+      'Tax components calculados "por dentro" (T_sem / ((1-PIS-COFINS) × (1-ICMS))). Cada linha soma à tarifa all-in × kWh que cai na fatura. Subtotais COM incluem leak sobre kWh compensado (ICMS sobre TUSD quando escopo "TE apenas"; PIS+COFINS quando não isento). Total COM = Rede COM + PPA Helexia. Economia = SEM - Total COM.'
     )
   );
 }
@@ -1283,25 +1310,25 @@ function AttributionPage({ project, result }: { project: Project; result: Simula
         React.createElement(Text, { style: [s.tableCell, { width: '18%', color: '#94a3b8' }] }, 'distribuidora')
       ),
       React.createElement(View, { style: s.tableRowAlt },
-        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(−) Banco inicial'),
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(-) Banco inicial'),
         React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.initialBankEffect)),
         React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, pct(d.initialBankEffect, d.totalCustomerBenefit)),
         React.createElement(Text, { style: [s.tableCell, { width: '18%' }] }, 'cliente')
       ),
       React.createElement(View, { style: s.tableRow },
-        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(−) Geração própria'),
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(-) Geração própria'),
         React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.ownPlantsEffect)),
         React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, pct(d.ownPlantsEffect, d.totalCustomerBenefit)),
         React.createElement(Text, { style: [s.tableCell, { width: '18%' }] }, 'cliente')
       ),
       React.createElement(View, { style: s.tableRowAlt },
-        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(−) Distribuição BAT → outras UCs'),
+        React.createElement(Text, { style: [s.tableCell, { width: '46%' }] }, '(-) Distribuição BAT -> outras UCs'),
         React.createElement(Text, { style: [s.tableCell, { width: '22%', textAlign: 'right' }] }, fmtBRL(d.batDistribEffect)),
         React.createElement(Text, { style: [s.tableCell, { width: '14%', textAlign: 'right' }] }, pct(d.batDistribEffect, d.totalCustomerBenefit)),
         React.createElement(Text, { style: [s.tableCell, { width: '18%' }] }, 'cliente')
       ),
       React.createElement(View, { style: [s.tableRow, { backgroundColor: '#dbeafe' }] },
-        React.createElement(Text, { style: [s.tableCellBold, { width: '46%', color: NAVY }] }, '(−) HCS03 Helexia (PPA pago)'),
+        React.createElement(Text, { style: [s.tableCellBold, { width: '46%', color: NAVY }] }, '(-) HCS03 Helexia (PPA pago)'),
         React.createElement(Text, { style: [s.tableCellBold, { width: '22%', textAlign: 'right', color: NAVY }] }, fmtBRL(d.helexiaCS3Effect)),
         React.createElement(Text, { style: [s.tableCellBold, { width: '14%', textAlign: 'right', color: NAVY }] }, pct(d.helexiaCS3Effect, d.totalCustomerBenefit)),
         React.createElement(Text, { style: [s.tableCellBold, { width: '18%', color: NAVY }] }, 'Helexia')
