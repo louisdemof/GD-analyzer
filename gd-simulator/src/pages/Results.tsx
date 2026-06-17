@@ -10,6 +10,7 @@ import { RateioTable } from '../components/results/RateioTable';
 import { ScenarioPanel } from '../components/results/ScenarioPanel';
 import { SensitivityAnalysis } from '../components/results/SensitivityAnalysis';
 import { AttributionPanel } from '../components/results/AttributionPanel';
+import { RecebimentoHelexiaPanel } from '../components/results/RecebimentoHelexiaPanel';
 import { TaxBreakdownPanel } from '../components/results/TaxBreakdownPanel';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
@@ -18,7 +19,7 @@ import { generatePDF, downloadPDF } from '../engine/pdf';
 import { exportResultsExcel } from '../engine/excel';
 import { exportConsumptionExcel } from '../engine/consumptionExcel';
 
-type ResultTab = 'resumo' | 'detalhe-impostos' | 'mensal' | 'banco' | 'rateio' | 'atribuicao' | 'sensibilidades' | 'sensibilidade-geracao';
+type ResultTab = 'resumo' | 'detalhe-impostos' | 'mensal' | 'banco' | 'rateio' | 'recebimento' | 'atribuicao' | 'sensibilidades' | 'sensibilidade-geracao';
 
 export function Results() {
   const { id } = useParams<{ id: string }>();
@@ -61,6 +62,8 @@ export function Results() {
     project?.plant.p50Profile,
     project?.plant.actualProfile,
     project?.plant.contractMonths,
+    project?.simulationMonths,
+    project?.additionalPlants,
     project?.distributor,
   ]);
 
@@ -207,6 +210,7 @@ export function Results() {
     { key: 'mensal', label: 'Análise Mensal' },
     { key: 'banco', label: 'Banco de Créditos' },
     { key: 'rateio', label: 'Rateio' },
+    { key: 'recebimento', label: 'Recebimento Helexia' },
     ...(result.attribution ? [{ key: 'atribuicao' as ResultTab, label: 'Atribuição' }] : []),
     { key: 'sensibilidades', label: 'Sensibilidades' },
     { key: 'sensibilidade-geracao', label: 'Sensibilidade Geracao' },
@@ -389,6 +393,9 @@ export function Results() {
               onRateioChange={handleRateioChange}
             />
           </div>
+        )}
+        {tab === 'recebimento' && (
+          <RecebimentoHelexiaPanel project={project} result={result} />
         )}
         {tab === 'atribuicao' && result.attribution && (
           <AttributionPanel attribution={result.attribution} plantName={project.plant.name} />

@@ -1,0 +1,37 @@
+UC;Ref_Mes;Ref_Ano;Ref_AAAA-MM;Modalidade;Grupo;Contratada_FP_kW;Contratada_Ponta_kW;Medida_FP_kW;Medida_Ponta_kW;NaoConsumida_FP_kW;NaoConsumida_Ponta_kW;Ultrapassagem_FP_kW;Ultrapassagem_Ponta_kW;Status_FP;Fonte_Arquivo
+NHS;Fevereiro;2025;2025-02;VERDE;A4;500,00;;605,47;;;;105,47;;Ultrapassagem;Novo Horizonte do Sul - 2025-02-01.pdf
+NHS;Março;2025;2025-03;VERDE;A4;500,00;;864,19;;;;364,19;;Ultrapassagem;Novo Horizonte do Sul - 2025-03-01.pdf
+NHS;Abril;2025;2025-04;VERDE;A4;500,00;;831,26;;;;331,26;;Ultrapassagem;Novo Horizonte do Sul - 2025-04-01.pdf
+NHS;Maio;2025;2025-05;VERDE;A4;500,00;;485,18;;;;;;OK;Novo Horizonte do Sul - 2025-05-01.pdf
+NHS;Junho;2025;2025-06;VERDE;A4;500,00;;456,96;;;;;;OK;Novo Horizonte do Sul - 2025-06-01.pdf
+NHS;Julho;2025;2025-07;VERDE;A4;500,00;;870,91;;;;370,91;;Ultrapassagem;Novo Horizonte do Sul - 2025-07-01.pdf
+NHS;Agosto;2025;2025-08;VERDE;A4;500,00;;1024,80;;;;524,80;;Ultrapassagem;Novo Horizonte do Sul - 2025-08-01.pdf
+NHS;Setembro;2025;2025-09;VERDE;A4;500,00;;1065,12;;;;565,12;;Ultrapassagem;Novo Horizonte do Sul - 2025-09-01.pdf
+NHS;Outubro;2025;2025-10;VERDE;A4;500,00;;821,18;;;;321,18;;Ultrapassagem;Novo Horizonte do Sul - 2025-10-01.pdf
+NHS;Novembro;2025;2025-11;VERDE;A4;500,00;;147,17;;;;;;OK;Novo Horizonte do Sul - 2025-11-01.pdf
+NHS;Dezembro;2025;2025-12;VERDE;A4;500,00;;108,19;;;;;;OK;Novo Horizonte do Sul - 2025-12-01.pdf
+NHS;Janeiro;2026;2026-01;VERDE;A4;500,00;;122,30;;;;;;OK;Novo Horizonte do Sul - 2026-01-01.pdf
+AMD;Fevereiro;2025;2025-02;VERDE;A3A;500,00;;758,52;;;;258,52;;Ultrapassagem;Amandina - 2025-02-01.pdf
+AMD;Março;2025;2025-03;VERDE;A3A;500,00;;790,02;;;;290,02;;Ultrapassagem;Amandina - 2025-03-01.pdf
+AMD;Abril;2025;2025-04;VERDE;A3A;500,00;;923,58;;;;423,58;;Ultrapassagem;Amandina - 2025-04-01.pdf
+AMD;Maio;2025;2025-05;VERDE;A3A;500,00;;560,70;;;;60,70;;Ultrapassagem;Amandina - 2025-05-01.pdf
+AMD;Junho;2025;2025-06;VERDE;A3A;500,00;;784,98;;;;284,98;;Ultrapassagem;Amandina - 2025-06-01.pdf
+AMD;Julho;2025;2025-07;VERDE;A3A;500,00;;845,46;;;;345,46;;Ultrapassagem;Amandina - 2025-07-01.pdf
+AMD;Agosto;2025;2025-08;VERDE;A3A;500,00;;916,02;;;;416,02;;Ultrapassagem;Amandina - 2025-08-01.pdf
+AMD;Setembro;2025;2025-09;VERDE;A3A;500,00;;869,40;;;;369,40;;Ultrapassagem;Amandina - 2025-09-01.pdf
+AMD;Outubro;2025;2025-10;VERDE;A3A;500,00;;196,56;;;;;;OK;Amandina - 2025-10-01.pdf
+AMD;Novembro;2025;2025-11;VERDE;A3A;500,00;;167,58;;;;;;OK;Amandina - 2025-11-01.pdf
+AMD;Dezembro;2025;2025-12;VERDE;A3A;500,00;;103,32;;;;;;OK;Amandina - 2025-12-01.pdf
+AMD;Janeiro;2026;2026-01;VERDE;A3A;500,00;;217,98;;;;;;OK;Amandina - 2026-01-01.pdf
+BAT;Janeiro;2025;2025-01;VERDE;A4;625,00;;71,40;;553,60;;;;OK;Batayporã - 2025-01-01.pdf
+BAT;Fevereiro;2025;2025-02;VERDE;A4;625,00;;361,20;;263,80;;;;OK;Batayporã - 2025-02-01.pdf
+BAT;Março;2025;2025-03;VERDE;A4;625,00;;378,00;;247,00;;;;OK;Batayporã - 2025-03-01.pdf
+BAT;Abril;2025;2025-04;VERDE;A4;625,00;;197,40;;427,60;;;;OK;Batayporã - 2025-04-01.pdf
+BAT;Maio;2025;2025-05;VERDE;A4;625,00;;197,40;;427,60;;;;OK;Batayporã - 2025-05-01.pdf
+BAT;Junho;2025;2025-06;VERDE;A4;625,00;;357,00;;268,00;;;;OK;Batayporã - 2025-06-01.pdf
+BAT;Julho;2025;2025-07;VERDE;A4;625,00;;394,80;;230,20;;;;OK;Batayporã - 2025-07-01.pdf
+BAT;Agosto;2025;2025-08;VERDE;A4;625,00;;407,40;;217,60;;;;OK;Batayporã - 2025-08-01.pdf
+BAT;Setembro;2025;2025-09;VERDE;A4;625,00;;151,20;;473,80;;;;OK;Batayporã - 2025-09-01.pdf
+BAT;Outubro;2025;2025-10;VERDE;A4;625,00;;46,20;;578,80;;;;OK;Batayporã - 2025-10-01.pdf
+BAT;Novembro;2025;2025-11;VERDE;A4;625,00;;79,80;;545,20;;;;OK;Batayporã - 2025-11-01.pdf
+BAT;Dezembro;2025;2025-12;VERDE;A4;625,00;;42,00;;583,00;;;;OK;Batayporã - 2025-12-01.pdf

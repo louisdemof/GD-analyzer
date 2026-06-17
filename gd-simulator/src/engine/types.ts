@@ -43,6 +43,11 @@ export interface Distributor {
     // Per-project override is via this same field (distributor instance is project-scoped).
     pisCofinsExempt?: boolean;
   };
+  // Tariff markup sensitivity (DistributorForm). When a markup is applied, all
+  // sem-impostos tariffs are multiplied by (1 + tariffMarkupPct); tariffsBaseline
+  // snapshots the pre-markup values so "Resetar" restores and re-apply is idempotent.
+  tariffMarkupPct?: number;            // e.g. 0.10 = +10%
+  tariffsBaseline?: Distributor['tariffs'];
   // Computed (derived from above)
   FA?: number;            // TE_FP / TE_PT — computed on load
   T_B3?: number;          // all-in Grupo B tariff — computed
@@ -102,6 +107,9 @@ export interface Plant {
   ppaRateRsBRLkWh: number;       // e.g. 0.4425
   contractStartMonth: string;    // e.g. "2026-06"
   contractMonths: number;        // e.g. 24
+  // Intermediation fee taken off the PPA before Helexia's net receipt
+  // (e.g. 0.10 = 10%). Used by the "Recebimento Helexia" view. Defaults to 0.
+  intermediationFeePct?: number;
 }
 
 // A client project
@@ -110,6 +118,15 @@ export interface Project {
   clientName: string;
   distributor: Distributor;
   plant: Plant;
+  // Additional usinas injecting credits into the same client. Each shares the
+  // contract start month but can have its own capacity, PPA rate and prazo.
+  // Their generation is summed with the main plant's, each extended to its own
+  // contractMonths and zero-padded to the simulation horizon.
+  additionalPlants?: Plant[];
+  // Optional override for the simulation horizon (months). When unset, the
+  // horizon is the max contractMonths across the main plant and all additional
+  // plants. See computeSimulationMonths().
+  simulationMonths?: number;
   ucs: ConsumptionUnit[];
   // BAT stranded bank (if applicable — for cases like Batayporã)
   batBank?: {

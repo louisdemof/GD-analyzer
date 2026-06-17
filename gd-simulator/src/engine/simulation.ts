@@ -1,5 +1,5 @@
 import type {
-  Project, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor,
+  Project, Plant, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor,
   AttributionFlags, AttributionScenario, AttributionScenarioName, AttributionResult,
   AttributionMonthly,
 } from './types';
@@ -8,13 +8,51 @@ import { simulateUCBank, computeBATCredits, type BankSimResult } from './bank';
 import { optimizeDemandaContratada, computeDemandaBilling } from './demandaOptimizer';
 
 /**
- * Get base generation profile (before extension).
+ * Base generation profile for a single plant (before extension).
  */
-function getBaseGeneration(project: Project): number[] {
-  if (project.scenarios.useActualGeneration && project.plant.actualProfile) {
-    return project.plant.actualProfile;
-  }
-  return project.plant.p50Profile;
+function plantBaseGeneration(plant: Plant, useActual: boolean): number[] {
+  if (useActual && plant.actualProfile) return plant.actualProfile;
+  return plant.p50Profile;
+}
+
+/**
+ * All plants of a project: the main plant plus any additional usinas.
+ */
+export function getAllPlants(project: Project): Plant[] {
+  return [project.plant, ...(project.additionalPlants ?? [])];
+}
+
+/**
+ * Simulation horizon (months). An explicit simulationMonths override wins;
+ * otherwise it's the max contractMonths across the main plant and all
+ * additional plants (so a longer additional usina extends the horizon).
+ */
+export function computeSimulationMonths(project: Project): number {
+  if (project.simulationMonths && project.simulationMonths > 0) return project.simulationMonths;
+  const main = project.plant.contractMonths || 24;
+  const extra = (project.additionalPlants ?? []).map(p => p.contractMonths ?? 0);
+  return Math.max(main, ...extra);
+}
+
+/**
+ * Per-plant generation series, each extended to its own contractMonths (with
+ * degradation + performance haircut) then zero-padded to `totalMonths`. A plant
+ * with a shorter prazo contributes 0 once its contract ends.
+ */
+function buildPlantGenerationSeries(
+  plants: Plant[],
+  totalMonths: number,
+  performanceFactor: number,
+  genDegradation: number,
+  useActual: boolean,
+): number[][] {
+  return plants.map(plant => {
+    const raw = plantBaseGeneration(plant, useActual).map(v => v * performanceFactor);
+    const ext = extendGeneration(raw, Math.min(plant.contractMonths || totalMonths, totalMonths), genDegradation);
+    const series = [...ext];
+    while (series.length < totalMonths) series.push(0);
+    return series;
+  });
 }
 
 /**
@@ -122,14 +160,22 @@ export function runSimulation(project: Project): SimulationResult {
   validateProject(project, distributor);
 
   const ppaRate = project.plant.ppaRateRsBRLkWh;
-  const contractMonths = project.plant.contractMonths || 24;
+  const contractMonths = computeSimulationMonths(project);
   const growthRate = project.growthRate ?? 0.025;
   const genDegradation = project.generationDegradation ?? 0.005;
   const performanceFactor = project.performanceFactor ?? 1.0;
 
-  // Extend generation profile to contractMonths with degradation + performance haircut
-  const rawGen = getBaseGeneration(project).map(v => v * performanceFactor);
-  const generation = extendGeneration(rawGen, contractMonths, genDegradation);
+  // Generation across all usinas (main + additional). Each plant is extended to
+  // its own contractMonths with degradation + performance haircut, zero-padded
+  // to the simulation horizon, then summed month-by-month. plantGenSeries is kept
+  // so per-plant PPA rates can be applied in the monthly loop below.
+  const allPlants = getAllPlants(project);
+  const plantGenSeries = buildPlantGenerationSeries(
+    allPlants, contractMonths, performanceFactor, genDegradation,
+    !!project.scenarios.useActualGeneration,
+  );
+  const generation: number[] = new Array(contractMonths).fill(0)
+    .map((_, m) => plantGenSeries.reduce((sum, s) => sum + (s[m] ?? 0), 0));
 
   // If "useOptimizedDemand" scenario is on, replace each UC's demandaFaturadaFP
   // with the average kW billed under the optimal DC computed from its DM history.
@@ -243,8 +289,11 @@ export function runSimulation(project: Project): SimulationResult {
   for (let m = 0; m < contractMonths; m++) {
     const gen = generation[m];
     const yearIdx = Math.floor(m / 12);
-    const ppaRateM = ppaRate * Math.pow(1 + ppaEscalation, yearIdx);
-    const ppaCost = gen * ppaRateM;
+    const escFactor = Math.pow(1 + ppaEscalation, yearIdx);
+    // PPA cost uses each usina's own rate: Σ plantGen[m] × plant.ppaRate × escalation.
+    const ppaCost = plantGenSeries.reduce(
+      (sum, s, i) => sum + (s[m] ?? 0) * allPlants[i].ppaRateRsBRLkWh * escFactor, 0,
+    );
 
     let semTotalCost = 0;
     let comRedeCost = 0;

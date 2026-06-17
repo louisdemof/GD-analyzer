@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Análise NHS · Plin vs Helexia CS3</title>
+<style>
+  :root {
+    --primary: #0b2c5a;
+    --primary-light: #1e4a8a;
+    --accent: #00a99d;
+    --danger: #c0392b;
+    --warning: #e67e22;
+    --success: #27ae60;
+    --bg: #f7f9fc;
+    --text: #1a2332;
+    --text-dim: #5a6778;
+    --border: #d4dae3;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .deck { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .slide {
+    background: var(--white);
+    margin: 20px 0;
+    padding: 60px 70px;
+    box-shadow: 0 4px 20px rgba(11,44,90,0.08);
+    border-radius: 10px;
+    min-height: 700px;
+    page-break-after: always;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .slide-number {
+    position: absolute;
+    top: 24px;
+    right: 28px;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+  }
+  .kicker {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 14px;
+  }
+  h1 { color: var(--primary); font-size: 42px; font-weight: 700; line-height: 1.15; margin-bottom: 20px; letter-spacing: -0.01em; }
+  h2 { color: var(--primary); font-size: 30px; font-weight: 600; line-height: 1.2; margin-bottom: 28px; letter-spacing: -0.01em; }
+  h3 { color: var(--primary); font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+  p { font-size: 16px; color: var(--text); margin-bottom: 14px; }
+  .muted { color: var(--text-dim); }
+  .subtitle { font-size: 22px; color: var(--text-dim); font-weight: 400; line-height: 1.4; margin-bottom: 40px; }
+  .label-row { display: flex; gap: 40px; margin-top: 40px; color: var(--text-dim); font-size: 13px; }
+  .label-row b { color: var(--text); font-weight: 600; display: block; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; font-size: 11px; }
+
+  /* Cover */
+  .cover { background: linear-gradient(135deg, #0b2c5a 0%, #1e4a8a 100%); color: white; justify-content: center; }
+  .cover h1 { color: white; font-size: 50px; }
+  .cover .kicker { color: var(--accent); }
+  .cover .subtitle { color: rgba(255,255,255,0.85); font-size: 22px; }
+  .cover .meta { margin-top: auto; color: rgba(255,255,255,0.7); font-size: 13px; display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 20px; }
+
+  /* KPI grid */
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
+  .kpi {
+    padding: 24px;
+    background: var(--bg);
+    border-radius: 8px;
+    border-left: 4px solid var(--primary);
+  }
+  .kpi.danger { border-left-color: var(--danger); background: #fdecea; }
+  .kpi.warning { border-left-color: var(--warning); background: #fef3e7; }
+  .kpi.success { border-left-color: var(--success); background: #e9f7ef; }
+  .kpi-big { font-size: 30px; font-weight: 700; color: var(--primary); margin-bottom: 6px; letter-spacing: -0.01em; }
+  .kpi.danger .kpi-big { color: var(--danger); }
+  .kpi.warning .kpi-big { color: var(--warning); }
+  .kpi.success .kpi-big { color: var(--success); }
+  .kpi-label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .kpi-desc { font-size: 14px; color: var(--text); margin-top: 10px; line-height: 1.4; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th { background: var(--primary); color: white; padding: 12px 14px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  tr:nth-child(even) td { background: #fafbfd; }
+  tr.highlight td { background: #fdecea !important; font-weight: 600; }
+  tr.success td { background: #e9f7ef !important; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.big { font-weight: 700; color: var(--primary); font-size: 15px; }
+  td.danger { color: var(--danger); font-weight: 700; }
+
+  /* Timeline bar chart */
+  .chart-wrap { margin: 16px 0; }
+  .bar-row { display: grid; grid-template-columns: 80px 1fr 110px; align-items: center; gap: 10px; margin-bottom: 4px; font-size: 12px; }
+  .bar-row .month { color: var(--text-dim); font-weight: 600; }
+  .bar-track { background: #eef1f6; height: 22px; border-radius: 3px; position: relative; overflow: hidden; }
+  .bar-consumo { background: var(--primary); height: 100%; }
+  .bar-plin-overlay { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent); opacity: 0.9; }
+  .bar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .chart-legend { display: flex; gap: 20px; font-size: 12px; margin-top: 12px; color: var(--text-dim); }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+
+  /* Comparison grid */
+  .comp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 20px 0; border-radius: 8px; overflow: hidden; }
+  .comp-col { padding: 28px; }
+  .comp-col.plin { background: #fdecea; border-right: 3px solid white; }
+  .comp-col.hx { background: #e8f3ff; }
+  .comp-col h3 { margin-bottom: 16px; font-size: 18px; }
+  .comp-col.plin h3 { color: var(--danger); }
+  .comp-col.hx h3 { color: var(--primary); }
+  .comp-col ul { list-style: none; padding: 0; }
+  .comp-col li { padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,0.08); font-size: 14px; line-height: 1.4; }
+  .comp-col li:last-child { border-bottom: none; }
+  .comp-col li::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; vertical-align: middle; }
+  .comp-col.plin li::before { background: var(--danger); }
+  .comp-col.hx li::before { background: var(--accent); }
+
+  /* Quote */
+  .quote { background: var(--bg); padding: 24px 28px; border-left: 4px solid var(--accent); border-radius: 4px; margin: 20px 0; font-size: 17px; font-style: italic; color: var(--text); line-height: 1.6; }
+  .quote-source { display: block; font-style: normal; font-size: 13px; color: var(--text-dim); margin-top: 10px; font-weight: 600; }
+
+  /* Evidence callout */
+  .evidence { background: #fff8e1; border: 1px solid #f5c518; border-radius: 6px; padding: 14px 18px; font-size: 13px; color: var(--text); margin: 16px 0; }
+  .evidence b { color: #8b6914; }
+
+  /* Takeaway */
+  .takeaway { background: linear-gradient(135deg, #0b2c5a, #1e4a8a); color: white; padding: 28px 32px; border-radius: 8px; margin-top: 24px; font-size: 17px; line-height: 1.5; font-weight: 500; }
+  .takeaway b { color: #7fd9cf; }
+
+  /* Grid 2 */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid-3 .cell { padding: 20px; background: var(--bg); border-radius: 6px; }
+  .grid-3 .cell h3 { font-size: 15px; margin-bottom: 8px; }
+  .grid-3 .cell p { font-size: 14px; color: var(--text-dim); margin: 0; }
+
+  @media print {
+    body { background: white; }
+    .deck { padding: 0; max-width: none; }
+    .slide { margin: 0; box-shadow: none; border-radius: 0; min-height: 100vh; page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+<!-- SLIDE 1 — Cover -->
+<section class="slide cover">
+  <div class="slide-number">01 / 11</div>
+  <div class="kicker">Análise Técnica · Helexia Brasil</div>
+  <h1>Análise da Compensação de Créditos GD — UC NHS</h1>
+  <div class="subtitle">Desempenho do modelo atual (Plin) e proposta Helexia CS3 · baseada em 11 meses de demonstrativos Energisa</div>
+  <div class="meta">
+    <div><b>Cliente</b><br/>Copasul — Cooperativa Agrícola Sul-Matogrossense</div>
+    <div><b>UC analisada</b><br/>Silos Novo Horizonte do Sul (NHS) · 10/3184070-5</div>
+    <div><b>Data</b><br/>22 de abril de 2026</div>
+  </div>
+</section>
+
+<!-- SLIDE 2 — Executive Summary -->
+<section class="slide">
+  <div class="slide-number">02 / 11</div>
+  <div class="kicker">Resumo Executivo</div>
+  <h2>Três evidências de descompasso temporal no modelo Plin</h2>
+
+  <div class="kpi-grid">
+    <div class="kpi danger">
+      <div class="kpi-label">Agosto 2025 · Pico da safra</div>
+      <div class="kpi-big">9 %</div>
+      <div class="kpi-desc">A Plin entregou apenas <b>24.627 kWh</b> dos <b>256.952 kWh</b> necessários para compensar o consumo fora-ponta. Banco estava em zero. <b>Fatura: R$ 324.683</b>.</div>
+    </div>
+    <div class="kpi warning">
+      <div class="kpi-label">Outubro 2025 · Pós-safra</div>
+      <div class="kpi-big">6 ×</div>
+      <div class="kpi-desc">Com consumo já reduzido a 66.289 kWh, a Plin depositou <b>411.400 kWh num único mês</b> — seis vezes mais do que era necessário. A maior parte foi para o banco.</div>
+    </div>
+    <div class="kpi danger">
+      <div class="kpi-label">Abril 2026 · Safra atual</div>
+      <div class="kpi-big">0 kWh</div>
+      <div class="kpi-desc">Já em plena safra 2026 com consumo de 192.556 kWh, a Plin entregou <b>zero kWh</b>. A Copasul está consumindo o banco acumulado meses antes.</div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    <b>Padrão estrutural, não exceção.</b> O modelo Plin opera em modo reativo — entrega grandes volumes depois que a necessidade passou, e pouco ou nada quando é mais crítico. Este relatório demonstra como o <b>rateio fixo mensal</b> proposto pela Helexia CS3 resolve o problema por design.
+  </div>
+</section>
+
+<!-- SLIDE 3 — UC NHS profile -->
+<section class="slide">
+  <div class="slide-number">03 / 11</div>
+  <div class="kicker">Contexto · UC NHS</div>
+  <h2>Perfil do consumidor e da geração própria</h2>
+
+  <div class="grid-3">
+    <div class="cell">
+      <h3>Classificação</h3>
+      <p>A4 Verde · Industrial / Rural<br/>Demanda contratada: 500 kW FP<br/>Sem isenção ICMS</p>
+    </div>
+    <div class="cell">
+      <h3>Consumo sazonal</h3>
+      <p>Off-season (nov-fev): 7-10 MWh/mês FP<br/>Safra (ago-set): 250-260 MWh/mês FP<br/><b>Variação: 30-35 ×</b></p>
+    </div>
+    <div class="cell">
+      <h3>Geração própria</h3>
+      <p>Usina solar atrás do medidor<br/>Produção estável: ~80-95 MWh/mês<br/>Injeção líquida varia conforme consumo local</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 32px">Por que este UC é desafiador</h3>
+  <p>A <b>descompasso entre geração própria (constante) e consumo (altamente sazonal)</b> cria um problema estrutural: durante a safra, o consumo local absorve toda a geração da usina atrás do medidor, e o déficit de 150-175 MWh/mês precisa ser coberto por créditos acumulados no banco.</p>
+  <p>A única forma de cobrir esse déficit é <b>construir o banco de créditos durante o período seco e preservá-lo até a safra</b>. Isto exige entregas consistentes e previsíveis de créditos GD — não aportes reativos pós-fato.</p>
+
+  <div class="evidence">
+    <b>Fonte dos dados:</b> Demonstrativos de Compensação de Energia Injetada emitidos pela Energisa MS (UC 10/3184070-5), período junho/2025 a abril/2026 (11 meses consecutivos).
+  </div>
+</section>
+
+<!-- SLIDE 4 — Timeline -->
+<section class="slide">
+  <div class="slide-number">04 / 11</div>
+  <div class="kicker">Evidência · Timeline</div>
+  <h2>Histórico mensal — consumo FP × entregas Plin</h2>
+
+  <div class="chart-wrap">
+    <div class="bar-row"><div class="month">Jun/25</div><div class="bar-track"><div class="bar-consumo" style="width:20%"></div><div class="bar-plin-overlay" style="width:0%"></div></div><div class="bar-val">51 | 0</div></div>
+    <div class="bar-row"><div class="month">Jul/25</div><div class="bar-track"><div class="bar-consumo" style="width:45%"></div><div class="bar-plin-overlay" style="width:0%"></div></div><div class="bar-val">116 | 0</div></div>
+    <div class="bar-row"><div class="month"><b style="color:var(--danger)">Ago/25</b></div><div class="bar-track"><div class="bar-consumo" style="width:100%; background:var(--danger)"></div><div class="bar-plin-overlay" style="width:9.6%"></div></div><div class="bar-val"><b style="color:var(--danger)">257 | 25</b></div></div>
+    <div class="bar-row"><div class="month">Set/25</div><div class="bar-track"><div class="bar-consumo" style="width:100%; background:var(--danger)"></div><div class="bar-plin-overlay" style="width:9.4%"></div></div><div class="bar-val">262 | 25</div></div>
+    <div class="bar-row"><div class="month"><b style="color:var(--warning)">Out/25</b></div><div class="bar-track"><div class="bar-consumo" style="width:26%"></div><div class="bar-plin-overlay" style="width:160%; background:var(--warning)"></div></div><div class="bar-val"><b style="color:var(--warning)">66 | 411</b></div></div>
+    <div class="bar-row"><div class="month">Nov/25</div><div class="bar-track"><div class="bar-consumo" style="width:3.3%"></div><div class="bar-plin-overlay" style="width:85%; background:var(--warning)"></div></div><div class="bar-val">8 | 219</div></div>
+    <div class="bar-row"><div class="month">Dez/25</div><div class="bar-track"><div class="bar-consumo" style="width:2.6%"></div><div class="bar-plin-overlay" style="width:~126%; background:var(--warning)"></div></div><div class="bar-val">7 | ~324</div></div>
+    <div class="bar-row"><div class="month">Jan/26</div><div class="bar-track"><div class="bar-consumo" style="width:2.8%"></div><div class="bar-plin-overlay" style="width:25%; background:var(--warning)"></div></div><div class="bar-val">7 | ~64</div></div>
+    <div class="bar-row"><div class="month">Fev/26</div><div class="bar-track"><div class="bar-consumo" style="width:3.1%"></div><div class="bar-plin-overlay" style="width:1%"></div></div><div class="bar-val">8 | ~2</div></div>
+    <div class="bar-row"><div class="month">Mar/26</div><div class="bar-track"><div class="bar-consumo" style="width:47%"></div><div class="bar-plin-overlay" style="width:0%"></div></div><div class="bar-val">121 | ?</div></div>
+    <div class="bar-row"><div class="month"><b style="color:var(--danger)">Abr/26</b></div><div class="bar-track"><div class="bar-consumo" style="width:75%; background:var(--danger)"></div><div class="bar-plin-overlay" style="width:0%"></div></div><div class="bar-val"><b style="color:var(--danger)">193 | 0</b></div></div>
+
+    <div class="chart-legend">
+      <span><span class="legend-dot" style="background:var(--primary)"></span> Consumo FP (MWh)</span>
+      <span><span class="legend-dot" style="background:var(--accent)"></span> Recebido Plin (MWh)</span>
+      <span><span class="legend-dot" style="background:var(--danger)"></span> Mês crítico — consumo >> entrega</span>
+      <span><span class="legend-dot" style="background:var(--warning)"></span> Mês crítico — entrega >> consumo</span>
+    </div>
+  </div>
+
+  <p style="margin-top: 24px"><b>A Plin só começou a injetar em agosto/2025</b> (5,62% de compartilhamento). O padrão visível: subentrega durante safra 2025 → sobreinjeção no período seco → zero entrega na safra 2026.</p>
+</section>
+
+<!-- SLIDE 5 — The August disaster -->
+<section class="slide">
+  <div class="slide-number">05 / 11</div>
+  <div class="kicker">Caso 1 · Ago/2025</div>
+  <h2>Agosto 2025 — A fatura de R$ 324.683</h2>
+
+  <div class="grid-2">
+    <div>
+      <table>
+        <tr><th colspan="2">Movimentação do banco — FPt GD I</th></tr>
+        <tr><td>Saldo anterior (início ago)</td><td class="num big">0 kWh</td></tr>
+        <tr><td>Injetado (geração NHS)</td><td class="num">10.848 kWh</td></tr>
+        <tr class="highlight"><td><b>Recebido (Plin)</b></td><td class="num danger">24.627 kWh</td></tr>
+        <tr><td>Compensado (uso)</td><td class="num">10.848 kWh</td></tr>
+        <tr><td>Saldo final (end ago)</td><td class="num">24.627 kWh</td></tr>
+      </table>
+
+      <table>
+        <tr><th colspan="2">Consumo FP × Créditos disponíveis</th></tr>
+        <tr><td>Consumo FP medido</td><td class="num big">256.952 kWh</td></tr>
+        <tr><td>Total créditos disponíveis</td><td class="num">~35.475 kWh</td></tr>
+        <tr class="highlight"><td><b>Cobertura</b></td><td class="num danger">apenas 14 %</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>O que a Copasul pagou</h3>
+      <div class="kpi danger" style="margin-bottom: 16px">
+        <div class="kpi-label">Fatura Energisa — Ago/25</div>
+        <div class="kpi-big">R$ 324.683</div>
+        <div class="kpi-desc">Consumo FP a pleno tarifário, adicional Bandeira Vermelha, ultrapassagem de demanda (565 kW medida vs 500 kW contratada).</div>
+      </div>
+
+      <h3>O que a Plin cobrou</h3>
+      <p class="muted">Fatura Plin Ago/25 — valor reduzido (~R$ 1.500)<br/>Economia reportada pela Plin no mês: <b>~R$ 50</b></p>
+
+      <div class="evidence">
+        <b>Origem do crédito Plin:</b> compartilhamento com UC 99543005187 — apenas <b>5,62 % de rateio</b>. Limite baixo que não escalou com a demanda da safra.
+      </div>
+    </div>
+  </div>
+
+  <div class="takeaway">
+    Em um mês onde a Copasul precisava de <b>~250 MWh</b> em créditos para atravessar o pico da safra, a Plin entregou <b>24 MWh — 9,6 %</b>. O custo da subentrega foi transferido integralmente ao cliente.
+  </div>
+</section>
+
+<!-- SLIDE 6 — The October overcorrection -->
+<section class="slide">
+  <div class="slide-number">06 / 11</div>
+  <div class="kicker">Caso 2 · Out/2025</div>
+  <h2>Outubro 2025 — A sobrecorreção tardia</h2>
+
+  <div class="grid-2">
+    <div>
+      <table>
+        <tr><th colspan="2">Movimentação do banco — FPt GD I</th></tr>
+        <tr><td>Saldo anterior (início out)</td><td class="num">24.745 kWh</td></tr>
+        <tr><td>Injetado (geração NHS)</td><td class="num">49.505 kWh</td></tr>
+        <tr class="highlight"><td><b>Recebido (Plin)</b></td><td class="num" style="color:var(--warning); font-weight:700">411.400 kWh</td></tr>
+        <tr><td>Compensado (uso)</td><td class="num">81.693 kWh</td></tr>
+        <tr><td>Saldo final (end out)</td><td class="num big">403.956 kWh</td></tr>
+      </table>
+
+      <table>
+        <tr><th colspan="2">Consumo × Entrega Plin</th></tr>
+        <tr><td>Consumo FP medido</td><td class="num">66.289 kWh</td></tr>
+        <tr><td>Recebido Plin</td><td class="num">411.400 kWh</td></tr>
+        <tr class="highlight"><td><b>Sobreinjeção</b></td><td class="num" style="color:var(--warning); font-weight:700">+ 621 %</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>O que mudou</h3>
+      <div class="evidence">
+        <b>Plin trocou a UC fonte de compartilhamento:</b><br/>
+        Ago-Set/25: UC 99543005187, rateio 5,62-5,54 %<br/>
+        <b>Out/25 em diante: UC 120170305101, rateio 87,89 %</b>
+      </div>
+      <p>A mudança de UC fonte e o salto de participação de 5 % para 88 % demonstra que a Plin <b>reconheceu internamente a subentrega</b> e tentou compensar depositando o equivalente a seis meses de consumo num único mês.</p>
+      <p>Porém, a sobrecorreção veio <b>após o pico da safra</b> — a fatura de R$ 324k de agosto já havia sido paga. Os 330 MWh que sobraram da compensação de outubro foram simplesmente depositados no banco, sem gerar economia imediata.</p>
+
+      <div class="kpi warning">
+        <div class="kpi-label">Economia Plin — Out/25</div>
+        <div class="kpi-big">R$ 3.075</div>
+        <div class="kpi-desc">Ajuste posterior em um mês tardio não reverte o prejuízo anterior.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 7 — April 2026 zero -->
+<section class="slide">
+  <div class="slide-number">07 / 11</div>
+  <div class="kicker">Caso 3 · Abr/2026</div>
+  <h2>Abril 2026 — Safra em andamento, zero entrega Plin</h2>
+
+  <div class="grid-2">
+    <div>
+      <table>
+        <tr><th colspan="2">Movimentação do banco — FPt GD I</th></tr>
+        <tr><td>Saldo anterior (início abr)</td><td class="num big">991.073 kWh</td></tr>
+        <tr><td>Injetado (geração NHS)</td><td class="num">24.960 kWh</td></tr>
+        <tr class="highlight"><td><b>Recebido (Plin)</b></td><td class="num danger">0 kWh</td></tr>
+        <tr><td>Compensado (uso)</td><td class="num">229.363 kWh</td></tr>
+        <tr><td>Saldo final (end abr)</td><td class="num big">786.669 kWh</td></tr>
+      </table>
+
+      <p class="muted" style="margin-top: 16px; font-size: 13px">O consumo FP de abril (192.556 kWh) foi coberto 100 % pelo saldo bancário acumulado nos meses anteriores. A Plin não contribuiu com nenhuma entrega adicional no mês.</p>
+    </div>
+    <div>
+      <h3>Projeção — Próximos meses de safra</h3>
+      <p>No ritmo atual de consumo (~200 MWh/mês FP) e com a Plin em modo zero, o banco se esgotará em aproximadamente:</p>
+
+      <table>
+        <tr><td>Consumo FP previsto mai-jul/26</td><td class="num">~200 MWh × 3</td></tr>
+        <tr><td>Injeção própria NHS (estimada)</td><td class="num">+ 30-60 MWh/mês</td></tr>
+        <tr><td>Saldo disponível atual</td><td class="num">786.669 kWh</td></tr>
+        <tr class="highlight"><td><b>Banco esgotado em</b></td><td class="num danger"><b>Jul/Ago 2026</b></td></tr>
+      </table>
+
+      <div class="takeaway" style="margin-top: 20px; font-size: 15px">
+        Se a Plin mantiver o padrão observado, a Copasul repetirá o cenário de agosto/2025: <b>banco em zero no pico da safra, fatura Energisa a pleno tarifário</b>.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 8 — Why this keeps happening -->
+<section class="slide">
+  <div class="slide-number">08 / 11</div>
+  <div class="kicker">Análise estrutural</div>
+  <h2>Por que isso acontece com o modelo Plin</h2>
+
+  <div class="quote">
+    "Eles fazem uma gestão meio trabalhosa e imprecisa: injetam no mês anterior o que projetam de consumo para o mês seguinte. O risco de errar é grande."
+    <span class="quote-source">— Weslen Rossi, Analista de Energia, Copasul (22/04/2026)</span>
+  </div>
+
+  <h3 style="margin-top: 28px">Três razões estruturais</h3>
+  <table>
+    <tr><th style="width:25%">Característica</th><th style="width:40%">Consequência</th><th>Evidência no histórico NHS</th></tr>
+    <tr><td><b>Rateio variável</b></td><td>Participação muda de mês a mês sem previsibilidade</td><td class="muted">5,62% (ago) → 87,89% (out) → 0% (abr)</td></tr>
+    <tr><td><b>Injeção reativa</b></td><td>Decisão tomada após observar o consumo</td><td class="muted">Grandes injeções concentradas em out-dez, depois que a safra 2025 já havia passado</td></tr>
+    <tr><td><b>Gestão opaca</b></td><td>Cliente não sabe quanto vai receber no mês seguinte</td><td class="muted">Confirmado por Weslen: "Como eu sei o que é a Plin vs minha própria geração? Esse é o problema."</td></tr>
+  </table>
+
+  <div class="takeaway">
+    O problema não está em um mês específico — está no <b>desenho do modelo de negócio da Plin</b>, que não suporta padrões de consumo sazonais intensos como o de uma cooperativa agrícola na região centro-oeste.
+  </div>
+</section>
+
+<!-- SLIDE 9 — Helexia CS3 proposal -->
+<section class="slide">
+  <div class="slide-number">09 / 11</div>
+  <div class="kicker">Proposta Helexia</div>
+  <h2>CS3 Cassilândia — rateio fixo mensal contratado</h2>
+
+  <div class="grid-2">
+    <div>
+      <h3>Como funciona</h3>
+      <p><b>1. Alocação contratualizada</b><br/>Percentual mensal fixo definido no contrato, com validade de 60 meses. Não muda mês a mês.</p>
+      <p><b>2. Geração dedicada</b><br/>CS3 Cassilândia — usina solar de 625 kWac operacional. P50 documentado em PVSyst.</p>
+      <p><b>3. Transparência total</b><br/>Cada mês, demonstrativo mostra exatamente quanto da CS3 entrou no banco NHS. Auditável.</p>
+      <p><b>4. Cobertura estruturada</b><br/>~12 MWh/mês entrando no banco NHS em regime, construindo reserva para a safra.</p>
+    </div>
+    <div>
+      <h3>Economia projetada — 60 meses</h3>
+      <table>
+        <tr><td>Geração injetada CS3 para Copasul</td><td class="num big">8.380 MWh</td></tr>
+        <tr><td>PPA pago à Helexia</td><td class="num">R$ 3,71 M</td></tr>
+        <tr><td>Rede remanescente (COM)</td><td class="num">R$ 0,47 M</td></tr>
+        <tr class="success"><td><b>Economia líquida</b></td><td class="num big" style="color:var(--success)"><b>R$ 1,93 M</b></td></tr>
+        <tr class="success"><td><b>Banco residual @ PPA</b></td><td class="num big" style="color:var(--success)"><b>R$ 0,37 M</b></td></tr>
+        <tr class="success"><td><b>VALOR TOTAL Helexia</b></td><td class="num big" style="color:var(--success)"><b>R$ 2,30 M</b></td></tr>
+      </table>
+
+      <p class="muted" style="margin-top: 12px; font-size: 13px">% redução custo: <b>31,6%</b> · Economia média mensal: R$ 32.183 · Payback: mês 2 (julho/2026).</p>
+    </div>
+  </div>
+
+  <div class="evidence">
+    <b>Correção a aplicar:</b> a apresentação comercial datada de 25/03/2026 continha um erro material no total do PPA (exibia o valor de 24 meses em campo de 60 meses). Os valores definitivos estão consistentes com o modelo V10 5 anos anexo.
+  </div>
+</section>
+
+<!-- SLIDE 10 — Side-by-side comparison -->
+<section class="slide">
+  <div class="slide-number">10 / 11</div>
+  <div class="kicker">Comparativo · Plin vs Helexia CS3</div>
+  <h2>Os mesmos eixos, dois modelos opostos</h2>
+
+  <div class="comp-grid">
+    <div class="comp-col plin">
+      <h3>Modelo Plin (atual)</h3>
+      <ul>
+        <li><b>Rateio variável</b> — participação muda sem aviso</li>
+        <li><b>Injeção reativa</b> — decisão mês a mês pela Plin</li>
+        <li><b>Cobertura de safra imprevisível</b> — depende da agenda da Plin, não da Copasul</li>
+        <li><b>Opacidade</b> — cliente não sabe distinguir Plin da geração própria</li>
+        <li><b>Economia real 1-3 %</b> da fatura total<br/>(15 % do componente tarifa sem impostos)</li>
+        <li><b>Histórico de falhas documentado</b><br/>Ago/25 subentrega, Out/25 sobreinjeção, Abr/26 zero</li>
+        <li><b>Sem compromisso contratual de entrega mínima</b></li>
+      </ul>
+    </div>
+    <div class="comp-col hx">
+      <h3>Modelo Helexia CS3 (proposto)</h3>
+      <ul>
+        <li><b>Rateio fixo mensal</b> definido em contrato de 60 meses</li>
+        <li><b>Injeção previsível</b> — mesma alocação todo mês</li>
+        <li><b>Safra coberta por design</b> — banco construído meses antes</li>
+        <li><b>Transparência total</b> — CS3 aparece separada no demonstrativo</li>
+        <li><b>Economia total de 31,6 %</b> ao longo dos 60 meses<br/>(R$ 2,30 M VALOR TOTAL)</li>
+        <li><b>P50 PVSyst auditado</b> · usina operacional, dados reais disponíveis</li>
+        <li><b>Garantia mínima de geração anual</b> cláusula contratual</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="quote" style="margin-top: 24px">
+    "Mas agora que assumi, quero dar previsibilidade e economia para as unidades, por isso gosto da ideia de rateio fixo mensal."
+    <span class="quote-source">— Weslen Rossi, Copasul (22/04/2026)</span>
+  </div>
+</section>
+
+<!-- SLIDE 11 — Next steps -->
+<section class="slide">
+  <div class="slide-number">11 / 11</div>
+  <div class="kicker">Próximos passos</div>
+  <h2>Caminho proposto até a assinatura</h2>
+
+  <table>
+    <tr><th style="width: 18%">Etapa</th><th style="width: 22%">Responsável</th><th>Descrição</th></tr>
+    <tr><td><b>1. Correção da proposta comercial</b></td><td>Helexia</td><td>Envio da apresentação revisada com PPA consistente para 24m e 60m claramente segregados.</td></tr>
+    <tr><td><b>2. Resposta aos 6 pontos jurídicos</b></td><td>Helexia + Rafael</td><td>Cessão de direitos (concedido), garantia 80%, cap 50%, alocação de riscos — tratados conforme alinhado.</td></tr>
+    <tr><td><b>3. Envio do histórico CS3</b></td><td>Helexia</td><td>Dados operacionais da CS3 Cassilândia desde a entrada em operação (P50 vs real).</td></tr>
+    <tr><td><b>4. Demonstrações financeiras</b></td><td>Helexia</td><td>Grupo Voltalia sob acordo de confidencialidade.</td></tr>
+    <tr><td><b>5. Reunião de esclarecimento</b></td><td>Copasul + Helexia</td><td>Sexta/segunda da próxima semana, conforme acordado com Weslen.</td></tr>
+    <tr><td><b>6. Aprovação Diretoria</b></td><td>Copasul</td><td>Validação interna e assinatura.</td></tr>
+    <tr class="success"><td><b>7. Início do contrato CS3</b></td><td>—</td><td><b>Junho de 2026</b> — rateio fixo mensal ativo para NHS e demais UCs contempladas.</td></tr>
+  </table>
+
+  <div class="takeaway">
+    <b>Recomendação:</b> iniciar a transição do NHS para o modelo CS3 em junho/2026, antes do pico da safra 2026. Isto garante que o próximo ciclo de colheita seja coberto por entregas previsíveis e contratualizadas, não por correções pós-fato.
+  </div>
+
+  <div class="label-row">
+    <div><b>Contato Helexia</b><br/>Louis de Moffarts<br/>Business Development · Energy Storage<br/>louis.demoffarts@helexia.com.br</div>
+    <div><b>Ref. documento</b><br/>Análise NHS · Abril 2026<br/>Baseado em demonstrativos Energisa jun/25 a abr/26</div>
+  </div>
+</section>
+
+</div>
+
+</body>
+</html>

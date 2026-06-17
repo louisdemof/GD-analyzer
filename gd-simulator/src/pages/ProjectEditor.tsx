@@ -4,6 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useSimulationStore } from '../store/simulationStore';
 import { DistributorForm } from '../components/inputs/DistributorForm';
 import { PlantForm } from '../components/inputs/PlantForm';
+import { AdditionalPlants } from '../components/inputs/AdditionalPlants';
 import { UCTable } from '../components/inputs/UCTable';
 import { ConsumptionUpload } from '../components/inputs/ConsumptionUpload';
 import { GenerationUpload } from '../components/inputs/GenerationUpload';
@@ -359,6 +360,12 @@ export function ProjectEditor() {
               tariffEscalationPPA={project.tariffEscalationPPA ?? 0}
               tariffEscalationDistributor={project.tariffEscalationDistributor ?? 0}
               onProjectFieldChange={updates => updateProject(project.id, updates)}
+            />
+            <AdditionalPlants
+              primary={project.plant}
+              additionalPlants={project.additionalPlants ?? []}
+              onChange={plants => updateProject(project.id, { additionalPlants: plants })}
+              distributorId={project.distributor.id}
             />
             <div>
               <h4 className="text-sm font-medium text-slate-700 mb-2">Upload Perfil de Geração</h4>
