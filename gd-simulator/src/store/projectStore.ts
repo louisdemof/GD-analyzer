@@ -7,6 +7,8 @@ import sampleData from '../../reference/SAMPLE_DATA.json';
 import beloData from '../../reference/BELO_ALIMENTOS_DEMO.json';
 import copelData from '../../reference/COPEL_DEMO.json';
 import copelData2 from '../../reference/COPEL_DEMO_2.json';
+import copelData3 from '../../reference/COPEL_DEMO_3.json';
+import copelData4 from '../../reference/COPEL_DEMO_4.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
@@ -49,6 +51,8 @@ interface ProjectStore {
   loadBeloAlimentosDemo: () => void;
   loadCopelDemo: () => void;
   loadCopelDemo2: () => void;
+  loadCopelDemo3: () => void;
+  loadCopelDemo4: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -151,6 +155,20 @@ export const useProjectStore = create<ProjectStore>()(
           }
           if (isStale('copel-demo-2') || missingDemandaCheck('copel-demo-2') || missingIcmsScope('copel-demo-2')) {
             get().loadCopelDemo2();
+          }
+          if (isStale('copel-demo-3') || missingDemandaCheck('copel-demo-3') || missingIcmsScope('copel-demo-3')) {
+            get().loadCopelDemo3();
+          }
+          // Demo 4 also re-seeds when the plant lacks intermediationFeePct
+          // (added with the proposta scenario; old persisted copies miss it).
+          const demo4 = merged.find(x => x.id === 'copel-demo-4');
+          if (
+            isStale('copel-demo-4') ||
+            missingDemandaCheck('copel-demo-4') ||
+            missingIcmsScope('copel-demo-4') ||
+            (demo4 && demo4.plant?.intermediationFeePct === undefined)
+          ) {
+            get().loadCopelDemo4();
           }
         } catch {
           set({ isLoaded: true });
@@ -459,6 +477,67 @@ export const useProjectStore = create<ProjectStore>()(
 
         set(state => {
           const withoutDemo = state.projects.filter(p => p.id !== 'copel-demo-2');
+          return {
+            projects: [...withoutDemo, project],
+            currentProjectId: project.id,
+          };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      loadCopelDemo3: () => {
+        const demo = copelData3.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'copel-demo-3',
+          clientName: demo.clientName,
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          additionalPlants: demo.additionalPlants as Project['additionalPlants'],
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'copel-demo-3');
+          return {
+            projects: [...withoutDemo, project],
+            currentProjectId: project.id,
+          };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      loadCopelDemo4: () => {
+        const demo = copelData4.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'copel-demo-4',
+          clientName: demo.clientName,
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          additionalPlants: demo.additionalPlants as Project['additionalPlants'],
+          simulationMonths: demo.simulationMonths,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'copel-demo-4');
           return {
             projects: [...withoutDemo, project],
             currentProjectId: project.id,

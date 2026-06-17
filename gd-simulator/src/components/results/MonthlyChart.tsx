@@ -4,6 +4,7 @@ import type { MonthlyResult } from '../../engine/types';
 
 interface Props {
   months: MonthlyResult[];
+  ppaEndMonthIndex?: number;
 }
 
 type Granularity = 'mensal' | 'trimestral' | 'semestral' | 'anual';
@@ -14,6 +15,7 @@ interface ChartRow {
   ppaCost: number;
   redeComCost: number;
   economiaAcum: number;
+  economia: number;
 }
 
 function defaultGranularity(months: number): Granularity {
@@ -58,6 +60,7 @@ function aggregateByGranularity(months: MonthlyResult[], granularity: Granularit
     const sumSEM = slice.reduce((a, m) => a + m.sem.totalCost, 0);
     const sumPPA = slice.reduce((a, m) => a + m.ppaCost, 0);
     const sumRede = slice.reduce((a, m) => a + m.com.redeCost, 0);
+    const sumEconomia = slice.reduce((a, m) => a + m.economia, 0);
     // Economia acumulada: take the LAST value in the bucket (it's already cumulative)
     const lastAcum = slice[slice.length - 1].economiaAcum;
     buckets.push({
@@ -66,16 +69,24 @@ function aggregateByGranularity(months: MonthlyResult[], granularity: Granularit
       ppaCost: Math.round(sumPPA),
       redeComCost: Math.round(sumRede),
       economiaAcum: Math.round(lastAcum),
+      economia: Math.round(sumEconomia),
     });
   }
   return buckets;
 }
 
-export function MonthlyChart({ months }: Props) {
+export function MonthlyChart({ months, ppaEndMonthIndex }: Props) {
   const [granularity, setGranularity] = useState<Granularity>(defaultGranularity(months.length));
   const data = useMemo(() => aggregateByGranularity(months, granularity), [months, granularity]);
 
   const isLong = months.length > 24;
+  // x value (bucket label) where the PPA ends — null if not applicable
+  const ppaEndLabel = useMemo(() => {
+    if (ppaEndMonthIndex == null || ppaEndMonthIndex < 0 || ppaEndMonthIndex >= months.length - 1) return null;
+    const size = BUCKET_SIZE[granularity];
+    const bucketIndex = Math.floor((ppaEndMonthIndex + 1) / size);
+    return data[Math.min(bucketIndex, data.length - 1)]?.label ?? null;
+  }, [ppaEndMonthIndex, months.length, granularity, data]);
   // Adapt label rendering based on number of buckets (independent of granularity)
   const bucketCount = data.length;
   const rotateLabels = bucketCount > 16;
@@ -189,11 +200,98 @@ export function MonthlyChart({ months }: Props) {
             />
 
             <ReferenceLine yAxisId="eco" y={0} stroke="#999" strokeDasharray="4 4" />
+
+            {ppaEndLabel && (
+              <ReferenceLine
+                yAxisId="cost"
+                x={ppaEndLabel}
+                stroke="#dc2626"
+                strokeDasharray="6 4"
+                strokeWidth={2}
+                label={{
+                  value: 'Fim PPA',
+                  position: 'top',
+                  fill: '#dc2626',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                }}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
         <p className="text-[10px] text-slate-400 mt-1">
           SEM Helexia (navy) = custo total sem geração distribuída | COM Helexia = PPA (teal) + Rede residual (cinza)
           {granularity !== 'mensal' && ' | Custos somados por período; economia acumulada é o valor ao final do período'}
+          {ppaEndLabel && ' | Linha vermelha = fim do PPA (após este ponto, sem injeção da usina; banco drena se houver crédito)'}
+        </p>
+      </div>
+
+      <div className="pt-4 border-t border-slate-200">
+        <div className="flex items-baseline justify-between mb-2">
+          <h4 className="text-sm font-medium text-slate-600">
+            Economia Líquida {granularity === 'mensal' ? 'Mensal' : granularity === 'trimestral' ? 'Trimestral' : granularity === 'semestral' ? 'Semestral' : 'Anual'}
+          </h4>
+          <div className="text-xs text-slate-500">
+            Total horizonte:{' '}
+            <span className="font-mono font-semibold text-emerald-700">
+              {data.reduce((a, d) => a + d.economia, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+            </span>
+            {' · '}
+            Média:{' '}
+            <span className="font-mono">
+              {(data.reduce((a, d) => a + d.economia, 0) / Math.max(1, data.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
+            </span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={isLong && granularity === 'mensal' ? 260 : 220}>
+          <ComposedChart data={data} barCategoryGap={granularity === 'mensal' ? '18%' : '12%'}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10 }}
+              interval={labelInterval}
+              angle={rotateLabels ? -45 : 0}
+              textAnchor={rotateLabels ? 'end' : 'middle'}
+              height={rotateLabels ? 70 : 30}
+            />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`}
+            />
+            <Tooltip
+              formatter={(value, name) => [
+                `R$ ${(value as number).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
+                name,
+              ]}
+            />
+            <Legend />
+            <ReferenceLine y={0} stroke="#999" strokeDasharray="4 4" />
+            <Bar
+              dataKey="economia"
+              name="Economia Líquida"
+              fill="#10b981"
+              maxBarSize={granularity === 'mensal' ? 16 : 36}
+              radius={[2, 2, 0, 0]}
+            />
+            {ppaEndLabel && (
+              <ReferenceLine
+                x={ppaEndLabel}
+                stroke="#dc2626"
+                strokeDasharray="6 4"
+                strokeWidth={2}
+                label={{
+                  value: 'Fim PPA',
+                  position: 'top',
+                  fill: '#dc2626',
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+        <p className="text-[10px] text-slate-400 mt-1">
+          Economia = Custo SEM − (Rede COM + PPA Helexia + ICMS additional + PIS/COFINS additional). Barras verdes positivas = cliente economiza; negativas = COM mais caro que SEM nesse período.
         </p>
       </div>
     </div>

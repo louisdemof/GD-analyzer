@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Project, SimulationResult } from './types';
-import { runSimulation } from './simulation';
+import { runSimulation, computeSimulationMonths } from './simulation';
 import { computeTaxBreakdown } from './taxBreakdown';
 
 function fmtBRL(v: number): string {
@@ -292,11 +292,22 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
     ['PIS', `${(dist.taxes.PIS * 100).toFixed(2)}%`],
     ['COFINS', `${(dist.taxes.COFINS * 100).toFixed(2)}%`],
     [''],
-    ['Usina', plant.name],
-    ['Potencia AC', `${plant.capacityKWac} kWac`],
-    ['PPA', `R$ ${plant.ppaRateRsBRLkWh.toFixed(4)}/kWh`],
-    ['Inicio Contrato', plant.contractStartMonth],
-    ['Prazo', `${plant.contractMonths} meses`],
+    ...(() => {
+      const plants = [plant, ...(project.additionalPlants ?? [])];
+      const rows: (string | number)[][] = [];
+      plants.forEach((pl, i) => {
+        const label = i === 0 ? 'Usina principal' : `Usina adicional ${i}`;
+        rows.push([label, pl.name]);
+        rows.push(['  ↳ Potência AC', `${pl.capacityKWac.toLocaleString('pt-BR')} kWac`]);
+        rows.push(['  ↳ PPA', `R$ ${pl.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
+        rows.push(['  ↳ Prazo PPA', `${pl.contractMonths} meses`]);
+      });
+      const totalAC = plants.reduce((acc, pl) => acc + (pl.capacityKWac || 0), 0);
+      if (plants.length > 1) rows.push(['Capacidade AC total', `${totalAC.toLocaleString('pt-BR')} kWac`]);
+      rows.push(['Inicio Contrato', plant.contractStartMonth]);
+      rows.push(['Horizonte de simulação', `${computeSimulationMonths(project)} meses`]);
+      return rows;
+    })(),
     [''],
     ['Isencao ICMS', project.scenarios.icmsExempt ? 'Sim' : 'Nao'],
     ['Desconto Concorrente', project.scenarios.competitorDiscount > 0 ? `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%` : 'Nao'],

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
   const navigate = useNavigate();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -91,6 +91,19 @@ export function Dashboard() {
             className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
           >
             Simulação 2 COPEL
+          </button>
+          <button
+            onClick={() => { loadCopelDemo3(); navigate('/project/copel-demo-3'); }}
+            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Simulação 3 COPEL (HAP02+HAP03)
+          </button>
+          <button
+            onClick={() => { loadCopelDemo4(); navigate('/project/copel-demo-4'); }}
+            className="px-4 py-2 text-sm border border-amber-300 text-amber-900 bg-amber-50 rounded-lg hover:bg-amber-50"
+            title="Cenário Proposta: PPA 18m + horizonte 24m + markup tarifário +10% + ICMS TE_ONLY + PIS/COFINS isento"
+          >
+            Simulação 4 COPEL — Proposta
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}

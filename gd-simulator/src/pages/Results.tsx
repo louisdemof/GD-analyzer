@@ -324,7 +324,7 @@ export function Results() {
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         {tab === 'resumo' && <CostWaterfall months={result.months} ucs={project.ucs} />}
         {tab === 'detalhe-impostos' && <TaxBreakdownPanel project={project} result={result} />}
-        {tab === 'mensal' && <MonthlyChart months={result.months} />}
+        {tab === 'mensal' && <MonthlyChart months={result.months} ppaEndMonthIndex={(project.plant.contractMonths || 24) - 1} />}
         {tab === 'banco' && (
           <BankDynamics
             result={result}

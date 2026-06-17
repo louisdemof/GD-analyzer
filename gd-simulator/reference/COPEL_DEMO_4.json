@@ -1,0 +1,91 @@
+{
+  "project": {
+    "id": "copel-demo-4",
+    "clientName": "Simulação 4 COPEL — Proposta (PPA 18m + horizonte 24m + markup 10% + interm. 8%)",
+    "distributor": {
+      "id": "COPEL-DIS",
+      "name": "Copel Distribuição",
+      "state": "PR",
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.472, DE 17 DE JUNHO DE 2025 + markup +10%",
+      "tariffs": {
+        "B_TUSD": 0.403337,
+        "B_TE": 0.303325,
+        "A_FP_TUSD_TE": 0.416262,
+        "A_PT_TUSD_TE": 1.787775,
+        "A_TE_FP": 0.283261,
+        "A_TE_PT": 0.455059,
+        "A_FP_DEMANDA": 22.858
+      },
+      "taxes": {
+        "ICMS": 0.19,
+        "PIS": 0.0153,
+        "COFINS": 0.0703,
+        "icmsScope": "TE_ONLY",
+        "pisCofinsExempt": true
+      },
+      "tariffMarkupPct": 0.1,
+      "tariffsBaseline": {
+        "B_TUSD": 0.36667,
+        "B_TE": 0.27575,
+        "A_FP_TUSD_TE": 0.37842,
+        "A_PT_TUSD_TE": 1.62525,
+        "A_TE_FP": 0.25751,
+        "A_TE_PT": 0.41369,
+        "A_FP_DEMANDA": 20.78
+      }
+    },
+    "plant": {
+      "id": "hap02-alto-parana-02",
+      "name": "HAP02 Alto Paraná 02",
+      "capacityKWac": 1000,
+      "distributor": "COPEL-DIS",
+      "p50Profile": [195980, 185400, 163850, 182840, 220480, 218710, 235240, 250700, 220950, 228130, 217600, 248770, 195980, 185400, 163850, 182840, 220480, 218710, 235240, 250700, 220950, 228130, 217600, 248770],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.471,
+      "intermediationFeePct": 0.08,
+      "contractStartMonth": "2026-12",
+      "contractMonths": 18
+    },
+    "additionalPlants": [
+      {
+        "id": "hap03-alto-parana-03",
+        "name": "HAP03 Alto Paraná 03",
+        "capacityKWac": 1000,
+        "distributor": "COPEL-DIS",
+        "p50Profile": [206710, 178590, 157660, 167930, 198860, 213030, 218490, 247030, 246620, 225170, 214260, 225860, 206710, 178590, 157660, 167930, 198860, 213030, 218490, 247030, 246620, 225170, 214260, 225860],
+        "useActual": false,
+        "ppaRateRsBRLkWh": 0.471,
+        "intermediationFeePct": 0.08,
+        "contractStartMonth": "2026-12",
+        "contractMonths": 18
+      }
+    ],
+    "simulationMonths": 24,
+    "ucs": [
+      {
+        "id": "copel-uc-01",
+        "name": "UC Cliente Paraná — Matriz",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [262508, 290140, 254218, 298430, 270798, 284614, 259745, 219925, 263584, 320998, 322093, 255021, 262508, 290140, 254218, 298430, 270798, 284614, 259745, 219925, 263584, 320998, 322093, 255021],
+        "consumptionPT": [24550, 27134, 23775, 27909, 25325, 26617, 24291, 23343, 22974, 30146, 30399, 22346, 24550, 27134, 23775, 27909, 25325, 26617, 24291, 23343, 22974, 30146, 30399, 22346],
+        "openingBank": 0,
+        "demandaContratadaFP": 700,
+        "demandaFaturadaFP": 700,
+        "demandaMedidaMensal": [78.12, 133.56, 218.4, 342.72, 508.2, 673.68, 732.48, 763.56, 724.92]
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false
+    },
+    "growthRate": 0,
+    "generationDegradation": 0.005,
+    "performanceFactor": 0.95,
+    "rateio": {
+      "periods": [],
+      "isOptimised": false
+    }
+  }
+}
