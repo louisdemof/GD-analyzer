@@ -57,10 +57,104 @@ function isGrupoA(tg: TariffGroup): boolean {
   return tg.startsWith('A');
 }
 
+// Inline monthly-consumption editor shown when a UC row is expanded ("▶ Consumo").
+function MonthlyConsumptionEditor({ uc, contractStartMonth, onUpdate }: {
+  uc: ConsumptionUnit;
+  contractStartMonth?: string;
+  onUpdate: (updates: Partial<ConsumptionUnit>) => void;
+}) {
+  const count = Math.max(
+    uc.consumptionFP.length,
+    uc.consumptionPT?.length ?? 0,
+    uc.consumptionReservado?.length ?? 0,
+    24,
+  );
+  const labels = monthLabels(contractStartMonth, count);
+  const hasRSV = !!uc.consumptionReservado && uc.consumptionReservado.length > 0;
+
+  const updateCell = (arr: number[], idx: number, field: keyof ConsumptionUnit, raw: string) => {
+    const v = parseFloat(raw);
+    const next = arr.length === count ? [...arr] : Array.from({ length: count }, (_, i) => arr[i] ?? 0);
+    next[idx] = isNaN(v) ? 0 : v;
+    onUpdate({ [field]: next } as Partial<ConsumptionUnit>);
+  };
+
+  const grid = (label: string, color: string, data: number[], field: keyof ConsumptionUnit) => {
+    const total = data.reduce((a, b) => a + (b || 0), 0);
+    return (
+      <div className="rounded border border-slate-200 bg-white p-2">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[11px] font-semibold" style={{ color }}>{label}</span>
+          <span className="text-[10px] font-mono text-slate-500">Total: {total.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kWh</span>
+        </div>
+        <div className="grid grid-cols-6 gap-1">
+          {Array.from({ length: count }, (_, i) => (
+            <div key={i} className="flex flex-col">
+              <span className="text-[9px] text-slate-400 text-center mb-0.5">{labels[i]}</span>
+              <input
+                type="number"
+                value={data[i] ?? 0}
+                onChange={e => updateCell(data, i, field, e.target.value)}
+                className="px-1.5 py-1 border border-slate-300 rounded text-[10px] font-mono text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 mb-1">
+        <span className="text-xs font-semibold text-slate-700">Consumo mensal — {uc.name}</span>
+        <span className="text-[10px] text-slate-500">{count} meses · edite as células diretamente</span>
+      </div>
+      {grid('Fora Ponta (kWh)', '#2F927B', uc.consumptionFP, 'consumptionFP')}
+      {uc.isGrupoA && grid('Ponta (kWh)', '#004B70', uc.consumptionPT || [], 'consumptionPT')}
+      {hasRSV && grid('Reservado (kWh)', '#f59e0b', uc.consumptionReservado || [], 'consumptionReservado')}
+      {uc.isGrupoA && (
+        <div className="rounded border border-slate-200 bg-white p-2 mt-2">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-semibold text-slate-700">Demanda medida (kW) — histórico até 13 meses</span>
+            <span className="text-[10px] text-slate-500">usado pelo otimizador de demanda</span>
+          </div>
+          <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}>
+            {Array.from({ length: 13 }, (_, i) => (
+              <div key={i} className="flex flex-col">
+                <span className="text-[9px] text-slate-400 text-center mb-0.5">M-{13 - i}</span>
+                <input
+                  type="number"
+                  value={uc.demandaMedidaMensal?.[i] ?? 0}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value);
+                    const next = uc.demandaMedidaMensal && uc.demandaMedidaMensal.length === 13
+                      ? [...uc.demandaMedidaMensal]
+                      : Array.from({ length: 13 }, (_, j) => uc.demandaMedidaMensal?.[j] ?? 0);
+                    next[i] = isNaN(v) ? 0 : v;
+                    onUpdate({ demandaMedidaMensal: next });
+                  }}
+                  className="px-1 py-1 border border-slate-300 rounded text-[10px] font-mono text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: Props) {
   const [newName, setNewName] = useState('');
   const [newGroup, setNewGroup] = useState<TariffGroup>('B3');
   const [newBank, setNewBank] = useState(0);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (id: string) => setExpanded(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const handleAdd = () => {
     if (!newName.trim()) return;
@@ -131,7 +225,8 @@ export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: 
                 ? uc.consumptionReservado.reduce((a, b) => a + b, 0) / 24
                 : 0;
               const hasRSV = !!uc.consumptionReservado && uc.consumptionReservado.some(v => v > 0);
-              return (
+              const colSpan = 5 + (anyGrupoA ? 1 : 0) + (anyHasRSV ? 1 : 0) + (anyGrupoA ? 1 : 0);
+              return [
                 <tr key={uc.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-2 px-3">
                     <input
@@ -193,6 +288,13 @@ export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: 
                   )}
                   <td className="py-2 px-3 text-center space-x-2">
                     <button
+                      onClick={() => toggleExpand(uc.id)}
+                      className={`text-xs px-2 py-0.5 rounded transition-colors ${expanded.has(uc.id) ? 'bg-teal-100 text-teal-800 hover:bg-teal-200' : 'text-slate-500 hover:text-teal-600 hover:bg-slate-100'}`}
+                      title="Editar consumo mensal"
+                    >
+                      {expanded.has(uc.id) ? '▼ Consumo' : '▶ Consumo'}
+                    </button>
+                    <button
                       onClick={() => {
                         if (hasRSV) {
                           onUpdate(uc.id, { consumptionReservado: undefined });
@@ -212,9 +314,20 @@ export function UCTable({ ucs, contractStartMonth, onAdd, onUpdate, onRemove }: 
                       Remover
                     </button>
                   </td>
-                </tr>
-              );
-            })}
+                </tr>,
+                expanded.has(uc.id) && (
+                  <tr key={`${uc.id}-edit`} className="border-b border-slate-200 bg-slate-50/60">
+                    <td colSpan={colSpan} className="px-4 py-3">
+                      <MonthlyConsumptionEditor
+                        uc={uc}
+                        contractStartMonth={contractStartMonth}
+                        onUpdate={updates => onUpdate(uc.id, updates)}
+                      />
+                    </td>
+                  </tr>
+                ),
+              ];
+            }).flat().filter(Boolean)}
           </tbody>
         </table>
       </div>
