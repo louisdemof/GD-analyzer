@@ -976,7 +976,7 @@ function TariffComparisonPage({ project }: { project: Project }) {
     React.createElement(Text, { style: { ...s.noteTitle, marginTop: 14 } }, 'Como interpretar'),
     React.createElement(Text, { style: s.noteText },
       `• Tarifa atual = T_sem / ((1-PIS-COFINS) × (1-ICMS)) — preço all-in que o cliente paga por kWh sem GD.\n` +
-      `• PPA efetivo = ${fmtRate(ppa)} (FP/RSV/B), ${FA > 0 ? `R$ ${ppa.toFixed(4)}/${FA.toFixed(3)} = ${fmtRate(ppa / FA)} (PT — 1 kWh PT exige 1/FA = ${(1 / FA).toFixed(3)} kWh FP-equiv)` : '—'}.\n` +
+      `• PPA efetivo = ${fmtRate(ppa)} (${[hasGrupoA ? 'FP' : null, (hasARSV || hasBRSV) ? 'RSV' : null, hasGrupoB ? 'B' : null].filter(Boolean).join('/')}), ${FA > 0 ? `R$ ${ppa.toFixed(4)}/${FA.toFixed(3)} = ${fmtRate(ppa / FA)} (PT — 1 kWh PT exige 1/FA = ${(1 / FA).toFixed(3)} kWh FP-equiv)` : '—'}.\n` +
       (showIcmsCol ? `• ICMS adicional = parcela de ICMS que ainda incide sobre o kWh compensado. Com escopo "TE apenas", ICMS continua sendo cobrado sobre a parcela TUSD.\n` : '') +
       (showPcCol ? `• PIS/COFINS adicional = aplica quando a isenção federal não vale para este cliente (STJ Tema 986 caso a caso).\n` : '') +
       `• Economia/kWh = Tarifa atual - PPA efetivo - ICMS adicional - PIS/COFINS adicional. Positiva = cliente lucra por kWh compensado nesse posto; negativa = PPA + leaks superam a tarifa evitada.`
