@@ -831,7 +831,7 @@ function ConsumptionPage({ project }: { project: Project }) {
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 6, marginTop: 4 } },
       'Evolução mensal do consumo agregado'
     ),
-    StackedBarChart({ months: labels, series }),
+    StackedBarChart({ months: labels, series, height: 150, showSegmentValues: true }),
     // Per-UC table
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginTop: 16, marginBottom: 6 } },
       'Detalhamento por Unidade Consumidora'
