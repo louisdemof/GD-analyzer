@@ -600,6 +600,19 @@ function PremissasPage({ project }: { project: Project }) {
     ...(dist.tariffs.A_FP_DEMANDA ? [['Demanda A FP', `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`] as [string, string]] : []),
     ['ICMS', `${(dist.taxes.ICMS * 100).toFixed(0)}%`],
     ['PIS/COFINS', `${(dist.taxes.PIS * 100).toFixed(2)}% / ${(dist.taxes.COFINS * 100).toFixed(2)}%`],
+    ...(project.marketType === 'ACL' && project.aclBaseline ? (() => {
+      const a = project.aclBaseline!;
+      return [
+        ['', ''],
+        ['Mercado do cliente', 'Livre (ACL) — energia incentivada'] as [string, string],
+        ['Energia ACL (TE)', `R$ ${(a.energyPriceSemImp * 1000).toFixed(0)}/MWh (sem imp.)`] as [string, string],
+        ['Desconto TUSD consumo FP', `${((a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
+        ['Desconto TUSD consumo PT', `${((a.tusdDiscountConsumoPT ?? a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
+        ['Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(1)}%`] as [string, string],
+        ['Fator de Ajuste (FA)', project.scenarios.applyFatorAjuste === false ? 'Não aplicado (1:1)' : 'Aplicado (REN 1000)'] as [string, string],
+        ['Tarifas A FP/PT acima', 'reguladas (referência); cliente paga TUSD c/ desconto + energia ACL'] as [string, string],
+      ] as [string, string][];
+    })() : []),
     ['', ''],
     ...(() => {
       const plants = getAllPlants(project);
@@ -1370,13 +1383,16 @@ function ProposalDocument({ project, result, generatedAt }: { project: Project; 
     React.createElement(SummaryPage, { project, result, key: 'summary' }),
     React.createElement(UsinaPage, { project, key: 'usina' }),
     React.createElement(ConsumptionPage, { project, key: 'cons' }),
-    React.createElement(TariffComparisonPage, { project, key: 'tariff' }),
+    // "De Onde Vem a Economia" e "Detalhe de Impostos" recompõem a tarifa CATIVA
+    // (TUSD+TE regulado) — não fazem sentido p/ cliente ACL (energia livre + TUSD c/ desconto).
+    // Ocultados no mercado livre; os números de capa/mensal já refletem o cenário ACL.
+    ...(project.marketType === 'ACL' ? [] : [React.createElement(TariffComparisonPage, { project, key: 'tariff' })]),
     React.createElement(CumulativeEconomyPage, { project, result, key: 'cum' }),
     ...(project.ucs.filter(u => u.id !== 'bat').length > 1
       ? [React.createElement(PerUCEconomyPage, { project, result, key: 'peruc' })]
       : []),
     React.createElement(BankPage, { project, result, key: 'bank' }),
-    React.createElement(TaxesPage, { project, result, key: 'taxes' }),
+    ...(project.marketType === 'ACL' ? [] : [React.createElement(TaxesPage, { project, result, key: 'taxes' })]),
   ];
   if (result.attribution) {
     pages.push(React.createElement(AttributionPage, { project, result, key: 'attr' }));
