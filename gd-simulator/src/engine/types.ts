@@ -91,6 +91,9 @@ export interface ConsumptionUnit {
   openingBank: number;
   // Does this UC have its own generation? (e.g. NHS, AMD in the Copasul case)
   ownGeneration?: number[];  // length 24, kWh/month if applicable
+  // Override do baseline ACL para esta UC (ex.: CCV da SUPERFRIO é outro CNPJ/contrato).
+  // Quando ausente, usa project.aclBaseline. Só tem efeito se o projeto for marketType 'ACL'.
+  aclBaselineOverride?: ACLBaseline;
 }
 
 // A solar plant (the generator)
@@ -113,10 +116,45 @@ export interface Plant {
 }
 
 // A client project
+// Market environment of the client *today* (the SEM / "what they pay now" baseline).
+//   'CATIVO' — regulated market: SEM = full captive bundled tariff (TUSD+TE). Legacy default.
+//   'ACL'    — free market (Cliente Livre): SEM = energia comprada na ACL (R$/MWh) +
+//              TUSD (Fio B) com desconto de fonte incentivada. See ACLBaseline + ACL_BASELINE_SPEC.md.
+// In both cases the COM scenario is GD no mercado cativo (client migrates to ACR to use SCEE),
+// so the COM path is unchanged — only the SEM baseline differs.
+export type MarketType = 'CATIVO' | 'ACL';
+
+export interface ACLBaseline {
+  // Energia comprada no mercado livre (a TE que o cliente paga hoje), R$/kWh SEM impostos.
+  energyPriceSemImp: number;        // ex.: 0.300 (= R$300/MWh)
+  energyIndexation?: 'FIXO' | 'IPCA' | 'IGPM' | 'PLD';
+  energyEscalationPct?: number;     // % a.a. aplicado a energyPriceSemImp no SEM (default 0)
+  // Desconto de TUSD de fonte incentivada que o cliente tem HOJE (só afeta o SEM).
+  tusdDiscountConsumo: number;      // ex.: 0.44 — aplicado a fora-ponta (e ponta se *PT ausente)
+  // Desconto de TUSD de ponta, quando difere do fora-ponta (COPEL: FP~2%, PT~47%).
+  // Ausente ⇒ usa tusdDiscountConsumo para ambos os postos.
+  tusdDiscountConsumoPT?: number;
+  tusdDiscountDemanda: number;      // ex.: 0.49
+  // Erosão opcional do desconto ao longo do horizonte (mês → fator 0..1). Se ausente, mantém flat.
+  tusdDiscountSchedule?: { consumo: number[]; demanda: number[] };
+  // A energia ACL carrega PIS/COFINS + ICMS no build-up do SEM? (PR: sim)
+  energyIcms?: boolean;             // default true
+  energyPisCofins?: boolean;        // default true
+  // PIS+COFINS embutido no preço da energia do fornecedor (não-cumulativo). Default 9,25%
+  // (1,65% PIS + 7,6% COFINS). A TUSD usa a alíquota efetiva da distribuidora (≈6,5–7,7%),
+  // por isso a energia tem gross-up próprio. Ref.: Energês "Entendendo a Fatura 4".
+  energyPisCofinsPct?: number;      // default 0.0925
+}
+
 export interface Project {
   id: string;
   clientName: string;
   distributor: Distributor;
+  // Ambiente de contratação do cliente hoje. Default 'CATIVO' (retrocompat).
+  marketType?: MarketType;
+  // Parâmetros do baseline ACL — usado quando marketType === 'ACL'. Pode ser
+  // sobrescrito por UC via ConsumptionUnit.aclBaselineOverride.
+  aclBaseline?: ACLBaseline;
   plant: Plant;
   // Additional usinas injecting credits into the same client. Each shares the
   // contract start month but can have its own capacity, PPA rate and prazo.
@@ -167,6 +205,11 @@ export interface Project {
     // When true, run the 5-scenario value-attribution decomposition (Bare → +Bank → +OwnGen → +BATdistrib → +CS3).
     // Adds ~2.5× simulation compute. Result lands in SimulationResult.attribution.
     runAttribution?: boolean;
+    // Fator de Ajuste (FA = TE_FP/TE_PT) na compensação cruzada de postos (REN 1000).
+    // Default true (aplica FA: compensar 1 kWh ponta consome 1/FA créditos fora-ponta).
+    // Quando false (ex.: COPEL não aplica operacionalmente), créditos fora-ponta compensam
+    // ponta 1:1 → mais ponta compensada → economia maior. Força FA=1 na simulação.
+    applyFatorAjuste?: boolean;
   };
   // Rateio: allocated by the optimiser or manually set
   rateio: RateioAllocation;

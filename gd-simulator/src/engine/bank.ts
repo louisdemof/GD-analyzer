@@ -1,5 +1,5 @@
-import type { ConsumptionUnit, Distributor, Project, RateioAllocation, UCMonthlyDetail } from './types';
-import { computeICMSPerKWh, computePisCofinsPerKWh } from './tariff';
+import type { ACLBaseline, ConsumptionUnit, Distributor, Project, RateioAllocation, UCMonthlyDetail } from './types';
+import { computeAllInTariff, computeICMSPerKWh, computePisCofinsPerKWh } from './tariff';
 
 interface BankSimParams {
   uc: ConsumptionUnit;
@@ -12,6 +12,11 @@ interface BankSimParams {
   pisCofinsExempt: boolean;
   competitorDiscount: number; // only affects Grupo B SEM scenario
   isSEM: boolean;
+  // ACL baseline (Cliente Livre) for this UC — already resolved (UC override ?? project).
+  // When present, it changes ONLY the SEM scenario: energy is priced at the ACL R$/MWh and
+  // TUSD (Fio B) carries the incentivada discount; demand gets the demand discount. COM is
+  // unchanged (GD no mercado cativo). null/undefined ⇒ legacy captive baseline.
+  aclBaseline?: ACLBaseline | null;
   contractMonths: number;     // typically 24, but can be 12-60
   // Annual escalation rate applied to all distributor tariffs (FP, PT, RSV, demanda, B).
   // Compounds from year 0 (no scaling for first 12 months).
@@ -79,6 +84,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     uc, distributor, generation, rateio,
     includeCS3Credits, batCreditsPerMonth,
     icmsExempt, pisCofinsExempt, competitorDiscount, isSEM,
+    aclBaseline,
     contractMonths,
     tariffEscalationDistributor = 0,
     includeOpeningBank = true,
@@ -104,6 +110,35 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   const cofinsRate = distributor.taxes.COFINS;
   const demandaFaturadaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
 
+  // ACL baseline only rewrites the SEM scenario (the client's current free-market bill).
+  // COM is always GD no mercado cativo, so leave it on the captive tariffs.
+  const aclOn = isSEM && !!aclBaseline;
+  const aclDiscCons = (m: number) =>
+    aclBaseline?.tusdDiscountSchedule?.consumo?.[m] ?? aclBaseline?.tusdDiscountConsumo ?? 0;
+  const aclDiscDem = (m: number) =>
+    aclBaseline?.tusdDiscountSchedule?.demanda?.[m] ?? aclBaseline?.tusdDiscountDemanda ?? 0;
+  // Gross-up da TUSD (alíquotas efetivas da distribuidora). Usado também para extrair a
+  // base "sem impostos" da TUSD a partir da tarifa all-in (T_x_TUSD).
+  const tusdGrossUp = 1 / ((1 - pisRate - cofinsRate) * (1 - icmsRate));
+  // ACL energy all-in (R$/kWh) at year `yearIdx`. A energia do fornecedor usa PIS/COFINS
+  // próprio (≈9,25%, não a alíquota da TUSD da distribuidora) + ICMS estadual.
+  const aclEnergyAllIn = (yearIdx: number): number => {
+    if (!aclBaseline) return 0;
+    const esc = Math.pow(1 + (aclBaseline.energyEscalationPct ?? 0), yearIdx);
+    const semImp = aclBaseline.energyPriceSemImp * esc;
+    const tePisCofins = (aclBaseline.energyPisCofins ?? true) ? (aclBaseline.energyPisCofinsPct ?? 0.0925) : 0;
+    return computeAllInTariff(semImp, {
+      ICMS: (aclBaseline.energyIcms ?? true) ? distributor.taxes.ICMS : 0,
+      PIS: tePisCofins,
+      COFINS: 0,
+    });
+  };
+  // Benefício incentivado: desconto incide SÓ sobre a base da TUSD (sem impostos); ICMS+PIS/COFINS
+  // continuam sobre a tarifa cheia. Logo o crédito por kWh = desc × base, e a tarifa paga =
+  // T_cheia_comimp − desc × (T_comimp / grossUp). Confirmado em 5 faturas (COPEL/ENEL/Equatorial/CEMIG).
+  const tusdAposBeneficio = (tusdComImp: number, disc: number): number =>
+    tusdComImp - disc * (tusdComImp / tusdGrossUp);
+
   const monthlyDetails: UCMonthlyDetail[] = [];
   let bank = includeOpeningBank ? uc.openingBank : 0;
   let totalCostRede = 0;
@@ -125,7 +160,26 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     const T_AFP_TUSD = T_AFP_TUSD_base * escFactor;
     const T_APT_TUSD = T_APT_TUSD_base * escFactor;
     const T_B3_TUSD = T_B3_TUSD_base * escFactor;
-    const demandaMensal = demandaFaturadaKW * T_A_DEMANDA;
+
+    // ── ACL baseline (SEM only): energy = TUSD(Fio B, −disc) + energia comprada na ACL.
+    // Captive tariffs (T_AFP etc.) are kept for COM and for the tax-leak formulas; only the
+    // SEM *billing* tariffs below switch to the ACL build-up. RSV approximated by FP-equiv ratio.
+    const dCons = aclOn ? aclDiscCons(m) : 0;
+    // Ponta pode ter desconto de TUSD diferente do fora-ponta (COPEL incentivada).
+    const dConsPT = aclOn ? (aclBaseline?.tusdDiscountConsumoPT ?? dCons) : 0;
+    const teAcl = aclOn ? aclEnergyAllIn(yearIdx) : 0;
+    // TUSD com benefício (desconto na base, impostos sobre a cheia) + energia ACL (já com impostos).
+    const T_AFP_eff = aclOn ? tusdAposBeneficio(T_AFP_TUSD, dCons) + teAcl : T_AFP;
+    const T_APT_eff = aclOn ? tusdAposBeneficio(T_APT_TUSD, dConsPT) + teAcl : T_APT;
+    const T_ARSV_eff = aclOn
+      ? tusdAposBeneficio(T_AFP > 0 ? T_ARSV * (T_AFP_TUSD / T_AFP) : T_AFP_TUSD, dCons) + teAcl
+      : T_ARSV;
+    const T_B_eff_acl = aclOn ? tusdAposBeneficio(T_B3_TUSD, dCons) + teAcl : null;
+
+    // Demanda: SEM-ACL aplica o desconto incentivada na base (impostos sobre a cheia);
+    // COM (e SEM cativo) usa a demanda cheia → a perda do desconto aparece na economia.
+    const demandaTariff = aclOn ? tusdAposBeneficio(T_A_DEMANDA, aclDiscDem(m)) : T_A_DEMANDA;
+    const demandaMensal = demandaFaturadaKW * demandaTariff;
 
     // Credit sources — all FP-equivalent kWh
     const cs3Credits = includeCS3Credits
@@ -204,7 +258,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
         const remAfterRSV = Math.max(0, remAfterFP - consRSV);
         const ptCoveredBySurplus = remAfterRSV * FA;
         const ptUncovered = Math.max(0, consPT - ptCoveredBySurplus);
-        costRede = fpUncovered * T_AFP + rsvUncovered * T_ARSV + ptUncovered * T_APT;
+        costRede = fpUncovered * T_AFP_eff + rsvUncovered * T_ARSV_eff + ptUncovered * T_APT_eff;
         resFP = fpUncovered;
         resRSV = rsvUncovered;
         resPT = ptUncovered;
@@ -283,10 +337,13 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       const residualFP = Math.max(0, consFPregular - creditsToFP);
       const residualRSV = Math.max(0, consRSV - creditsToRSV);
 
-      // Plin discount only in SEM, applied on both tariffs proportionally
+      // SEM billing tariff: ACL build-up (TUSD Fio B −disc + energia ACL) takes precedence;
+      // otherwise the legacy Plin competitorDiscount haircut on the captive tariff.
       const discount = (isSEM && competitorDiscount > 0) ? competitorDiscount : 0;
-      const effectiveT_B = T_B3 * (1 - discount);
-      const effectiveT_BRSV = T_BRSV * (1 - discount);
+      const effectiveT_B = aclOn && T_B_eff_acl != null ? T_B_eff_acl : T_B3 * (1 - discount);
+      const effectiveT_BRSV = aclOn && T_B_eff_acl != null
+        ? tusdAposBeneficio(T_B3 > 0 ? T_BRSV * (T_B3_TUSD / T_B3) : T_B3_TUSD, aclDiscCons(m)) + aclEnergyAllIn(yearIdx)
+        : T_BRSV * (1 - discount);
 
       costRede = residualFP * effectiveT_B + residualRSV * effectiveT_BRSV;
 

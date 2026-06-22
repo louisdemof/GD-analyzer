@@ -65,6 +65,8 @@ export function Results() {
     project?.simulationMonths,
     project?.additionalPlants,
     project?.distributor,
+    project?.marketType,
+    project?.aclBaseline,
   ]);
 
   const result = id ? getResult(id) : null;

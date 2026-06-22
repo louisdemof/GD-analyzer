@@ -2,12 +2,18 @@ import type { Distributor } from '../engine/types';
 import { computeDerivedTariffs } from '../engine/tariff';
 import bundledTariffs from './aneel-tariffs.json';
 
-// --- ICMS by state (state legislation, not ANEEL) ---
+// --- ICMS by state — 2026 ELECTRICITY rate for Grupo A (state legislation, not ANEEL) ---
+// Post-LC 194/2022 ("essencialidade", STF Tema 745): electricity is capped at the state
+// MODAL rate (+ FECP where it applies), replacing the old 25–29% "supérfluo" rates.
+// Validated against real 2025/26 invoices: PR 19% (COPEL), MG 18% (CEMIG), CE 20% (Enel),
+// MS 17% (Energisa), PA 19% (Equatorial), RJ 22% =20+2 FECP (Enel/Club Med).
+// Others (GO 19, BA 20,5, PI 22,5, SP 18) from 2026 modal tables. States not in the
+// six Helexia distributors below were NOT re-validated for 2026 — refresh before use.
 export const ICMS_BY_STATE: Record<string, number> = {
-  AC: 0.17, AL: 0.25, AM: 0.25, AP: 0.25, BA: 0.27,
-  CE: 0.25, DF: 0.25, ES: 0.27, GO: 0.14, MA: 0.22,
-  MG: 0.25, MS: 0.17, MT: 0.17, PA: 0.25, PB: 0.25,
-  PE: 0.29, PI: 0.25, PR: 0.29, RJ: 0.18, RN: 0.25,
+  AC: 0.17, AL: 0.25, AM: 0.25, AP: 0.25, BA: 0.205,
+  CE: 0.20, DF: 0.25, ES: 0.27, GO: 0.19, MA: 0.22,
+  MG: 0.18, MS: 0.17, MT: 0.17, PA: 0.19, PB: 0.25,
+  PE: 0.29, PI: 0.225, PR: 0.19, RJ: 0.22, RN: 0.25,
   RO: 0.25, RR: 0.25, RS: 0.25, SC: 0.25, SE: 0.27,
   SP: 0.18, TO: 0.25,
 };
@@ -135,10 +141,26 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const RESOURCE_ID = 'fcf2906c-7c32-4b9b-a637-054e7a5234f4';
 
-// SQL query: get B3 Convencional + A4 Verde tariffs (energy MWh + demanda kW),
-// "Tarifa de Aplicação", only "Não se aplica" detail (excludes SCEE/APE),
-// from 2024 onwards, sorted by agent + latest date first
-const SQL = `SELECT "SigAgente", "DscREH", "DscSubGrupo", "DscModalidadeTarifaria", "DscUnidadeTerciaria", "NomPostoTarifario", "VlrTUSD", "VlrTE", "DatInicioVigencia" FROM "${RESOURCE_ID}" WHERE "DscBaseTarifaria"='Tarifa de Aplicação' AND "DscDetalhe"='Não se aplica' AND (("DscUnidadeTerciaria"='MWh' AND (("DscSubGrupo"='B3' AND "DscModalidadeTarifaria"='Convencional') OR ("DscSubGrupo"='A4' AND "DscModalidadeTarifaria"='Verde'))) OR ("DscUnidadeTerciaria"='kW' AND "DscSubGrupo"='A4' AND "DscModalidadeTarifaria"='Verde')) AND "DatInicioVigencia" >= '2024-01-01' ORDER BY "SigAgente", "DatInicioVigencia" DESC`;
+// ANEEL disabled the `datastore_search_sql` action (mid-2026 → HTTP 400 "Action name
+// not known"), so we use the standard `datastore_search` with exact-match `filters`.
+// That action can't express the OR (A4 Verde | B3) nor a date range in one call, so we
+// run TWO filtered queries (A4 Verde + B3 Convencional), each "Tarifa de Aplicação" /
+// "Não se aplica" (excludes SCEE/APE), sorted latest-vigência-first; parseRecords then
+// dedupes to the latest tariff per posto. Returns FP/PT (MWh) + demanda (kW) for A4 Verde.
+const A4_FILTERS = JSON.stringify({
+  DscSubGrupo: 'A4', DscModalidadeTarifaria: 'Verde',
+  DscBaseTarifaria: 'Tarifa de Aplicação', DscDetalhe: 'Não se aplica',
+});
+const B3_FILTERS = JSON.stringify({
+  DscSubGrupo: 'B3', DscModalidadeTarifaria: 'Convencional',
+  DscBaseTarifaria: 'Tarifa de Aplicação', DscDetalhe: 'Não se aplica',
+});
+// Transports tried in order: Vite dev proxy → direct → CORS proxy fallback.
+const SEARCH_TRANSPORTS: ((qs: string) => string)[] = [
+  qs => `/api/aneel/datastore_search?${qs}`,
+  qs => `https://dadosabertos.aneel.gov.br/api/3/action/datastore_search?${qs}`,
+  qs => `https://corsproxy.io/?url=${encodeURIComponent(`https://dadosabertos.aneel.gov.br/api/3/action/datastore_search?${qs}`)}`,
+];
 
 // --- Cache ---
 function getCache(): CacheEntry | null {
@@ -179,13 +201,34 @@ function parseNumberKW(val: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-async function fetchSQL(baseUrl: string): Promise<ANEELRecord[]> {
-  const url = `${baseUrl}?sql=${encodeURIComponent(SQL)}`;
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const json = await resp.json();
-  if (!json.success || !json.result?.records) throw new Error('Invalid response');
-  return json.result.records;
+function searchQS(filters: string): string {
+  return new URLSearchParams({
+    resource_id: RESOURCE_ID,
+    filters,
+    sort: 'DatInicioVigencia desc',
+    limit: '32000',
+  }).toString();
+}
+
+// Fetch A4 Verde + B3 via datastore_search through one transport. Throws on failure
+// so the caller can try the next transport.
+async function fetchSearch(transport: (qs: string) => string): Promise<ANEELRecord[]> {
+  const responses = await Promise.all(
+    [A4_FILTERS, B3_FILTERS].map(async f => {
+      const resp = await fetch(transport(searchQS(f)));
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+      if (!json.success || !json.result?.records) throw new Error('Invalid response');
+      return json.result.records as ANEELRecord[];
+    }),
+  );
+  // Keep only recent vigências (mirrors the old SQL's `DatInicioVigencia >= '2024-01-01'`).
+  // Without this, pre-2014 seasonal rows ("Ponta úmida/seca", "Fora ponta seca") would
+  // match the includes('fora'/'ponta') logic in parseRecords and overwrite current tariffs.
+  const records = responses.flat().filter(r => (r.DatInicioVigencia || '') >= '2024-01-01');
+  // Latest vigência first → parseRecords' first-per-(subgroup|posto|unit) = current tariff.
+  records.sort((a, b) => (b.DatInicioVigencia || '').localeCompare(a.DatInicioVigencia || ''));
+  return records;
 }
 
 function parseRecords(records: ANEELRecord[]): ANEELDistributor[] {
@@ -283,19 +326,13 @@ export async function fetchANEELTariffs(forceRefresh = false): Promise<{
     }
   }
 
-  // Try: 1) Vite dev proxy (SQL endpoint), 2) direct, 3) CORS proxy
-  const urls = [
-    '/api/aneel/datastore_search_sql',
-    'https://dadosabertos.aneel.gov.br/api/3/action/datastore_search_sql',
-    'https://corsproxy.io/?' + encodeURIComponent('https://dadosabertos.aneel.gov.br/api/3/action/datastore_search_sql'),
-  ];
-
+  // Try transports in order: Vite dev proxy → direct → CORS proxy.
   let records: ANEELRecord[] | null = null;
-  for (const url of urls) {
+  for (const transport of SEARCH_TRANSPORTS) {
     try {
-      records = await fetchSQL(url);
-      break;
-    } catch { /* try next */ }
+      records = await fetchSearch(transport);
+      if (records && records.length > 0) break;
+    } catch { /* try next transport */ }
   }
 
   if (records && records.length > 0) {

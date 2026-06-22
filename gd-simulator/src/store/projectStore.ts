@@ -9,6 +9,7 @@ import copelData from '../../reference/COPEL_DEMO.json';
 import copelData2 from '../../reference/COPEL_DEMO_2.json';
 import copelData3 from '../../reference/COPEL_DEMO_3.json';
 import copelData4 from '../../reference/COPEL_DEMO_4.json';
+import superfrioData from '../../reference/SUPERFRIO_CWBII_ACL_DEMO.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
@@ -53,6 +54,7 @@ interface ProjectStore {
   loadCopelDemo2: () => void;
   loadCopelDemo3: () => void;
   loadCopelDemo4: () => void;
+  loadSuperfrioCwbiiDemo: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -538,6 +540,41 @@ export const useProjectStore = create<ProjectStore>()(
 
         set(state => {
           const withoutDemo = state.projects.filter(p => p.id !== 'copel-demo-4');
+          return {
+            projects: [...withoutDemo, project],
+            currentProjectId: project.id,
+          };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      // SUPERFRIO CWBII — baseline ACL (mercado livre). The COPEL distributor here is a
+      // PROJECT-SCOPED copy with tariffs calibrated to CWBII's invoice — it does NOT touch
+      // the shared COPEL config or any other COPEL demo.
+      loadSuperfrioCwbiiDemo: () => {
+        const demo = superfrioData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'superfrio-cwbii-acl',
+          clientName: demo.clientName,
+          marketType: demo.marketType as Project['marketType'],
+          aclBaseline: demo.aclBaseline as Project['aclBaseline'],
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          simulationMonths: demo.simulationMonths,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'superfrio-cwbii-acl');
           return {
             projects: [...withoutDemo, project],
             currentProjectId: project.id,

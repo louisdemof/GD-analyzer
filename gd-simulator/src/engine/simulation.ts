@@ -1,5 +1,5 @@
 import type {
-  Project, Plant, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor,
+  Project, Plant, ConsumptionUnit, SimulationResult, MonthlyResult, SimulationSummary, UCMonthlyDetail, Distributor,
   AttributionFlags, AttributionScenario, AttributionScenarioName, AttributionResult,
   AttributionMonthly,
 } from './types';
@@ -156,6 +156,12 @@ export function runSimulation(project: Project): SimulationResult {
   // Ensure derived tariffs are computed
   const distributor = computeDerivedTariffs(project.distributor);
 
+  // Fator de Ajuste: se a distribuidora não aplica FA na compensação cruzada de postos
+  // (ex.: COPEL), créditos fora-ponta compensam ponta 1:1 → FA=1 (benéfico ao cliente).
+  if (project.scenarios.applyFatorAjuste === false) {
+    distributor.FA = 1;
+  }
+
   // Validate project inputs
   validateProject(project, distributor);
 
@@ -238,6 +244,13 @@ export function runSimulation(project: Project): SimulationResult {
   // Empty BAT credits for UCs that don't receive them
   const emptyBatCredits: number[] = new Array(contractMonths).fill(0);
 
+  // Resolve the ACL baseline for a UC: only when the project is no mercado livre.
+  // UC-level override wins over the project default; null ⇒ captive baseline (legacy).
+  const resolveACL = (uc: ConsumptionUnit) =>
+    project.marketType === 'ACL'
+      ? (uc.aclBaselineOverride ?? project.aclBaseline ?? null)
+      : null;
+
   // --- SEM scenario (no CS3 credits) ---
   const semResults: Record<string, BankSimResult> = {};
   for (const uc of extendedProject.ucs) {
@@ -253,6 +266,7 @@ export function runSimulation(project: Project): SimulationResult {
       icmsExempt: true, // SEM doesn't have ICMS additional (no CS3 credits to tax)
       pisCofinsExempt: true,
       competitorDiscount: project.scenarios.competitorDiscount,
+      aclBaseline: resolveACL(uc),
       isSEM: true,
       contractMonths,
       tariffEscalationDistributor: tariffEsc,
@@ -534,6 +548,9 @@ function runAttributionScenario(
       icmsExempt: project.scenarios.icmsExempt,
       pisCofinsExempt: project.distributor.taxes.pisCofinsExempt ?? true,
       competitorDiscount: project.scenarios.competitorDiscount,
+      aclBaseline: project.marketType === 'ACL'
+        ? (uc.aclBaselineOverride ?? project.aclBaseline ?? null)
+        : null,
       isSEM: !flags.includeCS3,
       contractMonths,
       tariffEscalationDistributor: project.tariffEscalationDistributor ?? 0,

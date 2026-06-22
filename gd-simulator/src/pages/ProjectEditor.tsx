@@ -10,11 +10,13 @@ import { ConsumptionUpload } from '../components/inputs/ConsumptionUpload';
 import { GenerationUpload } from '../components/inputs/GenerationUpload';
 import { ClientDataUpload, type ImportedData } from '../components/inputs/ClientDataUpload';
 import { DemandaAnalysisPanel } from '../components/inputs/DemandaAnalysisPanel';
+import { FaturaEspelho } from '../components/inputs/FaturaEspelho';
 import { createDefaultRateio } from '../engine/optimiser';
 import { computeDerivedTariffs } from '../engine/tariff';
 import { exportConsumptionExcel, importConsumptionExcel, type ImportResult } from '../engine/consumptionExcel';
+import type { ACLBaseline } from '../engine/types';
 
-type Tab = 'distributor' | 'plant' | 'ucs' | 'demanda';
+type Tab = 'distributor' | 'plant' | 'ucs' | 'demanda' | 'fatura';
 
 export function ProjectEditor() {
   const { id } = useParams<{ id: string }>();
@@ -199,6 +201,7 @@ export function ProjectEditor() {
     { key: 'plant', label: 'Planta Solar' },
     { key: 'ucs', label: 'Unidades Consumidoras' },
     { key: 'demanda', label: 'Demanda' },
+    { key: 'fatura', label: 'Fatura Espelho' },
   ];
 
   return (
@@ -341,10 +344,96 @@ export function ProjectEditor() {
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         {tab === 'distributor' && (
-          <DistributorForm
-            distributor={project.distributor}
-            onChange={d => updateDistributor(project.id, d)}
-          />
+          <div className="space-y-6">
+            {/* Mercado do cliente — define o baseline (cenário SEM) */}
+            <div className="border border-slate-200 rounded-xl p-4">
+              <h3 className="text-sm font-semibold text-slate-700 mb-1">Mercado do cliente (cenário atual / SEM)</h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Cativo → tarifa regulada (TUSD+TE). ACL → energia comprada no mercado livre + TUSD com desconto de fonte incentivada.
+              </p>
+              <div className="grid grid-cols-2 gap-2 max-w-md">
+                {(['CATIVO', 'ACL'] as const).map(mt => {
+                  const active = (project.marketType ?? 'CATIVO') === mt;
+                  return (
+                    <button
+                      key={mt}
+                      type="button"
+                      onClick={() => updateProject(project.id, {
+                        marketType: mt,
+                        aclBaseline: mt === 'ACL'
+                          ? (project.aclBaseline ?? { energyPriceSemImp: 0.300, energyIndexation: 'FIXO', tusdDiscountConsumo: 0, tusdDiscountConsumoPT: 0, tusdDiscountDemanda: 0 })
+                          : project.aclBaseline,
+                      })}
+                      className={`text-left px-3 py-2 rounded-lg border transition-colors ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-300 bg-white hover:border-teal-400'}`}
+                    >
+                      <div className="text-sm font-medium text-slate-800">{mt === 'ACL' ? 'Mercado Livre (ACL)' : 'Mercado Cativo'}</div>
+                      <div className="text-xs text-slate-500">{mt === 'ACL' ? 'Energia ACL + TUSD c/ desconto' : 'Tarifa regulada (TUSD+TE)'}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {(project.marketType ?? 'CATIVO') === 'ACL' && (() => {
+                const acl: ACLBaseline = project.aclBaseline ?? { energyPriceSemImp: 0.300, tusdDiscountConsumo: 0, tusdDiscountDemanda: 0 };
+                const set = (patch: Partial<ACLBaseline>) => updateProject(project.id, { aclBaseline: { ...acl, ...patch } });
+                const fields: { label: string; get: () => number; set: (n: number) => void; step?: string }[] = [
+                  { label: 'Energia TE (R$/MWh, s/ imp.)', get: () => Math.round((acl.energyPriceSemImp ?? 0) * 1000), set: n => set({ energyPriceSemImp: n / 1000 }) },
+                  { label: 'Reajuste energia (%/ano)', get: () => Math.round((acl.energyEscalationPct ?? 0) * 1000) / 10, set: n => set({ energyEscalationPct: n / 100 }), step: '0.1' },
+                  { label: 'Desc. TUSD consumo FP (%)', get: () => Math.round((acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumo: n / 100 }), step: '0.1' },
+                  { label: 'Desc. TUSD consumo PT (%)', get: () => Math.round((acl.tusdDiscountConsumoPT ?? acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumoPT: n / 100 }), step: '0.1' },
+                  { label: 'Desc. TUSD demanda (%)', get: () => Math.round((acl.tusdDiscountDemanda ?? 0) * 1000) / 10, set: n => set({ tusdDiscountDemanda: n / 100 }), step: '0.1' },
+                ];
+                return (
+                  <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    {fields.map(f => (
+                      <div key={f.label}>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">{f.label}</label>
+                        <input
+                          type="number"
+                          step={f.step ?? '1'}
+                          value={f.get()}
+                          onChange={e => f.set(parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                      </div>
+                    ))}
+                    <p className="col-span-2 md:col-span-3 text-[11px] text-slate-500">
+                      A energia ACL é tributada (PIS/COFINS+ICMS) e os descontos de TUSD reduzem o cenário atual.
+                      Ao adotar GD (cativo) o cliente perde o desconto de demanda — refletido na economia.
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Fator de Ajuste (FA) toggle */}
+            <div className="border border-slate-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Fator de Ajuste (FA) — compensação ponta ↔ fora-ponta</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                    REN 1000: compensar 1 kWh de <strong>ponta</strong> consome 1/FA créditos fora-ponta (FA = TE_FP/TE_PT). Algumas
+                    distribuidoras (ex.: <strong>COPEL</strong>) não aplicam o FA na operação → créditos fora-ponta compensam ponta <strong>1:1</strong>,
+                    o que <strong>aumenta a economia</strong> do cliente.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateProject(project.id, { scenarios: { ...project.scenarios, applyFatorAjuste: !(project.scenarios.applyFatorAjuste !== false) } })}
+                  className={`px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap ${
+                    project.scenarios.applyFatorAjuste === false ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  {project.scenarios.applyFatorAjuste === false ? 'FA desativado — 1:1 (COPEL) ✓' : 'FA aplicado (REN 1000) — clique p/ desativar'}
+                </button>
+              </div>
+            </div>
+
+            <DistributorForm
+              distributor={project.distributor}
+              onChange={d => updateDistributor(project.id, d)}
+            />
+          </div>
         )}
 
         {tab === 'plant' && (
@@ -432,6 +521,8 @@ export function ProjectEditor() {
             onUpdate={(ucId, updates) => updateUC(project.id, ucId, updates)}
           />
         )}
+
+        {tab === 'fatura' && <FaturaEspelho project={project} />}
       </div>
     </div>
   );

@@ -30,8 +30,28 @@ export function NewProject() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [dragActive, setDragActive] = useState(false);
 
-  const { createProject, createProjectFromDistributor } = useProjectStore();
+  const { createProject, createProjectFromDistributor, updateProject } = useProjectStore();
   const navigate = useNavigate();
+
+  // Market environment of the client today (drives the SEM baseline: captive vs ACL).
+  const [marketType, setMarketType] = useState<'CATIVO' | 'ACL'>('CATIVO');
+  const [aclEnergyPrice, setAclEnergyPrice] = useState('300'); // R$/MWh sem impostos
+  const [aclDiscCons, setAclDiscCons] = useState('44');        // % desconto TUSD consumo
+  const [aclDiscDem, setAclDiscDem] = useState('49');          // % desconto TUSD demanda
+
+  // Patch applied to every newly-created project so the engine knows the baseline.
+  const buildMarketPatch = (): Partial<import('../engine/types').Project> =>
+    marketType === 'ACL'
+      ? {
+          marketType: 'ACL',
+          aclBaseline: {
+            energyPriceSemImp: (parseFloat(aclEnergyPrice) || 0) / 1000,
+            energyIndexation: 'FIXO',
+            tusdDiscountConsumo: (parseFloat(aclDiscCons) || 0) / 100,
+            tusdDiscountDemanda: (parseFloat(aclDiscDem) || 0) / 100,
+          },
+        }
+      : { marketType: 'CATIVO' };
 
   useEffect(() => {
     let cancelled = false;
@@ -129,13 +149,16 @@ export function NewProject() {
   const handleCreate = () => {
     if (!clientName.trim()) return;
 
+    const marketPatch = buildMarketPatch();
+
     // Path A: faturas dropped → auto-build from parsed data
     if (hasFaturas) {
       try {
-        const { project } = buildProjectFromFaturas(
+        const { project: built } = buildProjectFromFaturas(
           successItems.map(i => i.parsed!),
           clientName.trim(),
         );
+        const project = { ...built, ...marketPatch };
         useProjectStore.setState(state => ({
           projects: [...state.projects, project],
           currentProjectId: project.id,
@@ -153,17 +176,20 @@ export function NewProject() {
     if (selectedSig.startsWith('FALLBACK:')) {
       const id = selectedSig.slice('FALLBACK:'.length);
       const project = createProject(clientName.trim(), id);
+      updateProject(project.id, marketPatch);
       navigate(`/project/${project.id}`);
       return;
     }
     if (selected) {
       const distributor = aneelToDistributor(selected);
       const project = createProjectFromDistributor(clientName.trim(), distributor);
+      updateProject(project.id, marketPatch);
       navigate(`/project/${project.id}`);
       return;
     }
     // Last resort
     const project = createProject(clientName.trim(), DISTRIBUTORS[0].id);
+    updateProject(project.id, marketPatch);
     navigate(`/project/${project.id}`);
   };
 
@@ -195,6 +221,65 @@ export function NewProject() {
             className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
             autoFocus
           />
+        </div>
+
+        {/* Mercado do cliente HOJE — define o baseline (SEM) da simulação */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Mercado do cliente (hoje)</label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ['CATIVO', 'Mercado Cativo', 'Tarifa regulada (TUSD+TE)'],
+              ['ACL', 'Mercado Livre (ACL)', 'Energia na ACL + TUSD c/ desconto'],
+            ] as const).map(([val, title, sub]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setMarketType(val)}
+                className={`text-left px-3 py-2 rounded-lg border transition-colors ${
+                  marketType === val ? 'border-teal-500 bg-teal-50' : 'border-slate-300 bg-white hover:border-teal-400'
+                }`}
+              >
+                <div className="text-sm font-medium text-slate-800">{title}</div>
+                <div className="text-xs text-slate-500">{sub}</div>
+              </button>
+            ))}
+          </div>
+
+          {marketType === 'ACL' && (
+            <div className="mt-3 grid grid-cols-3 gap-3 border border-slate-200 rounded-lg bg-slate-50 p-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Energia TE (R$/MWh, s/ imp.)</label>
+                <input
+                  value={aclEnergyPrice}
+                  onChange={e => setAclEnergyPrice(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Desc. TUSD consumo (%)</label>
+                <input
+                  value={aclDiscCons}
+                  onChange={e => setAclDiscCons(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Desc. TUSD demanda (%)</label>
+                <input
+                  value={aclDiscDem}
+                  onChange={e => setAclDiscDem(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <p className="col-span-3 text-[11px] text-slate-500">
+                O baseline (cenário atual) usará energia comprada na ACL + TUSD com esses descontos de fonte incentivada.
+                Ao adotar GD, o cliente migra para o cativo e <strong>perde o desconto de demanda</strong> (refletido na economia).
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Fatura drop zone — optional */}

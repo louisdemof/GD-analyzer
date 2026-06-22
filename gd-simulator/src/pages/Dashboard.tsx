@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
   const navigate = useNavigate();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -104,6 +104,13 @@ export function Dashboard() {
             title="Cenário Proposta: PPA 18m + horizonte 24m + markup tarifário +10% + ICMS TE_ONLY + PIS/COFINS isento"
           >
             Simulação 4 COPEL — Proposta
+          </button>
+          <button
+            onClick={() => { loadSuperfrioCwbiiDemo(); navigate('/project/superfrio-cwbii-acl'); }}
+            className="px-4 py-2 text-sm border border-teal-300 text-teal-900 bg-teal-50 rounded-lg hover:bg-teal-50"
+            title="Cliente Livre (ACL): baseline = energia ACL R$300/MWh + TUSD com desconto incentivada; PPA R$450 flat. Tarifas COPEL calibradas só p/ este caso."
+          >
+            SUPERFRIO CWBII — ACL
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
