@@ -49,6 +49,9 @@ export interface TaxBreakdownUC {
     subtotal: number;
   };
   ppaHelexia?: number;
+  // ACL only: crédito que reconcilia a SEM cativa (linhas acima) com a SEM real do
+  // mercado livre (energia ACL + TUSD/demanda com desconto incentivada) = benefício.
+  beneficioIncentivada?: number;
   totalSEM: number;
   totalCOM: number;
 }
@@ -216,7 +219,7 @@ export function computeTaxBreakdown(
     let demanda: TaxBreakdownUC['demanda'];
     const demandaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
     const demandaMonths = isMonthly ? 1 : cm;
-    if (demandaKW > 0 && d.T_A_DEMANDA) {
+    if (demandaKW > 0 && (d.tariffs.A_FP_DEMANDA ?? 0) > 0) {
       const T_dem_sem = d.tariffs.A_FP_DEMANDA ?? 0;
       const demSem = T_dem_sem * demandaKW * demandaMonths;
       const PC = taxes.PIS + taxes.COFINS;
@@ -246,6 +249,22 @@ export function computeTaxBreakdown(
       totalCOM += ppaHelexia;
     }
 
+    // ── ACL: as linhas acima usam a tarifa CATIVA (TUSD+TE regulado, demanda cheia).
+    // A SEM real do mercado livre (energia ACL + TUSD/demanda c/ desconto incentivada)
+    // já é calculada pelo bank sim (costRede). Adicionamos um crédito "Benefício/Subsídio
+    // incentivada" reconciliando a SEM cativa → SEM ACL real. Em Cativo isto não se aplica.
+    let beneficioIncentivada: number | undefined;
+    if (project.marketType === 'ACL') {
+      const realSEM = isMonthly
+        ? (semDetails?.[monthIndex]?.costRede ?? 0)
+        : sumField(semDetails, 'costRede');
+      const benef = totalSEM - realSEM;
+      if (Math.abs(benef) > 1) {
+        beneficioIncentivada = benef; // > 0: cativa superestima a SEM real
+        totalSEM = realSEM;
+      }
+    }
+
     ucs.push({
       ucId: uc.id,
       ucName: uc.name,
@@ -254,6 +273,7 @@ export function computeTaxBreakdown(
       postos,
       demanda,
       ppaHelexia: ppaHelexia > 0 ? ppaHelexia : undefined,
+      beneficioIncentivada,
       totalSEM,
       totalCOM,
     });

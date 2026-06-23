@@ -132,6 +132,16 @@ export function TaxBreakdownPanel({ project, result }: Props) {
                     </tr>
                   </>
                 )}
+                {u.beneficioIncentivada !== undefined && (
+                  <tr className="border-b border-slate-100 bg-emerald-50/40">
+                    <td className="px-3 py-2 text-emerald-800 font-medium">Benefício/Subsídio incentivada (energia ACL + desconto TUSD/demanda)</td>
+                    <td className="px-3 py-2 text-right font-mono text-emerald-700">−{fmtBRL(u.beneficioIncentivada)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-400">—</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-400">—</td>
+                    <td className="px-3 py-2 text-right font-mono text-slate-400 border-l border-slate-200">—</td>
+                    <td className="px-3 py-2 text-right font-mono text-rose-600">−{fmtBRL(u.beneficioIncentivada)}</td>
+                  </tr>
+                )}
                 {u.ppaHelexia !== undefined && (
                   <tr className="border-b border-slate-100 bg-blue-50/40">
                     <td className="px-3 py-2 text-slate-700 font-medium">PPA Helexia</td>
