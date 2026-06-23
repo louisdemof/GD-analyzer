@@ -51,7 +51,14 @@ export interface TaxBreakdownUC {
   ppaHelexia?: number;
   // ACL only: crédito que reconcilia a SEM cativa (linhas acima) com a SEM real do
   // mercado livre (energia ACL + TUSD/demanda com desconto incentivada) = benefício.
+  // >0 = a reconstrução cativa superestima a SEM real (crédito reduz a SEM).
   beneficioIncentivada?: number;
+  // Não-ACL: reconciliação da SEM reconstruída (tarifa flat) → SEM real do bank sim
+  // (reajuste anual). >0 reduz a SEM. Em projetos sem reajuste fica ausente.
+  ajusteSEM?: number;
+  // Reconciliação da rede COM reconstruída (tarifa flat + leaks) → rede COM real do
+  // bank sim (reajuste + FA cross-posto + demanda). >0 reduz a COM (aumenta a economia).
+  ajusteRedeCOM?: number;
   totalSEM: number;
   totalCOM: number;
 }
@@ -240,30 +247,34 @@ export function computeTaxBreakdown(
       totalCOM += subtotal;
     }
 
-    // PPA (COM only) — Helexia compensation = total COM compensation − SEM compensation
-    // (SEM still has own-gen + opening bank + BAT). Multiply by PPA rate.
+    // ── Reconcile the flat-tariff reconstruction (postos + demanda + leaks above) to the
+    // REAL bank-sim costs, which include reajuste anual, FA cross-posto offset (e.g. COPEL
+    // FA=1), the ACL incentivada discount, and demanda. The component lines stay as an
+    // illustrative decomposition; a single reconciling line per side absorbs the gap so the
+    // UC TOTAL matches the headline economia exactly.
+    const reconstructedSEM = totalSEM;       // postos + demanda (regulated/captive reference)
+    const reconstructedComRede = totalCOM;   // postos + demanda + leaks (no PPA yet)
+
+    const realSEM = isMonthly
+      ? (semDetails?.[monthIndex]?.costRede ?? 0)
+      : sumField(semDetails, 'costRede');
+    const realComRede = isMonthly
+      ? ((comDetails?.[monthIndex]?.costRede ?? 0) + (comDetails?.[monthIndex]?.icmsAdditional ?? 0) + (comDetails?.[monthIndex]?.pisCofinsAdditional ?? 0))
+      : (sumField(comDetails, 'costRede') + sumField(comDetails, 'icmsAdditional') + sumField(comDetails, 'pisCofinsAdditional'));
+
+    // PPA (COM only): reconstructed via Helexia compensation; scaled to the real
+    // plant-level PPA (generation × rate × escalation) after the loop.
     const ppaRate = project.plant.ppaRateRsBRLkWh;
     const helexiaCompensation = Math.max(0, (compFP + compPT + compRSV) - (semCompFP + semCompPT + semCompRSV));
-    const ppaHelexia = helexiaCompensation * ppaRate;
-    if (ppaHelexia > 0) {
-      totalCOM += ppaHelexia;
-    }
+    const reconstructedPPA = helexiaCompensation * ppaRate;
 
-    // ── ACL: as linhas acima usam a tarifa CATIVA (TUSD+TE regulado, demanda cheia).
-    // A SEM real do mercado livre (energia ACL + TUSD/demanda c/ desconto incentivada)
-    // já é calculada pelo bank sim (costRede). Adicionamos um crédito "Benefício/Subsídio
-    // incentivada" reconciliando a SEM cativa → SEM ACL real. Em Cativo isto não se aplica.
-    let beneficioIncentivada: number | undefined;
-    if (project.marketType === 'ACL') {
-      const realSEM = isMonthly
-        ? (semDetails?.[monthIndex]?.costRede ?? 0)
-        : sumField(semDetails, 'costRede');
-      const benef = totalSEM - realSEM;
-      if (Math.abs(benef) > 1) {
-        beneficioIncentivada = benef; // > 0: cativa superestima a SEM real
-        totalSEM = realSEM;
-      }
-    }
+    // Overstatement (>0) = reconstruction higher than real → reconciling credit reduces it.
+    const semOver = reconstructedSEM - realSEM;
+    const comOver = reconstructedComRede - realComRede;
+    const isACL = project.marketType === 'ACL';
+
+    totalSEM = realSEM;
+    totalCOM = realComRede + reconstructedPPA; // PPA scaled post-loop
 
     ucs.push({
       ucId: uc.id,
@@ -272,11 +283,31 @@ export function computeTaxBreakdown(
       isGrupoA: uc.isGrupoA,
       postos,
       demanda,
-      ppaHelexia: ppaHelexia > 0 ? ppaHelexia : undefined,
-      beneficioIncentivada,
+      ppaHelexia: reconstructedPPA > 0 ? reconstructedPPA : undefined,
+      beneficioIncentivada: isACL && Math.abs(semOver) > 1 ? semOver : undefined,
+      ajusteSEM: !isACL && Math.abs(semOver) > 1 ? semOver : undefined,
+      ajusteRedeCOM: Math.abs(comOver) > 1 ? comOver : undefined,
       totalSEM,
       totalCOM,
     });
+  }
+
+  // Scale per-UC PPA so the sum equals the real plant-level PPA (generation × rate ×
+  // escalation) — the same figure the monthly section shows — making the per-UC TOTAL
+  // reconcile to the headline economia.
+  const realTotalPPA = isMonthly
+    ? (result.months[monthIndex]?.ppaCost ?? 0)
+    : result.months.reduce((acc, m) => acc + m.ppaCost, 0);
+  const reconstructedTotalPPA = ucs.reduce((acc, u) => acc + (u.ppaHelexia ?? 0), 0);
+  if (reconstructedTotalPPA > 0 && realTotalPPA > 0 && Math.abs(realTotalPPA - reconstructedTotalPPA) > 1) {
+    const scale = realTotalPPA / reconstructedTotalPPA;
+    for (const u of ucs) {
+      if (u.ppaHelexia) {
+        const scaled = u.ppaHelexia * scale;
+        u.totalCOM += scaled - u.ppaHelexia;
+        u.ppaHelexia = scaled;
+      }
+    }
   }
 
   // Monthly aggregate across all UCs (SEM Rede, COM Rede+leaks, COM PPA, Total, Economia).
