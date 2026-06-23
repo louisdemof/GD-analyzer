@@ -129,9 +129,9 @@ export function Dashboard() {
           <button
             onClick={() => { loadSuperfrio5yDemo(); navigate('/project/superfrio-pr-5y'); }}
             className="px-4 py-2 text-sm border border-teal-500 text-teal-900 bg-teal-100 rounded-lg hover:bg-teal-200"
-            title="5 anos: energia +13,5%/a vs PPA +5%/a (IPCA). Economia cresce de ano 1 negativo (banco enchendo) a +32% no ano 5. Total ~+15,7%."
+            title="5 anos: TE TRAVADO (lock-in ACL) · TUSD +13,5%/a vs PPA +5%/a (IPCA). Total ~+3,4% (R$1,14M). Destrave o TE no editor (toggle) p/ ver o cenário com energia subindo (~+15,7%)."
           >
-            SUPERFRIO PR — 5 anos · energia +13,5% vs PPA +5% (~+15,7%)
+            SUPERFRIO PR — 5 anos · TE travado vs PPA +5% (~+3,4%)
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}

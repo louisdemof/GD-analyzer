@@ -1,7 +1,7 @@
 {
   "project": {
     "id": "superfrio-pr-5y",
-    "clientName": "SUPERFRIO Paraná — 5 UCs + 3 HAP · 5 anos · energia +13,5%/a vs PPA +5%/a (IPCA)",
+    "clientName": "SUPERFRIO Paraná — 5 UCs + 3 HAP · 5 anos · TE TRAVADO (lock-in) · TUSD +13,5%/a vs PPA +5%/a",
     "marketType": "ACL",
     "aclBaseline": {
       "energyPriceSemImp": 0.268,
@@ -12,7 +12,7 @@
       "tusdDiscountDemanda": 0.4875,
       "energyIcms": true,
       "energyPisCofins": true,
-      "energyEscalationPct": 0.135
+      "energyEscalationPct": 0
     },
     "distributor": {
       "id": "COPEL-DIS",
