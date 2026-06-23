@@ -779,7 +779,7 @@ function NotesPage({ project }: { project: Project }) {
     React.createElement(Text, { style: s.noteTitle }, 'Rateio Fixo por Periodos'),
     React.createElement(Text, { style: s.noteText }, `A alocacao dos creditos entre as UCs segue o modelo de rateio fixo por periodos ao longo do contrato de ${durationLabel(computeSimulationMonths(project))}. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.`),
     React.createElement(Text, { style: s.noteTitle }, 'Validade dos Creditos'),
-    React.createElement(Text, { style: s.noteText }, 'Conforme regulamentacao vigente, os creditos de energia gerados no ambito do SCEE tem validade ate 2045, podendo ser acumulados no banco de creditos da distribuidora e utilizados em faturas futuras.'),
+    React.createElement(Text, { style: s.noteText }, 'Conforme a Lei 14.300/2022 (Art. 5º), os creditos de energia gerados no ambito do SCEE tem validade de 60 meses a partir do mes de injecao, podendo ser acumulados no banco de creditos da distribuidora e utilizados em faturas futuras dentro desse prazo. Creditos nao utilizados apos 60 meses expiram.'),
     !project.scenarios.icmsExempt && React.createElement(View, null,
       React.createElement(Text, { style: { ...s.noteTitle, color: '#dc2626' } }, 'Risco ICMS (Art. 23-A RICMS)'),
       React.createElement(Text, { style: s.noteText }, 'ATENCAO: A isencao de ICMS nao esta ativada para esta simulacao. Caso o estado aplique ICMS sobre a energia compensada, os custos adicionais estimados estao refletidos no campo "Risco ICMS" do resumo executivo.')
