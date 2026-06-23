@@ -682,6 +682,11 @@ function PremissasPage({ project }: { project: Project }) {
   const distEsc = project.tariffEscalationDistributor ?? 0;
   const ppaEsc = project.tariffEscalationPPA ?? 0;
   const fmtM = (v: number) => `R$ ${Math.round(v).toLocaleString('pt-BR')}/MWh`;
+  const groupsA = [...new Set(project.ucs.filter(u => u.isGrupoA).map(u => u.tariffGroup))];
+  const groupsB = [...new Set(project.ucs.filter(u => !u.isGrupoA).map(u => u.tariffGroup))];
+  const allGroups = [...groupsA, ...groupsB].map(tariffGroupLabel).join(', ');
+  const nA = project.ucs.filter(u => u.isGrupoA).length;
+  const nB = project.ucs.length - nA;
 
   const blocks: React.ReactNode[] = [];
 
@@ -733,11 +738,34 @@ function PremissasPage({ project }: { project: Project }) {
     premCard('c-reaj', 'Reajuste anual', `Dist. ${(distEsc * 100).toFixed(1)}% · PPA ${(ppaEsc * 100).toFixed(1)}%`, distEsc === 0 && ppaEsc === 0 ? 'cenário base sem reajuste' : 'composto a partir do início'),
   ]));
 
+  // ── Tarifas reguladas (referência no ACL; baseline no cativo)
+  const tarCards: React.ReactNode[] = [];
+  if (groupsA.length > 0) {
+    tarCards.push(premCard('t-fp', 'Fora Ponta (TUSD+TE)', `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`, null));
+    tarCards.push(premCard('t-pt', 'Ponta (TUSD+TE)', `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`, null));
+    if (dist.tariffs.A_FP_DEMANDA) tarCards.push(premCard('t-dem', 'Demanda', `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW·mês`, null));
+  }
+  if (groupsB.length > 0) tarCards.push(premCard('t-b', 'Grupo B (TUSD+TE)', `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`, null));
+  if (tarCards.length > 0) {
+    blocks.push(premGroup(isACL ? `Tarifas reguladas — referência (${allGroups})` : `Tarifas reguladas (${allGroups})`));
+    blocks.push(premRow('r-tar', tarCards.slice(0, 3)));
+    if (tarCards.length > 3) blocks.push(premRow('r-tar2', tarCards.slice(3)));
+  }
+
+  // ── Cenário comparativo (concorrente) — só quando há desconto > 0
+  if (project.scenarios.competitorDiscount > 0) {
+    blocks.push(premGroup('Cenário comparativo'));
+    blocks.push(premRow('r-comp', [
+      premCard('c-comp', `Desconto concorrente${project.scenarios.competitorName ? ` (${project.scenarios.competitorName})` : ''}`,
+        `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%`, 'reduz o baseline de comparação', 'hl', '49%'),
+    ]));
+  }
+
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'Premissas da Simulação'),
     React.createElement(Text, { style: { ...s.noteText, marginBottom: 4 } },
-      `${project.clientName} · ${project.ucs.length} UC${project.ucs.length > 1 ? 's' : ''}${isACL ? ' · Mercado Livre (ACL)' : ' · Mercado Cativo'}`),
+      `${project.clientName} · ${project.ucs.length} UC${project.ucs.length > 1 ? 's' : ''} (${nA} Grupo A${nB > 0 ? `, ${nB} Grupo B` : ''})${allGroups ? ` · ${allGroups}` : ''}${isACL ? ' · Mercado Livre (ACL)' : ' · Mercado Cativo'}`),
     ...blocks,
   );
 }
