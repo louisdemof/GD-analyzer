@@ -42,6 +42,15 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
   const activeUCs = ucs.filter(uc => uc.id !== 'bat');
   const [selectedUC, setSelectedUC] = useState(activeUCs[0]?.id || '');
 
+  // PPA paid to Helexia attributable to the selected UC in month i. The plant-level
+  // PPA (months[i].ppaCost, already escalated) is split by the UC's share of the
+  // rateio injection so the per-UC economia below nets out exactly like the headline.
+  const ppaForUC = (i: number): number => {
+    const fracUC = getRateioFraction(rateio, selectedUC, i);
+    const fracTotal = activeUCs.reduce((a, u) => a + getRateioFraction(rateio, u.id, i), 0);
+    return (months[i]?.ppaCost ?? 0) * (fracTotal > 0 ? fracUC / fracTotal : 0);
+  };
+
   // Summary KPIs
   const totalBankCOM = result.bankPerUC.reduce((s, b) => s + b.finalBankCOM, 0);
   const totalBankSEM = result.bankPerUC.reduce((s, b) => s + b.finalBankSEM, 0);
@@ -164,8 +173,8 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                   {selUC.isGrupoA && <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Cons. PT</th>}
                   <th className="text-right py-1.5 px-2 text-slate-500" rowSpan={2}>Gen Própria</th>
                   <th className="text-center py-1 px-2 text-blue-600 font-semibold border-b border-blue-200" colSpan={3}>SEM Helexia</th>
-                  <th className="text-center py-1 px-2 text-teal-600 font-semibold border-b border-teal-200" colSpan={4}>COM Helexia</th>
-                  <th className="text-right py-1.5 px-2 text-slate-500 font-semibold" rowSpan={2}>Economia</th>
+                  <th className="text-center py-1 px-2 text-teal-600 font-semibold border-b border-teal-200" colSpan={5}>COM Helexia</th>
+                  <th className="text-right py-1.5 px-2 text-slate-500 font-semibold" rowSpan={2}>Economia líquida</th>
                 </tr>
                 <tr className="border-b border-slate-200">
                   <th className="text-right py-1 px-2 text-blue-500 text-[9px]">Banco Início</th>
@@ -175,12 +184,16 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Início</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Banco Fim</th>
                   <th className="text-right py-1 px-2 text-teal-500 text-[9px]">Custo Rede</th>
+                  <th className="text-right py-1 px-2 text-blue-500 text-[9px]">PPA Helexia</th>
                 </tr>
               </thead>
               <tbody>
                 {comDetails.map((cd, i) => {
                   const sd = semDetails[i];
-                  const economia = (sd?.costRede ?? 0) - cd.costRede;
+                  const leaks = (cd.icmsAdditional ?? 0) + (cd.pisCofinsAdditional ?? 0);
+                  const comRedeFull = cd.costRede + leaks; // rede COM incl. ICMS/PIS leaks (matches headline Rede COM)
+                  const ppaUC = ppaForUC(i);
+                  const economia = (sd?.costRede ?? 0) - comRedeFull - ppaUC; // líquida (= headline)
                   const isLast = i === comDetails.length - 1;
                   const semBankDepleted = (sd?.bankEnd ?? 0) === 0;
 
@@ -203,8 +216,9 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round((generation[i] || 0) * getRateioFraction(rateio, selectedUC, i)).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankStart).toLocaleString('pt-BR')}</td>
                       <td className="py-1 px-2 text-right font-mono text-teal-700">{Math.round(cd.bankEnd).toLocaleString('pt-BR')}</td>
-                      <td className="py-1 px-2 text-right font-mono text-teal-700">{fmtBRL(cd.costRede)}</td>
-                      {/* Economia */}
+                      <td className="py-1 px-2 text-right font-mono text-teal-700">{fmtBRL(comRedeFull)}</td>
+                      <td className="py-1 px-2 text-right font-mono text-blue-700">{fmtBRL(ppaUC)}</td>
+                      {/* Economia líquida = SEM − Rede COM (c/ leaks) − PPA Helexia */}
                       <td className={`py-1 px-2 text-right font-mono font-semibold ${economia >= 0 ? 'text-teal-700' : 'text-red-600'}`}>
                         {fmtBRL(economia)}
                       </td>
@@ -220,12 +234,22 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
                   <td className="py-2 px-2 text-right font-mono text-blue-700">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0))}</td>
                   <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtKWh(generation.reduce((s, g, i) => s + g * getRateioFraction(rateio, selectedUC, i), 0))}</td>
                   <td colSpan={2}></td>
-                  <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
-                  <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(semDetails.reduce((s, d) => s + d.costRede, 0) - comDetails.reduce((s, d) => s + d.costRede, 0))}</td>
+                  <td className="py-2 px-2 text-right font-mono text-teal-700">{fmtBRL(comDetails.reduce((s, d) => s + d.costRede + (d.icmsAdditional ?? 0) + (d.pisCofinsAdditional ?? 0), 0))}</td>
+                  <td className="py-2 px-2 text-right font-mono text-blue-700">{fmtBRL(months.reduce((s, _m, i) => s + ppaForUC(i), 0))}</td>
+                  <td className="py-2 px-2 text-right font-mono">{fmtBRL(
+                    semDetails.reduce((s, d) => s + d.costRede, 0)
+                    - comDetails.reduce((s, d) => s + d.costRede + (d.icmsAdditional ?? 0) + (d.pisCofinsAdditional ?? 0), 0)
+                    - months.reduce((s, _m, i) => s + ppaForUC(i), 0)
+                  )}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
+          <p className="text-[10px] text-slate-400 italic mt-2">
+            Economia líquida = Custo Rede SEM − Custo Rede COM (já com leaks ICMS/PIS) − PPA Helexia.
+            O Custo Rede SEM reflete o mercado atual do cliente (ACL: energia + TUSD/demanda com desconto incentivada; Cativo: tarifa regulada cheia).
+            O total fecha com a Economia Líquida do Resumo Executivo.
+          </p>
         </div>
       )}
 
