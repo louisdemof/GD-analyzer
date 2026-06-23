@@ -99,7 +99,7 @@ export function FaturaUpload({ ucs, onApply }: Props) {
           disabled={parsing}
           className="px-4 py-2 text-sm border border-teal-300 bg-teal-50 text-teal-700 rounded-lg hover:bg-teal-100 disabled:opacity-50 font-medium"
         >
-          {parsing ? 'Processando…' : '📄 Importar Fatura PDF (Energisa MS)'}
+          {parsing ? 'Processando…' : '📄 Importar Fatura PDF'}
         </button>
         <input
           ref={fileInput}
