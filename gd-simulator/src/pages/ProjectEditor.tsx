@@ -376,15 +376,32 @@ export function ProjectEditor() {
               {(project.marketType ?? 'CATIVO') === 'ACL' && (() => {
                 const acl: ACLBaseline = project.aclBaseline ?? { energyPriceSemImp: 0.300, tusdDiscountConsumo: 0, tusdDiscountDemanda: 0 };
                 const set = (patch: Partial<ACLBaseline>) => updateProject(project.id, { aclBaseline: { ...acl, ...patch } });
-                const fields: { label: string; get: () => number; set: (n: number) => void; step?: string }[] = [
+                // Lock-in: no ACL o preço da energia (TE) é travado por contrato (sem reajuste).
+                // Travado ⟺ energyEscalationPct === 0. Destravar repõe um reajuste default (5%).
+                const teLocked = (acl.energyEscalationPct ?? 0) === 0;
+                const fields: { label: string; get: () => number; set: (n: number) => void; step?: string; disabled?: boolean }[] = [
                   { label: 'Energia TE (R$/MWh, s/ imp.)', get: () => Math.round((acl.energyPriceSemImp ?? 0) * 1000), set: n => set({ energyPriceSemImp: n / 1000 }) },
-                  { label: 'Reajuste energia (%/ano)', get: () => Math.round((acl.energyEscalationPct ?? 0) * 1000) / 10, set: n => set({ energyEscalationPct: n / 100 }), step: '0.1' },
+                  { label: 'Reajuste energia (%/ano)', get: () => Math.round((acl.energyEscalationPct ?? 0) * 1000) / 10, set: n => set({ energyEscalationPct: n / 100 }), step: '0.1', disabled: teLocked },
                   { label: 'Desc. TUSD consumo FP (%)', get: () => Math.round((acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumo: n / 100 }), step: '0.1' },
                   { label: 'Desc. TUSD consumo PT (%)', get: () => Math.round((acl.tusdDiscountConsumoPT ?? acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumoPT: n / 100 }), step: '0.1' },
                   { label: 'Desc. TUSD demanda (%)', get: () => Math.round((acl.tusdDiscountDemanda ?? 0) * 1000) / 10, set: n => set({ tusdDiscountDemanda: n / 100 }), step: '0.1' },
                 ];
                 return (
                   <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div className="col-span-2 md:col-span-3 flex items-center gap-3 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => set({ energyEscalationPct: teLocked ? 0.05 : 0 })}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${teLocked ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-slate-700 border-slate-300'}`}
+                      >
+                        {teLocked ? '🔒 TE travado (lock-in ACL)' : '🔓 TE com reajuste'}
+                      </button>
+                      <span className="text-[11px] text-slate-500">
+                        {teLocked
+                          ? 'Preço da energia fixo pelo contrato ACL — sem reajuste (típico). Destrave para simular energia subindo.'
+                          : 'Energia reajusta pelo % ao lado. Trave para fixar o preço pelo prazo do contrato.'}
+                      </span>
+                    </div>
                     {fields.map(f => (
                       <div key={f.label}>
                         <label className="block text-xs font-medium text-slate-600 mb-1">{f.label}</label>
@@ -392,8 +409,9 @@ export function ProjectEditor() {
                           type="number"
                           step={f.step ?? '1'}
                           value={f.get()}
+                          disabled={f.disabled}
                           onChange={e => f.set(parseFloat(e.target.value) || 0)}
-                          className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          className={`w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 ${f.disabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : ''}`}
                         />
                       </div>
                     ))}
