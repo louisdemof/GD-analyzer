@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
   const navigate = useNavigate();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -118,6 +118,20 @@ export function Dashboard() {
             title="Portfólio Paraná: 5 UCs + 3× Alto Paraná (HAP02-04), rateio otimizado, cenário Dez/2027 (energia 268 + reajuste), FA desativado. Economia ~5,7%."
           >
             SUPERFRIO Paraná — Portfólio (5 UCs + HAP)
+          </button>
+          <button
+            onClick={() => { loadSuperfrioFrontloadDemo(); navigate('/project/superfrio-pr-frontload'); }}
+            className="px-4 py-2 text-sm border border-teal-400 text-teal-900 bg-teal-50 rounded-lg hover:bg-teal-100"
+            title="Portfólio + HAP05 nos 12 primeiros meses (front-load do banco de créditos). 24 meses. Economia ~9,2%."
+          >
+            SUPERFRIO PR — Portfólio +HAP05 front-load (~9,2%)
+          </button>
+          <button
+            onClick={() => { loadSuperfrio5yDemo(); navigate('/project/superfrio-pr-5y'); }}
+            className="px-4 py-2 text-sm border border-teal-500 text-teal-900 bg-teal-100 rounded-lg hover:bg-teal-200"
+            title="5 anos: energia +13,5%/a vs PPA +5%/a (IPCA). Economia cresce de ano 1 negativo (banco enchendo) a +32% no ano 5. Total ~+15,7%."
+          >
+            SUPERFRIO PR — 5 anos · energia +13,5% vs PPA +5% (~+15,7%)
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}

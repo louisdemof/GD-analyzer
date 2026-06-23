@@ -11,6 +11,8 @@ import copelData3 from '../../reference/COPEL_DEMO_3.json';
 import copelData4 from '../../reference/COPEL_DEMO_4.json';
 import superfrioData from '../../reference/SUPERFRIO_CWBII_ACL_DEMO.json';
 import superfrioPortfolioData from '../../reference/SUPERFRIO_PR_PORTFOLIO_DEMO.json';
+import superfrioFrontloadData from '../../reference/SUPERFRIO_PR_FRONTLOAD_DEMO.json';
+import superfrio5yData from '../../reference/SUPERFRIO_PR_5Y_DEMO.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
@@ -57,6 +59,8 @@ interface ProjectStore {
   loadCopelDemo4: () => void;
   loadSuperfrioCwbiiDemo: () => void;
   loadSuperfrioPortfolioDemo: () => void;
+  loadSuperfrioFrontloadDemo: () => void;
+  loadSuperfrio5yDemo: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -92,6 +96,41 @@ function respanRateio(rateio: RateioAllocation, contractMonths: number): RateioA
     // Span changed → previous optimisation is stale; flag for re-optimisation.
     isOptimised: false,
   };
+}
+
+// Loads a pre-built SUPERFRIO Paraná variant (front-load or 5-year) from its demo JSON,
+// preserving the optimised rateio + additionalPlants + any escalation fields (no override).
+function loadSuperfrioVariant(
+  set: (fn: (state: ProjectStore) => Partial<ProjectStore>) => void,
+  demo: any,
+  id: string,
+): void {
+  const now = new Date().toISOString();
+  const project: Project = {
+    id,
+    clientName: demo.clientName,
+    marketType: demo.marketType,
+    aclBaseline: demo.aclBaseline,
+    distributor: demo.distributor as Distributor,
+    plant: demo.plant as Plant,
+    additionalPlants: demo.additionalPlants as Project['additionalPlants'],
+    simulationMonths: demo.simulationMonths,
+    ucs: demo.ucs as ConsumptionUnit[],
+    scenarios: demo.scenarios,
+    growthRate: demo.growthRate,
+    generationDegradation: demo.generationDegradation,
+    performanceFactor: demo.performanceFactor,
+    tariffEscalationDistributor: demo.tariffEscalationDistributor,
+    tariffEscalationPPA: demo.tariffEscalationPPA,
+    rateio: demo.rateio as RateioAllocation, // otimizado — preservar
+    createdAt: now,
+    updatedAt: now,
+  };
+  set(state => ({
+    projects: [...state.projects.filter(p => p.id !== id), project],
+    currentProjectId: project.id,
+  }));
+  saveProjectToDB(project).catch(() => {});
 }
 
 export const useProjectStore = create<ProjectStore>()(
@@ -615,6 +654,12 @@ export const useProjectStore = create<ProjectStore>()(
         });
         saveProjectToDB(project).catch(() => {});
       },
+
+      // Variante A: 3 HAP + HAP05 nos 12 primeiros meses (front-load do banco). 24m. ~+9,2%.
+      // Variante B: 5 anos, energia +13,5%/a (tariffEscalationDistributor + energyEscalationPct)
+      // vs PPA +5%/a IPCA (tariffEscalationPPA). Rateio otimizado por cobertura. ~+15,7%.
+      loadSuperfrioFrontloadDemo: () => loadSuperfrioVariant(set, superfrioFrontloadData.project, 'superfrio-pr-frontload'),
+      loadSuperfrio5yDemo: () => loadSuperfrioVariant(set, superfrio5yData.project, 'superfrio-pr-5y'),
 
       exportProject: (id) => {
         const project = get().projects.find(p => p.id === id);
