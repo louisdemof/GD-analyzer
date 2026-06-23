@@ -379,6 +379,9 @@ export function ProjectEditor() {
                 // Lock-in: no ACL o preço da energia (TE) é travado por contrato (sem reajuste).
                 // Travado ⟺ energyEscalationPct === 0. Destravar repõe um reajuste default (5%).
                 const teLocked = (acl.energyEscalationPct ?? 0) === 0;
+                const tePC = (acl.energyPisCofins ?? true) ? (acl.energyPisCofinsPct ?? 0.0925) : 0;
+                const teICMS = (acl.energyIcms ?? true) ? project.distributor.taxes.ICMS : 0;
+                const teAllIn = (acl.energyPriceSemImp ?? 0) * 1000 / ((1 - tePC) * (1 - teICMS));
                 const fields: { label: string; get: () => number; set: (n: number) => void; step?: string; disabled?: boolean }[] = [
                   { label: 'Energia TE (R$/MWh, s/ imp.)', get: () => Math.round((acl.energyPriceSemImp ?? 0) * 1000), set: n => set({ energyPriceSemImp: n / 1000 }) },
                   { label: 'Reajuste energia (%/ano)', get: () => Math.round((acl.energyEscalationPct ?? 0) * 1000) / 10, set: n => set({ energyEscalationPct: n / 100 }), step: '0.1', disabled: teLocked },
@@ -416,6 +419,7 @@ export function ProjectEditor() {
                       </div>
                     ))}
                     <p className="col-span-2 md:col-span-3 text-[11px] text-slate-500">
+                      <strong>TE R$ {((acl.energyPriceSemImp ?? 0) * 1000).toFixed(0)}/MWh sem imp. → R$ {teAllIn.toFixed(0)}/MWh all-in</strong> (+PIS/COFINS {(tePC * 100).toFixed(2)}% +ICMS {(teICMS * 100).toFixed(0)}%, por dentro).{' '}
                       A energia ACL é tributada (PIS/COFINS+ICMS) e os descontos de TUSD reduzem o cenário atual.
                       Ao adotar GD (cativo) o cliente perde o desconto de demanda — refletido na economia.
                     </p>

@@ -673,10 +673,15 @@ function PremissasPage({ project }: { project: Project }) {
     ['PIS/COFINS', `${(dist.taxes.PIS * 100).toFixed(2)}% / ${(dist.taxes.COFINS * 100).toFixed(2)}%`],
     ...(project.marketType === 'ACL' && project.aclBaseline ? (() => {
       const a = project.aclBaseline!;
+      const tePC = (a.energyPisCofins ?? true) ? (a.energyPisCofinsPct ?? 0.0925) : 0;
+      const teICMS = (a.energyIcms ?? true) ? dist.taxes.ICMS : 0;
+      const teSem = a.energyPriceSemImp * 1000;
+      const teAllIn = teSem / ((1 - tePC) * (1 - teICMS));
       return [
         ['', ''],
         ['Mercado do cliente', 'Livre (ACL) — energia incentivada'] as [string, string],
-        ['Energia ACL (TE)', `R$ ${(a.energyPriceSemImp * 1000).toFixed(0)}/MWh (sem imp.)`] as [string, string],
+        ['Energia ACL (TE) — sem imp.', `R$ ${teSem.toFixed(0)}/MWh`] as [string, string],
+        ['Energia ACL (TE) — all-in', `R$ ${teAllIn.toFixed(0)}/MWh (+PIS/COFINS ${(tePC * 100).toFixed(2)}% +ICMS ${(teICMS * 100).toFixed(0)}%)`] as [string, string],
         ['Desconto TUSD consumo FP', `${((a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
         ['Desconto TUSD consumo PT', `${((a.tusdDiscountConsumoPT ?? a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
         ['Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(1)}%`] as [string, string],
