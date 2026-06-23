@@ -637,15 +637,38 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
   );
 }
 
+function tariffGroupLabel(tg: string): string {
+  const map: Record<string, string> = {
+    B1: 'B1 Residencial', B2: 'B2 Rural', B3: 'B3 Comercial/Industrial',
+    A4_VERDE: 'A4 Verde', A4_AZUL: 'A4 Azul',
+    A3A: 'A3a', A3A_VERDE: 'A3a Verde', A3A_AZUL: 'A3a Azul',
+    A3: 'A3', A3_VERDE: 'A3 Verde', A3_AZUL: 'A3 Azul',
+    A2: 'A2', A2_VERDE: 'A2 Verde', A2_AZUL: 'A2 Azul',
+    A1: 'A1', A1_VERDE: 'A1 Verde', A1_AZUL: 'A1 Azul',
+  };
+  return map[tg] ?? tg;
+}
+
 function PremissasPage({ project }: { project: Project }) {
   const dist = project.distributor;
+  // Reflect the actual tariff group(s) of the UCs (e.g. "A4 Verde") instead of a
+  // generic "A FP/B3", and only show the Grupo B line when a Grupo B UC exists —
+  // for a Grupo-A-only client the B tariff is just an unused placeholder.
+  const groupsA = [...new Set(project.ucs.filter(u => u.isGrupoA).map(u => u.tariffGroup))];
+  const groupsB = [...new Set(project.ucs.filter(u => !u.isGrupoA).map(u => u.tariffGroup))];
+  const aLabel = groupsA.map(tariffGroupLabel).join(' / ') || 'Grupo A';
+  const bLabel = groupsB.map(tariffGroupLabel).join(' / ') || 'Grupo B';
+  const allGroups = [...groupsA, ...groupsB].map(tariffGroupLabel).join(', ');
   const premissas: [string, string][] = [
     ['Distribuidora', `${dist.name} (${dist.state})`],
     ['Resolucao', dist.resolution],
-    ['Tarifa B3 (TUSD+TE)', `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`],
-    ['Tarifa A FP (TUSD+TE)', `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`],
-    ['Tarifa A PT (TUSD+TE)', `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`],
-    ...(dist.tariffs.A_FP_DEMANDA ? [['Demanda A FP', `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`] as [string, string]] : []),
+    ...(allGroups ? [['Grupo tarifário', allGroups] as [string, string]] : []),
+    ...(groupsB.length > 0 ? [[`Tarifa ${bLabel} (TUSD+TE)`, `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`] as [string, string]] : []),
+    ...(groupsA.length > 0 ? [
+      [`Tarifa ${aLabel} — Fora Ponta (TUSD+TE)`, `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`] as [string, string],
+      [`Tarifa ${aLabel} — Ponta (TUSD+TE)`, `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`] as [string, string],
+      ...(dist.tariffs.A_FP_DEMANDA ? [[`Demanda ${aLabel}`, `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`] as [string, string]] : []),
+    ] : []),
     ['ICMS', `${(dist.taxes.ICMS * 100).toFixed(0)}%`],
     ['PIS/COFINS', `${(dist.taxes.PIS * 100).toFixed(2)}% / ${(dist.taxes.COFINS * 100).toFixed(2)}%`],
     ...(project.marketType === 'ACL' && project.aclBaseline ? (() => {

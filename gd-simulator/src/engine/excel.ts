@@ -285,9 +285,28 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
     [''],
     ['Distribuidora', `${dist.name} (${dist.state})`],
     ['Resolucao', dist.resolution],
-    ['Tarifa B3 (TUSD+TE s/ tributos)', `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`],
-    ['Tarifa A FP (TUSD+TE s/ tributos)', `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`],
-    ['Tarifa A PT (TUSD+TE s/ tributos)', `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`],
+    ...(() => {
+      const tgLabel = (tg: string): string => ({
+        B1: 'B1 Residencial', B2: 'B2 Rural', B3: 'B3 Comercial/Industrial',
+        A4_VERDE: 'A4 Verde', A4_AZUL: 'A4 Azul', A3A: 'A3a', A3A_VERDE: 'A3a Verde', A3A_AZUL: 'A3a Azul',
+        A3: 'A3', A3_VERDE: 'A3 Verde', A3_AZUL: 'A3 Azul', A2: 'A2', A2_VERDE: 'A2 Verde', A2_AZUL: 'A2 Azul',
+        A1: 'A1', A1_VERDE: 'A1 Verde', A1_AZUL: 'A1 Azul',
+      } as Record<string, string>)[tg] ?? tg;
+      const gA = [...new Set(project.ucs.filter(u => u.isGrupoA).map(u => u.tariffGroup))];
+      const gB = [...new Set(project.ucs.filter(u => !u.isGrupoA).map(u => u.tariffGroup))];
+      const aL = gA.map(tgLabel).join(' / ') || 'Grupo A';
+      const bL = gB.map(tgLabel).join(' / ') || 'Grupo B';
+      const rows: (string | number)[][] = [];
+      const all = [...gA, ...gB].map(tgLabel).join(', ');
+      if (all) rows.push(['Grupo tarifário', all]);
+      if (gB.length > 0) rows.push([`Tarifa ${bL} (TUSD+TE s/ tributos)`, `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`]);
+      if (gA.length > 0) {
+        rows.push([`Tarifa ${aL} - Fora Ponta (TUSD+TE s/ tributos)`, `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`]);
+        rows.push([`Tarifa ${aL} - Ponta (TUSD+TE s/ tributos)`, `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`]);
+        if (dist.tariffs.A_FP_DEMANDA) rows.push([`Demanda ${aL}`, `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`]);
+      }
+      return rows;
+    })(),
     ['ICMS', `${(dist.taxes.ICMS * 100).toFixed(0)}%`],
     ['PIS', `${(dist.taxes.PIS * 100).toFixed(2)}%`],
     ['COFINS', `${(dist.taxes.COFINS * 100).toFixed(2)}%`],
