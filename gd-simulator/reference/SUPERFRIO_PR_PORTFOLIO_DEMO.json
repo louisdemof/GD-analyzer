@@ -1,0 +1,680 @@
+{
+  "project": {
+    "id": "superfrio-pr-portfolio",
+    "clientName": "SUPERFRIO Paraná — 5 UCs + 3× Alto Paraná (HAP02-04) · rateio otimizado · PPA R$450",
+    "marketType": "ACL",
+    "aclBaseline": {
+      "energyPriceSemImp": 0.268,
+      "energyIndexation": "FIXO",
+      "energyPisCofinsPct": 0.0925,
+      "tusdDiscountConsumo": 0,
+      "tusdDiscountConsumoPT": 0.44,
+      "tusdDiscountDemanda": 0.4875,
+      "energyIcms": true,
+      "energyPisCofins": true
+    },
+    "distributor": {
+      "id": "COPEL-DIS",
+      "name": "Copel Distribuição",
+      "state": "PR",
+      "resolution": "ANEEL REH 3.472/2025 + reajuste A4 +13,25% (jun/2026)",
+      "tariffs": {
+        "B_TUSD": 0.136931,
+        "B_TE": 0.29163,
+        "A_FP_TUSD_TE": 0.428561,
+        "A_PT_TUSD_TE": 1.840596,
+        "A_TE_FP": 0.29163,
+        "A_TE_PT": 0.468504,
+        "A_FP_DEMANDA": 23.53335
+      },
+      "taxes": {
+        "ICMS": 0.19,
+        "PIS": 0.0123,
+        "COFINS": 0.0563,
+        "icmsScope": "TE_ONLY",
+        "pisCofinsExempt": true
+      }
+    },
+    "plant": {
+      "id": "hap02",
+      "name": "Alto Paraná 02",
+      "capacityKWac": 1000,
+      "distributor": "COPEL-DIS",
+      "p50Profile": [
+        228130,
+        217600,
+        248770,
+        195980,
+        185400,
+        163850,
+        182840,
+        220480,
+        218710,
+        235240,
+        250700,
+        220950,
+        228130,
+        217600,
+        248770,
+        195980,
+        185400,
+        163850,
+        182840,
+        220480,
+        218710,
+        235240,
+        250700,
+        220950
+      ],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.45,
+      "contractStartMonth": "2028-01",
+      "contractMonths": 24
+    },
+    "additionalPlants": [
+      {
+        "id": "hap03",
+        "name": "Alto Paraná 03",
+        "capacityKWac": 1000,
+        "distributor": "COPEL-DIS",
+        "p50Profile": [
+          225170,
+          214260,
+          225860,
+          206710,
+          178590,
+          157660,
+          167930,
+          198860,
+          213030,
+          218490,
+          247030,
+          246620,
+          225170,
+          214260,
+          225860,
+          206710,
+          178590,
+          157660,
+          167930,
+          198860,
+          213030,
+          218490,
+          247030,
+          246620
+        ],
+        "useActual": false,
+        "ppaRateRsBRLkWh": 0.45,
+        "contractStartMonth": "2028-01",
+        "contractMonths": 24
+      },
+      {
+        "id": "hap04",
+        "name": "Alto Paraná 04",
+        "capacityKWac": 1000,
+        "distributor": "COPEL-DIS",
+        "p50Profile": [
+          224870,
+          214150,
+          243800,
+          207170,
+          154460,
+          157780,
+          179190,
+          215280,
+          213570,
+          213760,
+          246790,
+          225420,
+          224870,
+          214150,
+          243800,
+          207170,
+          154460,
+          157780,
+          179190,
+          215280,
+          213570,
+          213760,
+          246790,
+          225420
+        ],
+        "useActual": false,
+        "ppaRateRsBRLkWh": 0.45,
+        "contractStartMonth": "2028-01",
+        "contractMonths": 24
+      }
+    ],
+    "simulationMonths": 24,
+    "ucs": [
+      {
+        "id": "cwbii",
+        "name": "CWBII — São José dos Pinhais (A4 Verde)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          230673,
+          289067,
+          268619,
+          310271,
+          260912,
+          189165,
+          164672,
+          172109,
+          230673,
+          172715,
+          201186,
+          247781,
+          230673,
+          289067,
+          268619,
+          310271,
+          260912,
+          189165,
+          164672,
+          172109,
+          230673,
+          172715,
+          201186,
+          247781
+        ],
+        "consumptionPT": [
+          22604,
+          26708,
+          25569,
+          31160,
+          23994,
+          18579,
+          15928,
+          18092,
+          22604,
+          19113,
+          22064,
+          23446,
+          22604,
+          26708,
+          25569,
+          31160,
+          23994,
+          18579,
+          15928,
+          18092,
+          22604,
+          19113,
+          22064,
+          23446
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 650,
+        "demandaFaturadaFP": 650
+      },
+      {
+        "id": "ccv",
+        "name": "CCV — Cascavel (BR Cold) (A4 Verde)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          233847,
+          228545,
+          216182,
+          215471,
+          196756,
+          187198,
+          236564,
+          225837,
+          204998,
+          208823,
+          178724,
+          184994,
+          233847,
+          228545,
+          216182,
+          215471,
+          196756,
+          187198,
+          236564,
+          225837,
+          204998,
+          208823,
+          178724,
+          184994
+        ],
+        "consumptionPT": [
+          3961,
+          3935,
+          3335,
+          3575,
+          4030,
+          3355,
+          3878,
+          4331,
+          4087,
+          3856,
+          4337,
+          3418,
+          3961,
+          3935,
+          3335,
+          3575,
+          4030,
+          3355,
+          3878,
+          4331,
+          4087,
+          3856,
+          4337,
+          3418
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 700,
+        "demandaFaturadaFP": 700
+      },
+      {
+        "id": "cwbiii",
+        "name": "CWBIII — São José dos Pinhais (A4 Verde)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          167740,
+          150156,
+          132047,
+          143668,
+          146871,
+          128963,
+          118969,
+          111252,
+          119165,
+          115144,
+          135212,
+          137075,
+          167740,
+          150156,
+          132047,
+          143668,
+          146871,
+          128963,
+          118969,
+          111252,
+          119165,
+          115144,
+          135212,
+          137075
+        ],
+        "consumptionPT": [
+          11231,
+          6649,
+          5663,
+          10200,
+          8748,
+          4606,
+          5084,
+          6330,
+          6508,
+          8101,
+          4511,
+          6084,
+          11231,
+          6649,
+          5663,
+          10200,
+          8748,
+          4606,
+          5084,
+          6330,
+          6508,
+          8101,
+          4511,
+          6084
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 400,
+        "demandaFaturadaFP": 400
+      },
+      {
+        "id": "ldni",
+        "name": "LDNI — Cambé (A4 Verde)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          110450,
+          117864,
+          105525,
+          107918,
+          101457,
+          99198,
+          91071,
+          94535,
+          91071,
+          94535,
+          95371,
+          99079,
+          110450,
+          117864,
+          105525,
+          107918,
+          101457,
+          99198,
+          91071,
+          94535,
+          91071,
+          94535,
+          95371,
+          99079
+        ],
+        "consumptionPT": [
+          4486,
+          8288,
+          6055,
+          4425,
+          3772,
+          3355,
+          3024,
+          3745,
+          3024,
+          3745,
+          3452,
+          3366,
+          4486,
+          8288,
+          6055,
+          4425,
+          3772,
+          3355,
+          3024,
+          3745,
+          3024,
+          3745,
+          3452,
+          3366
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 600,
+        "demandaFaturadaFP": 600
+      },
+      {
+        "id": "arp",
+        "name": "ARP — Arapongas (A4 Verde)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          11036,
+          26429,
+          38326,
+          35930,
+          15913,
+          10473,
+          11373,
+          26680,
+          20682,
+          4570,
+          4029,
+          4570,
+          11036,
+          26429,
+          38326,
+          35930,
+          15913,
+          10473,
+          11373,
+          26680,
+          20682,
+          4570,
+          4029,
+          4570
+        ],
+        "consumptionPT": [
+          739,
+          2836,
+          3518,
+          4004,
+          684,
+          338,
+          368,
+          1080,
+          1329,
+          460,
+          364,
+          460,
+          739,
+          2836,
+          3518,
+          4004,
+          684,
+          338,
+          368,
+          1080,
+          1329,
+          460,
+          364,
+          460
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 320,
+        "demandaFaturadaFP": 320
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false,
+      "applyFatorAjuste": false
+    },
+    "growthRate": 0,
+    "generationDegradation": 0.005,
+    "performanceFactor": 0.95,
+    "rateio": {
+      "periods": [
+        {
+          "start": 0,
+          "end": 2,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.582
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.074
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.248
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.097
+            }
+          ]
+        },
+        {
+          "start": 3,
+          "end": 5,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.101
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.041
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.484
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.333
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.041
+            }
+          ]
+        },
+        {
+          "start": 6,
+          "end": 8,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.565
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.037
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.232
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.13582847616746288
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.030112282904730697
+            }
+          ]
+        },
+        {
+          "start": 9,
+          "end": 11,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.364
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.286
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.19967884736711766
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.1427389495856555
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.007976257044802622
+            }
+          ]
+        },
+        {
+          "start": 12,
+          "end": 14,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.402
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.23
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.18944540927582149
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.14257024443194544
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.03652871675613578
+            }
+          ]
+        },
+        {
+          "start": 15,
+          "end": 17,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.341
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.221
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.294
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.13334005758391987
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.011
+            }
+          ]
+        },
+        {
+          "start": 18,
+          "end": 20,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.355
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.407
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.082
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.13582847616746288
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.02
+            }
+          ]
+        },
+        {
+          "start": 21,
+          "end": 23,
+          "allocations": [
+            {
+              "ucId": "cwbii",
+              "fraction": 0.344
+            },
+            {
+              "ucId": "ccv",
+              "fraction": 0.2657142574166847
+            },
+            {
+              "ucId": "cwbiii",
+              "fraction": 0.21
+            },
+            {
+              "ucId": "ldni",
+              "fraction": 0.173
+            },
+            {
+              "ucId": "arp",
+              "fraction": 0.007976257044802622
+            }
+          ]
+        }
+      ],
+      "isOptimised": true,
+      "lastOptimisedAt": "2026-06-23T16:57:27.601Z"
+    }
+  }
+}

@@ -10,6 +10,7 @@ import copelData2 from '../../reference/COPEL_DEMO_2.json';
 import copelData3 from '../../reference/COPEL_DEMO_3.json';
 import copelData4 from '../../reference/COPEL_DEMO_4.json';
 import superfrioData from '../../reference/SUPERFRIO_CWBII_ACL_DEMO.json';
+import superfrioPortfolioData from '../../reference/SUPERFRIO_PR_PORTFOLIO_DEMO.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
 
 interface ProjectStore {
@@ -55,6 +56,7 @@ interface ProjectStore {
   loadCopelDemo3: () => void;
   loadCopelDemo4: () => void;
   loadSuperfrioCwbiiDemo: () => void;
+  loadSuperfrioPortfolioDemo: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -579,6 +581,37 @@ export const useProjectStore = create<ProjectStore>()(
             projects: [...withoutDemo, project],
             currentProjectId: project.id,
           };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      // SUPERFRIO Paraná — 5 UCs + 3× Alto Paraná (HAP02-04), rateio JÁ OTIMIZADO
+      // (não sobrescrever com createDefaultRateio). Cenário Dez/2027 (energia ACL 268
+      // + reajuste + descontos), FA desativado (COPEL). Distribuidora project-scoped.
+      loadSuperfrioPortfolioDemo: () => {
+        const demo = superfrioPortfolioData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'superfrio-pr-portfolio',
+          clientName: demo.clientName,
+          marketType: demo.marketType as Project['marketType'],
+          aclBaseline: demo.aclBaseline as Project['aclBaseline'],
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          additionalPlants: demo.additionalPlants as Project['additionalPlants'],
+          simulationMonths: demo.simulationMonths,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: demo.rateio as Project['rateio'], // otimizado — preservar
+          createdAt: now,
+          updatedAt: now,
+        };
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'superfrio-pr-portfolio');
+          return { projects: [...withoutDemo, project], currentProjectId: project.id };
         });
         saveProjectToDB(project).catch(() => {});
       },
