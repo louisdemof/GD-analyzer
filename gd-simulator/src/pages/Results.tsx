@@ -12,6 +12,7 @@ import { SensitivityAnalysis } from '../components/results/SensitivityAnalysis';
 import { AttributionPanel } from '../components/results/AttributionPanel';
 import { RecebimentoHelexiaPanel } from '../components/results/RecebimentoHelexiaPanel';
 import { TaxBreakdownPanel } from '../components/results/TaxBreakdownPanel';
+import { GoalSeekTEPanel } from '../components/results/GoalSeekTEPanel';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
@@ -401,6 +402,9 @@ export function Results() {
         )}
         {tab === 'atribuicao' && result.attribution && (
           <AttributionPanel attribution={result.attribution} plantName={project.plant.name} />
+        )}
+        {tab === 'sensibilidades' && project.marketType === 'ACL' && (
+          <div className="mb-6"><GoalSeekTEPanel project={project} /></div>
         )}
         {tab === 'sensibilidades' && (
           <ScenarioPanel
