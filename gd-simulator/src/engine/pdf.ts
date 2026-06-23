@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, Image, StyleSheet, pdf } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, StyleSheet, pdf, Svg, Line, Polyline, Polygon } from '@react-pdf/renderer';
 import type { Project, SimulationResult } from './types';
 import { runSimulation, computeSimulationMonths, getAllPlants } from './simulation';
 import { computeDerivedTariffs } from './tariff';
@@ -422,9 +422,57 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
   );
 }
 
+// SVG area chart mirroring the on-screen Banco de Créditos view: filled COM area +
+// dashed SEM line, across the full contract horizon.
+function BankAreaChart({ labels, com, sem }: { labels: string[]; com: number[]; sem: number[] }) {
+  const n = com.length;
+  const yAxisW = 26;
+  const W = 515;
+  const plotW = W - yAxisW;
+  const H = 150;
+  const max = Math.max(1, ...com, ...sem);
+  const abbr = (v: number): string => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : `${Math.round(v)}`;
+  const xAt = (i: number) => n <= 1 ? 0 : (i / (n - 1)) * plotW;
+  const yAt = (v: number) => H - (v / max) * H;
+  const comLine = com.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ');
+  const comArea = `0,${H} ${comLine} ${plotW.toFixed(1)},${H}`;
+  const semLine = sem.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ');
+  const hasSem = sem.some(v => v > 0);
+  const step = n > 18 ? 3 : n > 12 ? 2 : 1;
+  const legendItem = (color: string, dashed: boolean, label: string) =>
+    React.createElement(View, { key: label, style: { flexDirection: 'row', alignItems: 'center', gap: 3, marginRight: 14 } },
+      React.createElement(View, { style: { width: 10, height: 0, borderTopWidth: 2, borderTopColor: color, borderStyle: dashed ? 'dashed' : 'solid' } }),
+      React.createElement(Text, { style: { fontSize: 7, color: '#475569' } }, label),
+    );
+  return React.createElement(View, null,
+    React.createElement(View, { style: { flexDirection: 'row' } },
+      React.createElement(View, { style: { width: yAxisW, height: H, justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 3 } },
+        React.createElement(Text, { style: { fontSize: 5, color: '#94a3b8' } }, abbr(max)),
+        React.createElement(Text, { style: { fontSize: 5, color: '#94a3b8' } }, abbr(max / 2)),
+        React.createElement(Text, { style: { fontSize: 5, color: '#94a3b8' } }, '0'),
+      ),
+      React.createElement(Svg, { width: plotW, height: H, viewBox: `0 0 ${plotW} ${H}` },
+        React.createElement(Line, { x1: 0, y1: H / 2, x2: plotW, y2: H / 2, stroke: '#eef2f6', strokeWidth: 0.5 }),
+        React.createElement(Line, { x1: 0, y1: H - 0.5, x2: plotW, y2: H - 0.5, stroke: '#e2e8f0', strokeWidth: 1 }),
+        React.createElement(Polygon, { points: comArea, fill: 'rgb(47,146,123)', fillOpacity: 0.15 }),
+        hasSem ? React.createElement(Polyline, { points: semLine, fill: 'none', stroke: '#6692A8', strokeWidth: 1, strokeDasharray: '4 3' }) : null,
+        React.createElement(Polyline, { points: comLine, fill: 'none', stroke: NAVY, strokeWidth: 1.5 }),
+      ),
+    ),
+    React.createElement(View, { style: { flexDirection: 'row', marginTop: 2, paddingLeft: yAxisW } },
+      ...labels.map((lb, i) => React.createElement(Text, { key: i, style: { width: plotW / n, fontSize: 5, color: '#94a3b8', textAlign: 'center' } }, i % step === 0 ? lb : '')),
+    ),
+    React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'center', marginTop: 4 } },
+      legendItem(NAVY, false, 'Banco COM'),
+      hasSem ? legendItem('#6692A8', true, 'Banco SEM') : null,
+    ),
+  );
+}
+
 function BankPage({ project, result }: { project: Project; result: SimulationResult }) {
   const n = result.months.length;
   const bankEnd = new Array(n).fill(0);
+  const bankEndSEM = new Array(n).fill(0);
   const creditsReceived = new Array(n).fill(0);
   const bankDraw = new Array(n).fill(0);
   let totalInjected = 0;
@@ -438,6 +486,10 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
       totalInjected += det[i].creditsReceived ?? 0;
       totalDrained += det[i].bankDraw ?? 0;
     }
+  }
+  for (const ucId in result.ucDetailsSEM) {
+    const det = result.ucDetailsSEM[ucId];
+    for (let i = 0; i < n && i < det.length; i++) bankEndSEM[i] += det[i].bankEnd ?? 0;
   }
   const openingBank = project.ucs.reduce((acc, u) => acc + (u.openingBank || 0), 0);
   // Credit expiration via FIFO aging: a credit added to the bank expires only if it
@@ -505,11 +557,7 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
         React.createElement(Text, { style: s.kpiSub }, `${n}m`)
       )
     ),
-    StackedBarChart({
-      months: labels,
-      series: [{ key: 'bank', data: bankEnd, color: TEAL, label: 'Saldo do banco (kWh)' }],
-      showValues: true,
-    }),
+    BankAreaChart({ labels, com: bankEnd, sem: bankEndSEM }),
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginTop: 14, marginBottom: 6 } }, 'Valores mensais do banco (kWh) — Ano 1'),
     (() => {
       const count = Math.min(12, n);
