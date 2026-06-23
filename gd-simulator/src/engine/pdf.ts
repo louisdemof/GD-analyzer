@@ -244,7 +244,7 @@ function computeAggregateConsumption(project: Project): { fp: number[]; pt: numb
 function Header({ clientName, plantName }: { clientName: string; plantName: string }) {
   return React.createElement(View, { style: s.pageHeader },
     React.createElement(Text, { style: s.pageHeaderText }, `${clientName} — ${plantName}`),
-    React.createElement(Text, { style: s.pageHeaderText }, 'Helexia Brasil — Proposta Comercial')
+    React.createElement(Text, { style: s.pageHeaderText }, 'Helexia Brasil — Análise Preliminar')
   );
 }
 
@@ -263,7 +263,7 @@ function CoverPage({ project, generatedAt }: { project: Project; generatedAt: st
       React.createElement(Text, { style: s.coverSubtitle }, subtitle),
       plantNames && React.createElement(Text, { style: { ...s.coverSubtitle, fontSize: 10 } }, plantNames),
       React.createElement(Text, { style: s.coverSubtitle }, `${project.distributor.name} — ${project.distributor.state}`),
-      React.createElement(Text, { style: s.coverTag }, 'Proposta Comercial — Geracao Distribuida'),
+      React.createElement(Text, { style: s.coverTag }, 'Análise Preliminar — Geração Distribuída'),
       React.createElement(Text, { style: { fontSize: 9, color: '#94a3b8', marginTop: 8 } },
         `Contrato: ${project.plant.contractStartMonth} — ${project.plant.contractMonths} meses PPA (principal) · ${computeSimulationMonths(project)} meses simulados`)
     ),
@@ -652,97 +652,93 @@ function tariffGroupLabel(tg: string): string {
   return map[tg] ?? tg;
 }
 
+// Card-based premissas layout (clearer than a flat key/value list). 'key' = dark
+// highlight, 'hl' = teal/green highlight, default = light card.
+function premCard(key: string, lbl: string, val: string, note: string | null, variant?: 'key' | 'hl', width = '32%') {
+  const dark = variant === 'key';
+  const hl = variant === 'hl';
+  return React.createElement(View, {
+    key,
+    style: { width, borderWidth: 0.5, borderColor: dark ? NAVY : hl ? '#a7f3d0' : '#e2e8f0', borderRadius: 5, padding: 7, backgroundColor: dark ? NAVY : hl ? '#ecfdf5' : '#f8fafc' },
+  },
+    React.createElement(Text, { style: { fontSize: 6.5, color: dark ? '#cbd5e1' : '#64748b', marginBottom: 2 } }, lbl),
+    React.createElement(Text, { style: { fontSize: 11, fontWeight: 'bold', color: dark ? '#ffffff' : hl ? TEAL : NAVY } }, val),
+    note ? React.createElement(Text, { style: { fontSize: 6.5, color: dark ? '#cbd5e1' : '#94a3b8', marginTop: 1 } }, note) : null,
+  );
+}
+function premGroup(title: string) {
+  return React.createElement(Text, { key: 'g-' + title, style: { fontSize: 8, color: TEAL, fontWeight: 'bold', marginTop: 12, marginBottom: 5 } }, title.toUpperCase());
+}
+function premRow(key: string, cards: React.ReactNode[]) {
+  return React.createElement(View, { key, style: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 } }, ...cards);
+}
+
 function PremissasPage({ project }: { project: Project }) {
   const dist = project.distributor;
-  // Reflect the actual tariff group(s) of the UCs (e.g. "A4 Verde") instead of a
-  // generic "A FP/B3", and only show the Grupo B line when a Grupo B UC exists —
-  // for a Grupo-A-only client the B tariff is just an unused placeholder.
-  const groupsA = [...new Set(project.ucs.filter(u => u.isGrupoA).map(u => u.tariffGroup))];
-  const groupsB = [...new Set(project.ucs.filter(u => !u.isGrupoA).map(u => u.tariffGroup))];
-  const aLabel = groupsA.map(tariffGroupLabel).join(' / ') || 'Grupo A';
-  const bLabel = groupsB.map(tariffGroupLabel).join(' / ') || 'Grupo B';
-  const allGroups = [...groupsA, ...groupsB].map(tariffGroupLabel).join(', ');
-  const premissas: [string, string][] = [
-    ['Distribuidora', `${dist.name} (${dist.state})`],
-    ['Resolucao', dist.resolution],
-    ...(allGroups ? [['Grupo tarifário', allGroups] as [string, string]] : []),
-    ...(groupsB.length > 0 ? [[`Tarifa ${bLabel} (TUSD+TE)`, `R$ ${(dist.tariffs.B_TUSD + dist.tariffs.B_TE).toFixed(4)}/kWh`] as [string, string]] : []),
-    ...(groupsA.length > 0 ? [
-      [`Tarifa ${aLabel} — Fora Ponta (TUSD+TE)`, `R$ ${dist.tariffs.A_FP_TUSD_TE.toFixed(4)}/kWh`] as [string, string],
-      [`Tarifa ${aLabel} — Ponta (TUSD+TE)`, `R$ ${dist.tariffs.A_PT_TUSD_TE.toFixed(4)}/kWh`] as [string, string],
-      ...(dist.tariffs.A_FP_DEMANDA ? [[`Demanda ${aLabel}`, `R$ ${dist.tariffs.A_FP_DEMANDA.toFixed(2)}/kW/mês`] as [string, string]] : []),
-    ] : []),
-    ['ICMS', `${(dist.taxes.ICMS * 100).toFixed(0)}%`],
-    ['PIS/COFINS', `${(dist.taxes.PIS * 100).toFixed(2)}% / ${(dist.taxes.COFINS * 100).toFixed(2)}%`],
-    ...(project.marketType === 'ACL' && project.aclBaseline ? (() => {
-      const a = project.aclBaseline!;
-      const tePC = (a.energyPisCofins ?? true) ? (a.energyPisCofinsPct ?? 0.0925) : 0;
-      const teICMS = (a.energyIcms ?? true) ? dist.taxes.ICMS : 0;
-      const teSem = a.energyPriceSemImp * 1000;
-      const teAllIn = teSem / ((1 - tePC) * (1 - teICMS));
-      // TE de equilíbrio: preço da energia ACL (s/ imp.) no qual a economia líquida = 0,
-      // i.e. o PPA fixo da Helexia empata com a fatura ACL. Busca binária (economia ↑ em TE).
-      const beTE = (() => {
-        let lo = 20, hi = 800;
-        for (let i = 0; i < 38; i++) {
-          const mid = (lo + hi) / 2;
-          const p: Project = { ...project, distributor: { ...project.distributor }, aclBaseline: { ...a, energyPriceSemImp: mid / 1000 } };
-          const sm = runSimulation(p).summary;
-          const econ = sm.baselineSEM > 0 ? sm.economiaLiquida / sm.baselineSEM : 0;
-          if (econ > 0) hi = mid; else lo = mid;
-        }
-        return (lo + hi) / 2;
-      })();
-      const beAllIn = beTE / ((1 - tePC) * (1 - teICMS));
-      return [
-        ['', ''],
-        ['Mercado do cliente', 'Livre (ACL) — energia incentivada'] as [string, string],
-        ['Energia ACL (TE) — sem imp.', `R$ ${teSem.toFixed(0)}/MWh`] as [string, string],
-        ['Energia ACL (TE) — all-in', `R$ ${teAllIn.toFixed(0)}/MWh (+PIS/COFINS ${(tePC * 100).toFixed(2)}% +ICMS ${(teICMS * 100).toFixed(0)}%)`] as [string, string],
-        ['TE de equilíbrio (Helexia = ACL)', `R$ ${beTE.toFixed(0)}/MWh s/ imp. (R$ ${beAllIn.toFixed(0)} all-in) — economia 0%`] as [string, string],
-        ['Desconto TUSD consumo FP', `${((a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
-        ['Desconto TUSD consumo PT', `${((a.tusdDiscountConsumoPT ?? a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
-        ['Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(1)}%`] as [string, string],
-        ['Fator de Ajuste (FA)', project.scenarios.applyFatorAjuste === false ? 'Não aplicado (1:1)' : 'Aplicado (REN 1000)'] as [string, string],
-        ['Tarifas A FP/PT acima', 'reguladas (referência); cliente paga TUSD c/ desconto + energia ACL'] as [string, string],
-      ] as [string, string][];
-    })() : []),
-    ['', ''],
-    ...(() => {
-      const plants = getAllPlants(project);
-      const rows: [string, string][] = [];
-      plants.forEach((p, idx) => {
-        rows.push([idx === 0 ? 'Usina principal' : `Usina adicional ${idx}`, p.name]);
-        rows.push(['  - Potência AC', `${p.capacityKWac.toLocaleString('pt-BR')} kWac`]);
-        rows.push(['  - PPA', `R$ ${p.ppaRateRsBRLkWh.toFixed(4)}/kWh`]);
-        rows.push(['  - Prazo PPA', `${p.contractMonths} meses`]);
-      });
-      const totalKWac = plants.reduce((acc, p) => acc + (p.capacityKWac || 0), 0);
-      if (plants.length > 1) rows.push(['Capacidade AC total', `${totalKWac.toLocaleString('pt-BR')} kWac`]);
-      rows.push(['Início Contrato', project.plant.contractStartMonth]);
-      rows.push(['Horizonte de simulação', `${computeSimulationMonths(project)} meses`]);
-      return rows;
-    })(),
-    ['', ''],
-    ['Isencao ICMS', project.scenarios.icmsExempt ? 'Sim' : 'Nao'],
-    ...(project.scenarios.competitorDiscount > 0
-      ? [[`Desconto Concorrente${project.scenarios.competitorName ? ` (${project.scenarios.competitorName})` : ''}`, `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%`] as [string, string]]
-      : []),
-    ['Numero de UCs', `${project.ucs.length}`],
-    ['UCs Grupo A', `${project.ucs.filter(u => u.isGrupoA).length}`],
-    ['UCs Grupo B', `${project.ucs.filter(u => !u.isGrupoA).length}`],
-  ];
+  const plants = getAllPlants(project);
+  const totalKWac = plants.reduce((acc, p) => acc + (p.capacityKWac || 0), 0);
+  const ppaMWh = project.plant.ppaRateRsBRLkWh * 1000;
+  const isACL = project.marketType === 'ACL' && !!project.aclBaseline;
+  const distEsc = project.tariffEscalationDistributor ?? 0;
+  const ppaEsc = project.tariffEscalationPPA ?? 0;
+  const fmtM = (v: number) => `R$ ${Math.round(v).toLocaleString('pt-BR')}/MWh`;
+
+  const blocks: React.ReactNode[] = [];
+
+  // ── Contrato Helexia
+  blocks.push(premGroup('Contrato Helexia'));
+  blocks.push(premRow('r-contrato', [
+    premCard('c-ppa', 'PPA Helexia (fixo)', fmtM(ppaMWh), ppaEsc > 0 ? `reajuste ${(ppaEsc * 100).toFixed(1)}%/ano (IPCA)` : 'sem reajuste', 'key'),
+    premCard('c-prazo', 'Início / Prazo', project.plant.contractStartMonth, `${project.plant.contractMonths} meses PPA · ${computeSimulationMonths(project)} simulados`),
+    premCard('c-usina', plants.length > 1 ? `Usinas (${plants.length})` : 'Usina', `${totalKWac.toLocaleString('pt-BR')} kWac`, plants.map(p => p.name).join(' + ').slice(0, 60)),
+  ]));
+
+  // ── Mercado ACL (only ACL)
+  if (isACL) {
+    const a = project.aclBaseline!;
+    const tePC = (a.energyPisCofins ?? true) ? (a.energyPisCofinsPct ?? 0.0925) : 0;
+    const teICMS = (a.energyIcms ?? true) ? dist.taxes.ICMS : 0;
+    const teSem = a.energyPriceSemImp * 1000;
+    const teAllIn = teSem / ((1 - tePC) * (1 - teICMS));
+    // TE de equilíbrio (economia = 0): PPA fixo empata com a fatura ACL. Busca binária.
+    let lo = 20, hi = 800;
+    for (let i = 0; i < 36; i++) {
+      const mid = (lo + hi) / 2;
+      const p: Project = { ...project, distributor: { ...project.distributor }, aclBaseline: { ...a, energyPriceSemImp: mid / 1000 } };
+      const sm = runSimulation(p).summary;
+      if ((sm.baselineSEM > 0 ? sm.economiaLiquida / sm.baselineSEM : 0) > 0) hi = mid; else lo = mid;
+    }
+    const beTE = (lo + hi) / 2;
+    const beAllIn = beTE / ((1 - tePC) * (1 - teICMS));
+    const teLocked = (a.energyEscalationPct ?? 0) === 0;
+    blocks.push(premGroup('Mercado atual do cliente (ACL)'));
+    blocks.push(premRow('r-acl1', [
+      premCard('c-tesem', 'Energia TE — sem imp.', fmtM(teSem), teLocked ? 'travado (lock-in)' : `reajuste ${((a.energyEscalationPct ?? 0) * 100).toFixed(1)}%/ano`),
+      premCard('c-teall', 'Energia TE — all-in', fmtM(teAllIn), `+PIS/COFINS ${(tePC * 100).toFixed(2)}% +ICMS ${(teICMS * 100).toFixed(0)}%`),
+      premCard('c-tebe', 'TE de equilíbrio (Helexia = ACL)', fmtM(beTE), `R$ ${Math.round(beAllIn).toLocaleString('pt-BR')} all-in · economia 0%`, 'hl'),
+    ]));
+    blocks.push(premGroup('Descontos & regras'));
+    blocks.push(premRow('r-acl2', [
+      premCard('c-dcons', 'Desconto TUSD consumo', `FP ${((a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}% · PT ${((a.tusdDiscountConsumoPT ?? a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`, 'fonte incentivada'),
+      premCard('c-ddem', 'Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(2)}%`, 'perdido ao migrar p/ GD cativo'),
+      premCard('c-fa', 'Fator de Ajuste (FA)', project.scenarios.applyFatorAjuste === false ? 'Desativado' : 'Aplicado', project.scenarios.applyFatorAjuste === false ? '1:1 (COPEL não aplica)' : 'REN 1000'),
+    ]));
+  }
+
+  // ── Distribuidora & tributos
+  blocks.push(premGroup('Distribuidora & tributos'));
+  blocks.push(premRow('r-dist', [
+    premCard('c-dist', 'Distribuidora', `${dist.name} (${dist.state})`, dist.resolution || ''),
+    premCard('c-tax', 'ICMS / PIS+COFINS', `${(dist.taxes.ICMS * 100).toFixed(0)}% / ${((dist.taxes.PIS + dist.taxes.COFINS) * 100).toFixed(2)}%`, project.scenarios.icmsExempt ? 'isenção ICMS (compensação)' : 'sem isenção ICMS'),
+    premCard('c-reaj', 'Reajuste anual', `Dist. ${(distEsc * 100).toFixed(1)}% · PPA ${(ppaEsc * 100).toFixed(1)}%`, distEsc === 0 && ppaEsc === 0 ? 'cenário base sem reajuste' : 'composto a partir do início'),
+  ]));
 
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
-    React.createElement(Text, { style: s.sectionTitle }, 'Premissas'),
-    ...premissas.map(([label, value], i) =>
-      label === '' ? React.createElement(View, { key: i, style: { height: 8 } }) :
-      React.createElement(View, { key: i, style: s.premissaRow },
-        React.createElement(Text, { style: s.premissaLabel }, label),
-        React.createElement(Text, { style: s.premissaValue }, value)
-      )
-    )
+    React.createElement(Text, { style: s.sectionTitle }, 'Premissas da Simulação'),
+    React.createElement(Text, { style: { ...s.noteText, marginBottom: 4 } },
+      `${project.clientName} · ${project.ucs.length} UC${project.ucs.length > 1 ? 's' : ''}${isACL ? ' · Mercado Livre (ACL)' : ' · Mercado Cativo'}`),
+    ...blocks,
   );
 }
 
@@ -1304,9 +1300,9 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
 
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
-    React.createElement(Text, { style: s.sectionTitle }, 'Detalhe de Impostos por UC'),
+    React.createElement(Text, { style: s.sectionTitle }, 'Como a economia se forma — decomposição da fatura'),
     React.createElement(Text, { style: { ...s.noteText, marginBottom: 6 } },
-      'Composição da fatura por componente (TE / TUSD sem impostos, PIS+COFINS, ICMS), comparando Cenário atual (sem GD) vs Cenário Helexia — Rede residual + PPA. Reflete exatamente o que o simulador computa.'
+      'Cada componente é decomposto em energia (s/ imp.) + PIS/COFINS + ICMS, separando TE e TUSD. SEM Helexia = fatura ACL atual; Rede COM = residual com a distribuidora após compensação; PPA Helexia substitui a energia compensada. O Benefício incentivada reconcilia ao mercado livre real (energia ACL + descontos de TUSD/demanda).'
     ),
     React.createElement(View, { style: { padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, marginBottom: 10 } },
       React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: NAVY, marginBottom: 2 } }, 'Configuração ativa'),
@@ -1366,6 +1362,20 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
             React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
             React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#94a3b8' } }, '—')
           )
+        ),
+        uc.beneficioIncentivada !== undefined && React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#ecfdf5', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
+          React.createElement(Text, { style: { width: '38%', fontSize: 6.5, fontWeight: 'bold', color: TEAL } }, 'Benefício/Subsídio incentivada (energia ACL + desc. TUSD/demanda)'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: TEAL } }, `-${fmtBRL(uc.beneficioIncentivada)}`),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#dc2626' } }, `-${fmtBRL(uc.beneficioIncentivada)}`)
+        ),
+        uc.ajusteRedeCOM !== undefined && React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#fffbeb', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
+          React.createElement(Text, { style: { width: '38%', fontSize: 6.5, fontWeight: 'bold', color: '#b45309' } }, 'Ajuste reajuste tarifário / FA (rede COM)'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#94a3b8' } }, '—'),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#b45309' } }, `-${fmtBRL(uc.ajusteRedeCOM)}`),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, textAlign: 'right', color: '#b45309' } }, `-${fmtBRL(uc.ajusteRedeCOM)}`),
+          React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: TEAL } }, `+${fmtBRL(uc.ajusteRedeCOM)}`)
         ),
         uc.ppaHelexia !== undefined && React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#dbeafe', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
           React.createElement(Text, { style: { width: '38%', fontSize: 7, fontWeight: 'bold', color: NAVY } }, 'PPA Helexia'),
@@ -1477,23 +1487,22 @@ function ProposalDocument({ project, result, generatedAt }: { project: Project; 
   const pages = [
     React.createElement(CoverPage, { project, generatedAt, key: 'cover' }),
     React.createElement(SummaryPage, { project, result, key: 'summary' }),
+    // Premissas (claras, em cards) + decomposição da fatura logo no início, p/ explicar o mecanismo.
+    React.createElement(PremissasPage, { project, key: 'prem' }),
+    React.createElement(TaxesPage, { project, result, key: 'taxes' }),
     React.createElement(UsinaPage, { project, key: 'usina' }),
     React.createElement(ConsumptionPage, { project, key: 'cons' }),
-    // "De Onde Vem a Economia" e "Detalhe de Impostos" recompõem a tarifa CATIVA
-    // (TUSD+TE regulado) — não fazem sentido p/ cliente ACL (energia livre + TUSD c/ desconto).
-    // Ocultados no mercado livre; os números de capa/mensal já refletem o cenário ACL.
+    // "De Onde Vem a Economia" recompõe a tarifa CATIVA — não faz sentido p/ ACL; ocultada.
     ...(project.marketType === 'ACL' ? [] : [React.createElement(TariffComparisonPage, { project, key: 'tariff' })]),
     React.createElement(CumulativeEconomyPage, { project, result, key: 'cum' }),
     ...(project.ucs.filter(u => u.id !== 'bat').length > 1
       ? [React.createElement(PerUCEconomyPage, { project, result, key: 'peruc' })]
       : []),
     React.createElement(BankPage, { project, result, key: 'bank' }),
-    ...(project.marketType === 'ACL' ? [] : [React.createElement(TaxesPage, { project, result, key: 'taxes' })]),
   ];
   if (result.attribution) {
     pages.push(React.createElement(AttributionPage, { project, result, key: 'attr' }));
   }
-  pages.push(React.createElement(PremissasPage, { project, key: 'prem' }));
   pages.push(React.createElement(NotesPage, { project, key: 'notes' }));
   return React.createElement(Document, null, ...pages);
 }
@@ -1510,7 +1519,7 @@ export function downloadPDF(blob: Blob, clientName: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${clientName.toLowerCase().replace(/\s+/g, '_')}_proposta_helexia.pdf`;
+  a.download = `${clientName.toLowerCase().replace(/\s+/g, '_')}_analise_preliminar_helexia.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }
