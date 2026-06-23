@@ -53,23 +53,31 @@ export function ScenarioPanel({
       />
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          Desconto competidor (Plin): {(scenarios.competitorDiscount * 100).toFixed(0)}%
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={30}
-          step={1}
-          value={scenarios.competitorDiscount * 100}
-          onChange={e => onChange({ competitorDiscount: parseInt(e.target.value) / 100 })}
-          className="w-full accent-teal-600"
-        />
-        <div className="flex justify-between text-xs text-slate-400">
-          <span>0%</span>
-          <span>15%</span>
-          <span>30%</span>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Desconto do concorrente</label>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            value={scenarios.competitorName ?? ''}
+            placeholder="Nome do concorrente (ex.: Plin)"
+            onChange={e => onChange({ competitorName: e.target.value })}
+            className="px-2 py-1.5 border border-slate-300 rounded text-sm w-56 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={+(scenarios.competitorDiscount * 100).toFixed(1)}
+              onChange={e => onChange({ competitorDiscount: (parseFloat(e.target.value) || 0) / 100 })}
+              className="w-24 px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+            <span className="text-sm text-slate-500">%</span>
+          </div>
         </div>
+        <p className="text-[11px] text-slate-400 mt-1">
+          % de desconto que {scenarios.competitorName?.trim() ? scenarios.competitorName : 'o concorrente'} oferece sobre a fatura — reduz o baseline do cenário para comparação.
+        </p>
       </div>
 
       <div className="border-t border-slate-200 pt-4 mt-4">

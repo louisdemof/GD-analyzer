@@ -196,7 +196,8 @@ export interface Project {
   // Scenario toggles
   scenarios: {
     icmsExempt: boolean;         // true = isenção applies (base case)
-    competitorDiscount: number;  // 0.0 to 0.30 — reduces SEM baseline for Grupo B
+    competitorDiscount: number;  // reduces SEM baseline for Grupo B (free %, not capped)
+    competitorName?: string;     // optional label for the competitor (default "Plin")
     useActualGeneration: boolean;
     // When true, simulation overrides each Grupo A UC's demandaFaturadaFP with
     // the average kW billed under the optimal DC (computed from demandaMedidaMensal).
