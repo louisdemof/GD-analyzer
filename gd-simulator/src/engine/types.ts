@@ -149,6 +149,7 @@ export interface ACLBaseline {
 export interface Project {
   id: string;
   clientName: string;
+  clientLogo?: string;          // PNG/JPEG do logo do cliente (data URL) — exibido no PDF
   distributor: Distributor;
   // Ambiente de contratação do cliente hoje. Default 'CATIVO' (retrocompat).
   marketType?: MarketType;

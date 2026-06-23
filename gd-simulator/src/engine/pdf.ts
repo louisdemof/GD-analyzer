@@ -255,7 +255,10 @@ function CoverPage({ project, generatedAt }: { project: Project; generatedAt: st
   const plantNames = plants.length > 1 ? plants.map(p => p.name).join(' + ') : null;
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(View, { style: s.coverCenter },
-      React.createElement(Image, { src: '/GD-analyzer/Helexia_main_logo_screen_L.png', style: { width: 180, marginBottom: 30 } }),
+      React.createElement(Image, { src: '/GD-analyzer/Helexia_main_logo_screen_L.png', style: { width: 180, marginBottom: project.clientLogo ? 16 : 30 } }),
+      project.clientLogo
+        ? React.createElement(Image, { src: project.clientLogo, style: { width: 150, height: 60, objectFit: 'contain', marginBottom: 24 } })
+        : null,
       React.createElement(Text, { style: s.coverTitle }, project.clientName),
       React.createElement(Text, { style: s.coverSubtitle }, subtitle),
       plantNames && React.createElement(Text, { style: { ...s.coverSubtitle, fontSize: 10 } }, plantNames),
@@ -677,11 +680,26 @@ function PremissasPage({ project }: { project: Project }) {
       const teICMS = (a.energyIcms ?? true) ? dist.taxes.ICMS : 0;
       const teSem = a.energyPriceSemImp * 1000;
       const teAllIn = teSem / ((1 - tePC) * (1 - teICMS));
+      // TE de equilíbrio: preço da energia ACL (s/ imp.) no qual a economia líquida = 0,
+      // i.e. o PPA fixo da Helexia empata com a fatura ACL. Busca binária (economia ↑ em TE).
+      const beTE = (() => {
+        let lo = 20, hi = 800;
+        for (let i = 0; i < 38; i++) {
+          const mid = (lo + hi) / 2;
+          const p: Project = { ...project, distributor: { ...project.distributor }, aclBaseline: { ...a, energyPriceSemImp: mid / 1000 } };
+          const sm = runSimulation(p).summary;
+          const econ = sm.baselineSEM > 0 ? sm.economiaLiquida / sm.baselineSEM : 0;
+          if (econ > 0) hi = mid; else lo = mid;
+        }
+        return (lo + hi) / 2;
+      })();
+      const beAllIn = beTE / ((1 - tePC) * (1 - teICMS));
       return [
         ['', ''],
         ['Mercado do cliente', 'Livre (ACL) — energia incentivada'] as [string, string],
         ['Energia ACL (TE) — sem imp.', `R$ ${teSem.toFixed(0)}/MWh`] as [string, string],
         ['Energia ACL (TE) — all-in', `R$ ${teAllIn.toFixed(0)}/MWh (+PIS/COFINS ${(tePC * 100).toFixed(2)}% +ICMS ${(teICMS * 100).toFixed(0)}%)`] as [string, string],
+        ['TE de equilíbrio (Helexia = ACL)', `R$ ${beTE.toFixed(0)}/MWh s/ imp. (R$ ${beAllIn.toFixed(0)} all-in) — economia 0%`] as [string, string],
         ['Desconto TUSD consumo FP', `${((a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
         ['Desconto TUSD consumo PT', `${((a.tusdDiscountConsumoPT ?? a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`] as [string, string],
         ['Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(1)}%`] as [string, string],
@@ -707,7 +725,9 @@ function PremissasPage({ project }: { project: Project }) {
     })(),
     ['', ''],
     ['Isencao ICMS', project.scenarios.icmsExempt ? 'Sim' : 'Nao'],
-    ['Desconto Concorrente (Plin)', project.scenarios.competitorDiscount > 0 ? `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%` : 'Nao'],
+    ...(project.scenarios.competitorDiscount > 0
+      ? [[`Desconto Concorrente${project.scenarios.competitorName ? ` (${project.scenarios.competitorName})` : ''}`, `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%`] as [string, string]]
+      : []),
     ['Numero de UCs', `${project.ucs.length}`],
     ['UCs Grupo A', `${project.ucs.filter(u => u.isGrupoA).length}`],
     ['UCs Grupo B', `${project.ucs.filter(u => !u.isGrupoA).length}`],

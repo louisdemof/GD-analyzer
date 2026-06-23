@@ -28,7 +28,19 @@ export function ProjectEditor() {
   const [toast, setToast] = useState<string | null>(null);
   const [importModal, setImportModal] = useState<{ type: 'confirm' | 'error'; result: ImportResult } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const pendingImportRef = useRef<ImportResult | null>(null);
+
+  // Carrega o logo do cliente (PNG/JPEG) como data URL para exibir no PDF.
+  const handleLogoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !project) return;
+    if (file.size > 2_000_000) { alert('Imagem muito grande (máx. ~2 MB). Use um PNG/JPEG menor.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => updateProject(project.id, { clientLogo: String(reader.result) });
+    reader.readAsDataURL(file);
+  }, [project, updateProject]);
 
   const handleImport = useCallback(async (data: ImportedData) => {
     if (!project) return;
@@ -291,10 +303,31 @@ export function ProjectEditor() {
         onChange={handleConsumptionFileChange}
       />
 
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="hidden"
+        onChange={handleLogoChange}
+      />
+
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">{project.clientName}</h1>
-          <p className="text-xs text-slate-500">Configuracao do Projeto</p>
+        <div className="flex items-center gap-3">
+          {project.clientLogo && (
+            <img src={project.clientLogo} alt="logo" className="h-12 max-w-[140px] object-contain border border-slate-200 rounded bg-white p-1" />
+          )}
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">{project.clientName}</h1>
+            <p className="text-xs text-slate-500">
+              Configuracao do Projeto · {' '}
+              <button onClick={() => logoInputRef.current?.click()} className="text-teal-600 hover:underline">
+                {project.clientLogo ? 'trocar logo' : '🖼️ adicionar logo do cliente'}
+              </button>
+              {project.clientLogo && (
+                <button onClick={() => updateProject(project.id, { clientLogo: undefined })} className="ml-2 text-rose-500 hover:underline">remover</button>
+              )}
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
