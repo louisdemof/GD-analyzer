@@ -99,7 +99,7 @@ export function projectToShareURL(project: Project): string {
   const LZString = require('lz-string') as typeof import('lz-string');
   const json = JSON.stringify(project);
   const compressed = LZString.compressToEncodedURIComponent(json);
-  return `${window.location.origin}/GD-analyzer/#/share/${compressed}`;
+  return `${window.location.origin}${import.meta.env.BASE_URL}#/share/${compressed}`;
 }
 
 export function projectFromShareURL(hash: string): Project | null {

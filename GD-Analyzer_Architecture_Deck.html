@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GD Analyzer — Architecture & Hosting</title>
+<style>
+  :root{
+    --bg:#0c1411; --panel:#11201a; --ink:#eaf3ee; --muted:#9fb6ab;
+    --accent:#34d399; --accent2:#10b981; --line:#1f3a30; --warn:#fbbf24; --bad:#f87171;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden}
+  .deck{height:100vh;width:100vw;position:relative}
+  .slide{
+    position:absolute;inset:0;display:none;flex-direction:column;
+    padding:6vh 8vw;animation:fade .4s ease;justify-content:center;
+  }
+  .slide.active{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .kicker{color:var(--accent);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:.8rem;margin-bottom:1.2rem}
+  h1{font-size:3.4rem;line-height:1.05;letter-spacing:-.02em;margin-bottom:1rem}
+  h2{font-size:2.2rem;line-height:1.1;letter-spacing:-.02em;margin-bottom:1.6rem}
+  h2 .em{color:var(--accent)}
+  p.lead{font-size:1.35rem;color:var(--muted);max-width:60ch;line-height:1.5}
+  ul{list-style:none;display:flex;flex-direction:column;gap:.85rem;margin-top:.4rem}
+  li{font-size:1.18rem;line-height:1.4;padding-left:1.6rem;position:relative;color:#dcebe3}
+  li::before{content:"▸";color:var(--accent);position:absolute;left:0;top:.05rem}
+  li small{color:var(--muted);font-size:.95rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-top:.5rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:1.5rem 1.6rem}
+  .card h3{font-size:1.05rem;color:var(--accent);margin-bottom:.8rem;letter-spacing:.02em}
+  .card ul{gap:.5rem}
+  .card li{font-size:1.02rem;padding-left:1.3rem}
+  .chips{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1.4rem}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:.5rem 1rem;font-size:.95rem;font-family:var(--mono);color:#cfe8dd}
+  .chip b{color:var(--accent)}
+  .flow{display:flex;align-items:stretch;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+  .step{flex:1;min-width:130px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1rem;text-align:center}
+  .step .n{font-family:var(--mono);color:var(--accent);font-size:.8rem}
+  .step .t{font-size:1.05rem;margin-top:.4rem;font-weight:600}
+  .step .s{font-size:.85rem;color:var(--muted);margin-top:.3rem}
+  .arrow{display:flex;align-items:center;color:var(--accent);font-size:1.4rem}
+  table{width:100%;border-collapse:collapse;margin-top:.6rem;font-size:1.05rem}
+  th,td{text-align:left;padding:.85rem 1rem;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-size:.95rem;letter-spacing:.03em}
+  td .yes{color:var(--accent);font-weight:700}
+  td .no{color:var(--bad);font-weight:700}
+  .col-gh{color:var(--muted)}
+  .mono{font-family:var(--mono)}
+  .codebox{background:#08110d;border:1px solid var(--line);border-radius:12px;padding:1.1rem 1.3rem;font-family:var(--mono);font-size:1rem;color:#bfe6d5;margin-top:1rem;line-height:1.6;overflow:auto}
+  .codebox .k{color:var(--accent)}
+  .codebox .c{color:#6b8a7d}
+  .pill{display:inline-block;background:rgba(52,211,153,.12);border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:.2rem .6rem;font-size:.85rem;font-family:var(--mono);margin-left:.5rem}
+  .warnote{background:rgba(251,191,36,.08);border:1px solid var(--warn);border-radius:12px;padding:1rem 1.3rem;margin-top:1.4rem;color:#f3dca0;font-size:1.05rem}
+  .warnote b{color:var(--warn)}
+  .footer{position:absolute;bottom:2.4vh;left:8vw;right:8vw;display:flex;justify-content:space-between;align-items:center;font-size:.85rem;color:var(--muted);font-family:var(--mono)}
+  .dots{display:flex;gap:.4rem}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .dot.on{background:var(--accent)}
+  .nav{position:absolute;bottom:2vh;right:8vw;display:flex;gap:.5rem}
+  .nav button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:8px;width:38px;height:34px;font-size:1rem;cursor:pointer}
+  .nav button:hover{border-color:var(--accent);color:var(--accent)}
+  .big{font-size:5rem;color:var(--accent);font-family:var(--mono);letter-spacing:-.03em}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:2.4rem;align-items:center}
+  .urlbar{font-family:var(--mono);background:#08110d;border:1px solid var(--line);border-radius:10px;padding:.7rem 1rem;color:#bfe6d5;display:inline-block;margin-top:.4rem}
+  .title-logo{font-family:var(--mono);color:var(--accent);font-weight:700;letter-spacing:.2em;font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+  <!-- 1 TITLE -->
+  <section class="slide active">
+    <div class="title-logo">HELEXIA BRASIL · GD</div>
+    <div class="kicker" style="margin-top:1.4rem">Architecture &amp; Hosting Overview</div>
+    <h1>GD Analyzer</h1>
+    <p class="lead">A browser-based simulator for distributed-generation (GD) energy savings — how it's built, the systems behind it, and why it now runs on Vercel instead of GitHub Pages.</p>
+    <div class="chips">
+      <span class="chip"><b>React 19</b> + TypeScript</span>
+      <span class="chip"><b>Vite 8</b></span>
+      <span class="chip"><b>ANEEL</b> open data</span>
+      <span class="chip">Deployed on <b>Vercel</b></span>
+    </div>
+  </section>
+
+  <!-- 2 WHAT IT IS -->
+  <section class="slide">
+    <div class="kicker">What the app does</div>
+    <h2>A self-contained <span class="em">GD savings simulator</span></h2>
+    <div class="two">
+      <ul>
+        <li>Imports client electricity bills &amp; consumption <small>(PDF / Excel / CSV)</small></li>
+        <li>Pulls real distributor tariffs from ANEEL <small>(TUSD, TE, taxes per state)</small></li>
+        <li>Simulates GD compensation &amp; energy credit banking</li>
+        <li>Optimises demand contracts &amp; allocation</li>
+        <li>Exports polished Excel &amp; PDF proposals</li>
+      </ul>
+      <div class="card">
+        <h3>Key traits</h3>
+        <ul>
+          <li><b>Offline-first</b> — runs entirely in the browser</li>
+          <li><b>No backend server</b> — projects saved locally in IndexedDB</li>
+          <li>Only external call: <b>ANEEL tariff API</b></li>
+          <li>Heavy math runs in a <b>Web Worker</b> (UI stays smooth)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 STACK -->
+  <section class="slide">
+    <div class="kicker">Systems used</div>
+    <h2>The technology stack</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Frontend</h3>
+        <ul>
+          <li><b>React 19</b> + <b>TypeScript</b> — UI</li>
+          <li><b>Vite 8</b> — build &amp; dev server</li>
+          <li><b>Tailwind CSS 4</b> — styling</li>
+          <li><b>Zustand</b> — state · <b>React Router 7</b></li>
+          <li><b>Recharts</b> — charts</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Engine &amp; data</h3>
+        <ul>
+          <li><b>Web Worker</b> — optimiser / simulation</li>
+          <li><b>IndexedDB</b> (idb) — local project storage</li>
+          <li><b>SheetJS / xlsx</b> — Excel in &amp; out</li>
+          <li><b>pdf.js</b> + <b>react-pdf</b> — bill parsing &amp; PDF export</li>
+          <li><b>PapaParse</b> · <b>lz-string</b> — CSV &amp; compression</li>
+        </ul>
+      </div>
+    </div>
+    <div class="chips">
+      <span class="chip">Data source: <b>ANEEL</b> dadosabertos.aneel.gov.br</span>
+      <span class="chip">Resource <b>fcf2906c…</b> · "Tarifas de Aplicação"</span>
+    </div>
+  </section>
+
+  <!-- 4 DATA FLOW -->
+  <section class="slide">
+    <div class="kicker">How data moves</div>
+    <h2>From <span class="em">tariff</span> to <span class="em">proposal</span></h2>
+    <div class="flow">
+      <div class="step"><div class="n">01</div><div class="t">ANEEL API</div><div class="s">Homologated tariffs (TUSD/TE)</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">02</div><div class="t">Parse &amp; map</div><div class="s">A4 Verde + B3 per distributor</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">03</div><div class="t">Simulate</div><div class="s">Compensation, banking, taxes</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">04</div><div class="t">Optimise</div><div class="s">Web Worker · demand &amp; sizing</div></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">05</div><div class="t">Export</div><div class="s">Excel + PDF proposal</div></div>
+    </div>
+    <div class="warnote" style="border-color:var(--line);background:var(--panel);color:#cfe8dd">
+      A <b style="color:var(--accent)">bundled snapshot</b> (<span class="mono">aneel-tariffs.json</span>) ships with the app as a fallback, so it works even if the live API is unavailable.
+    </div>
+  </section>
+
+  <!-- 5 THE PROBLEM -->
+  <section class="slide">
+    <div class="kicker">The hosting challenge</div>
+    <h2>Why "refresh tariffs" can't run on a <span class="em">static</span> host</h2>
+    <div class="two">
+      <ul>
+        <li>The browser asks ANEEL for tariffs directly</li>
+        <li>ANEEL replies — but sends <b>no CORS header</b></li>
+        <li>So the browser <b style="color:var(--bad)">blocks</b> the response for safety</li>
+        <li>The fix is a <b>server in the middle</b> to relay the call</li>
+        <li><b>GitHub Pages has no server</b> — it only serves files</li>
+      </ul>
+      <div class="card">
+        <h3>The 3 transports the app tries</h3>
+        <ul>
+          <li><span class="mono">/api/aneel/…</span> <span class="no">✗</span> 404 on a static host</li>
+          <li>Direct to ANEEL <span class="no">✗</span> blocked by CORS</li>
+          <li>corsproxy.io <span class="no">✗</span> now returns 403 (dead)</li>
+        </ul>
+        <p style="margin-top:1rem;color:var(--muted);font-size:.95rem">On GitHub Pages all three fail → button silently falls back to the bundled file.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 GH VS VERCEL -->
+  <section class="slide">
+    <div class="kicker">GitHub Pages vs Vercel</div>
+    <h2>Same code, <span class="em">different powers</span></h2>
+    <table>
+      <tr><th>Capability</th><th class="col-gh">GitHub Pages</th><th>Vercel</th></tr>
+      <tr><td>Serve the built app (HTML/JS/CSS)</td><td class="col-gh"><span class="yes" style="color:#7fbfa6">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Free for personal use</td><td class="col-gh"><span style="color:#7fbfa6">✓</span></td><td><span class="yes">✓</span></td></tr>
+      <tr><td>Run server-side logic / proxy a request</td><td class="col-gh"><span class="no">✗ files only</span></td><td><span class="yes">✓ rewrites &amp; functions</span></td></tr>
+      <tr><td>Make the ANEEL "refresh" button work live</td><td class="col-gh"><span class="no">✗ CORS-blocked</span></td><td><span class="yes">✓ same-origin proxy</span></td></tr>
+      <tr><td>Auto-deploy on git push</td><td class="col-gh">via action</td><td><span class="yes">✓ built-in</span></td></tr>
+    </table>
+    <p class="lead" style="font-size:1.1rem;margin-top:1.4rem">GitHub Pages is a <b style="color:var(--ink)">file cabinet</b>. Vercel is a file cabinet <b style="color:var(--accent)">with a receptionist</b> who can fetch things for you.</p>
+  </section>
+
+  <!-- 7 WHAT VERCEL DOES -->
+  <section class="slide">
+    <div class="kicker">What Vercel adds</div>
+    <h2>One rewrite rule solves the <span class="em">CORS</span> problem</h2>
+    <div class="codebox">
+<span class="c">// vercel.json — runs on Vercel's server, not the browser</span>
+{
+  <span class="k">"rewrites"</span>: [
+    { <span class="k">"source"</span>: <span style="color:#e6c07b">"/api/aneel/:path*"</span>,
+      <span class="k">"destination"</span>: <span style="color:#e6c07b">"https://dadosabertos.aneel.gov.br/api/3/action/:path*"</span> }
+  ]
+}
+    </div>
+    <ul style="margin-top:1.6rem">
+      <li>Browser calls <span class="mono">/api/aneel/…</span> — <b>same origin</b>, so no CORS</li>
+      <li>Vercel's server fetches ANEEL and pipes the answer back</li>
+      <li>It reproduces the local <b>Vite dev proxy</b> — in production</li>
+      <li><b>Zero app-code changes</b> — the existing fetch path just works</li>
+    </ul>
+  </section>
+
+  <!-- 8 STATUS -->
+  <section class="slide">
+    <div class="kicker">Where it stands today</div>
+    <h2>Live &amp; verified</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>✓ Done</h3>
+        <ul>
+          <li>Deployed to <b>Vercel production</b></li>
+          <li>ANEEL proxy <b>tested live</b> — returns data</li>
+          <li>COPEL <b>RTP 2026</b> values in the bundle</li>
+          <li>GitHub Pages base left intact (still builds)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Hosting</h3>
+        <p style="color:var(--muted);font-size:.95rem">Production URL</p>
+        <span class="urlbar">gd-simulator.vercel.app</span>
+        <p style="color:var(--muted);font-size:.95rem;margin-top:1rem">Account</p>
+        <span class="urlbar">louisdemofs-projects · Hobby (free)</span>
+      </div>
+    </div>
+    <div class="warnote">
+      <b>Heads-up:</b> the live button still returns the <b>old Jan-2026</b> COPEL numbers until ANEEL ingests REH 3.592 into the open dataset. The bundled snapshot is the only source of the new RTP 2026 values for now.
+    </div>
+  </section>
+
+  <!-- 9 GH PAGES DECISION -->
+  <section class="slide">
+    <div class="kicker">Decision</div>
+    <h2>Can we remove it from <span class="em">GitHub Pages?</span></h2>
+    <div class="two">
+      <div>
+        <p class="big">Yes</p>
+        <p class="lead" style="margin-top:1rem">Vercel now does everything Pages did — <b style="color:var(--ink)">plus</b> the working proxy. The Pages copy has a permanently broken refresh button.</p>
+      </div>
+      <div class="card">
+        <h3>What "remove" means</h3>
+        <ul>
+          <li>Delete the <b>gh-pages</b> branch</li>
+          <li>Turn <b>Pages off</b> in repo Settings</li>
+          <li>Source code <b>stays</b> in the repo</li>
+          <li>Only the old <span class="mono">github.io</span> URL goes 404</li>
+        </ul>
+        <p style="margin-top:1rem;color:var(--muted);font-size:.95rem">Nothing important is deleted — just one redundant hosting endpoint.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 NEXT -->
+  <section class="slide">
+    <div class="kicker">Next steps</div>
+    <h2>To finish the move</h2>
+    <ul>
+      <li><b>Commit &amp; push</b> the new files <small>(vercel.json, vite.config.ts, aneel-tariffs.json)</small></li>
+      <li><b>Link the GitHub repo</b> in Vercel → auto-deploy on every push</li>
+      <li><b>Retire GitHub Pages</b> — delete gh-pages branch + disable Pages</li>
+      <li><b>(Optional)</b> rename the project → <span class="mono">gd-analyzer.vercel.app</span></li>
+      <li><b>(Optional)</b> auto-refresh the bundle when ANEEL publishes REH 3.592</li>
+    </ul>
+    <div class="chips">
+      <span class="chip"><b>Live:</b> gd-simulator.vercel.app</span>
+      <span class="chip"><b>Stack:</b> React · Vite · ANEEL · Vercel</span>
+    </div>
+  </section>
+
+  <div class="footer">
+    <div>GD Analyzer · Helexia Brasil</div>
+    <div class="dots" id="dots"></div>
+    <div id="counter">1 / 10</div>
+  </div>
+  <div class="nav">
+    <button onclick="go(-1)">‹</button>
+    <button onclick="go(1)">›</button>
+  </div>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  const dotsWrap=document.getElementById('dots');
+  const counter=document.getElementById('counter');
+  let i=0;
+  slides.forEach((_,n)=>{const d=document.createElement('div');d.className='dot'+(n===0?' on':'');dotsWrap.appendChild(d)});
+  const dots=[...document.querySelectorAll('.dot')];
+  function render(){
+    slides.forEach((s,n)=>s.classList.toggle('active',n===i));
+    dots.forEach((d,n)=>d.classList.toggle('on',n===i));
+    counter.textContent=(i+1)+' / '+slides.length;
+  }
+  function go(dir){i=Math.max(0,Math.min(slides.length-1,i+dir));render()}
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){go(1);e.preventDefault()}
+    if(e.key==='ArrowLeft'||e.key==='PageUp'){go(-1);e.preventDefault()}
+    if(e.key==='Home'){i=0;render()}
+    if(e.key==='End'){i=slides.length-1;render()}
+  });
+  render();
+</script>
+</body>
+</html>

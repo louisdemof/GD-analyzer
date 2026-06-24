@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/aneel/:path*",
+      "destination": "https://dadosabertos.aneel.gov.br/api/3/action/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

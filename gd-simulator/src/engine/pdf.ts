@@ -255,7 +255,7 @@ function CoverPage({ project, generatedAt }: { project: Project; generatedAt: st
   const plantNames = plants.length > 1 ? plants.map(p => p.name).join(' + ') : null;
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(View, { style: s.coverCenter },
-      React.createElement(Image, { src: '/GD-analyzer/Helexia_main_logo_screen_L.png', style: { width: 180, marginBottom: project.clientLogo ? 16 : 30 } }),
+      React.createElement(Image, { src: `${import.meta.env.BASE_URL}Helexia_main_logo_screen_L.png`, style: { width: 180, marginBottom: project.clientLogo ? 16 : 30 } }),
       project.clientLogo
         ? React.createElement(Image, { src: project.clientLogo, style: { width: 150, height: 60, objectFit: 'contain', marginBottom: 24 } })
         : null,

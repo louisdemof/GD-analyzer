@@ -10,7 +10,7 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 function App() {
   return (
     <ErrorBoundary fallbackTitle="Erro na aplicacao">
-      <BrowserRouter basename="/GD-analyzer">
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
         <div className="flex min-h-screen bg-slate-50">
           <Sidebar />
           <div className="flex-1 flex flex-col">

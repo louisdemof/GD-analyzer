@@ -16,6 +16,7 @@ import {
   type ANEELDistributor,
 } from '../../data/aneelService';
 import { DISTRIBUTORS } from '../../data/distributors';
+import bundledTariffs from '../../data/aneel-tariffs.json';
 
 interface Props {
   distributor: Distributor;
@@ -83,6 +84,52 @@ export function DistributorForm({ distributor, onChange }: Props) {
     }
     setIsLoading(false);
   }, [distributor.id, onChange]);
+
+  // COPEL-DIS only: apply the RTP 2026 tariffs (REH 3.592/2026) from the bundled
+  // snapshot. ANEEL's open dataset hasn't ingested REH 3.592 yet, so the live
+  // "Atualizar tarifas ANEEL" button still returns the old Jan-2026 values — this
+  // button is the way to push the new tariffs onto an existing COPEL project.
+  // Surgical: overwrites only the tariff numbers + resolution label, preserving the
+  // project's taxes, ICMS scope, name and any markup (re-applied over the new base).
+  const isCopel = distributor.id === 'COPEL-DIS' || /copel/i.test(distributor.name ?? '');
+  const applyCopelRTP2026 = useCallback(() => {
+    const src = (bundledTariffs.distributors as ANEELDistributor[]).find(d => d.sigAgente === 'COPEL-DIS');
+    if (!src) return;
+    if (!window.confirm('Aplicar as tarifas COPEL RTP 2026 (REH 3.592/2026) a este projeto?\n\nIsto substitui apenas os valores de tarifa; impostos, escopo de ICMS e demais ajustes do projeto são preservados.')) return;
+    const newBase: Distributor['tariffs'] = {
+      ...distributor.tariffs,
+      B_TUSD: src.B_TUSD,
+      B_TE: src.B_TE,
+      A_FP_TUSD_TE: src.A_FP_TUSD_TE,
+      A_PT_TUSD_TE: src.A_PT_TUSD_TE,
+      A_TE_FP: src.A_TE_FP,
+      A_TE_PT: src.A_TE_PT,
+      A_FP_DEMANDA: src.A_FP_DEMANDA,
+    };
+    const m = distributor.tariffMarkupPct;
+    if (m) {
+      const r = 1 + m;
+      onChange(computeDerivedTariffs({
+        ...distributor,
+        resolution: src.resolution,
+        tariffsBaseline: newBase,
+        tariffs: {
+          ...newBase,
+          B_TUSD: newBase.B_TUSD * r,
+          B_TE: newBase.B_TE * r,
+          A_FP_TUSD_TE: newBase.A_FP_TUSD_TE * r,
+          A_PT_TUSD_TE: newBase.A_PT_TUSD_TE * r,
+          A_TE_FP: newBase.A_TE_FP * r,
+          A_TE_PT: newBase.A_TE_PT * r,
+          A_RSV_TUSD_TE: newBase.A_RSV_TUSD_TE == null ? undefined : newBase.A_RSV_TUSD_TE * r,
+          B_RSV_TUSD_TE: newBase.B_RSV_TUSD_TE == null ? undefined : newBase.B_RSV_TUSD_TE * r,
+          A_FP_DEMANDA: newBase.A_FP_DEMANDA == null ? undefined : newBase.A_FP_DEMANDA * r,
+        },
+      }));
+    } else {
+      onChange(computeDerivedTariffs({ ...distributor, resolution: src.resolution, tariffs: newBase }));
+    }
+  }, [distributor, onChange]);
 
   // Filtered distributor list for search
   const filteredDistributors = useMemo(() => {
@@ -301,6 +348,21 @@ export function DistributorForm({ distributor, onChange }: Props) {
             </span>
           )}
         </div>
+
+        {/* COPEL-DIS only: apply RTP 2026 tariffs from the bundled snapshot
+            (REH 3.592/2026 not yet in ANEEL's open dataset). */}
+        {isCopel && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={applyCopelRTP2026}
+              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 border border-emerald-300 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+              title="Aplica as tarifas COPEL da Revisão Tarifária Periódica 2026 (REH 3.592/2026)"
+            >
+              ⚡ Aplicar tarifas COPEL RTP 2026 (REH 3.592)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tariff Fields — por componente */}

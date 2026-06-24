@@ -88,14 +88,14 @@
     {
       "sigAgente": "COPEL-DIS",
       "state": "PR",
-      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.472, DE 17 DE JUNHO DE 2025",
-      "B_TUSD": 0.36667,
-      "B_TE": 0.27575,
-      "A_FP_TUSD_TE": 0.37842,
-      "A_PT_TUSD_TE": 1.62525,
-      "A_TE_FP": 0.25751,
-      "A_TE_PT": 0.41369,
-      "A_FP_DEMANDA": 20.78
+      "resolution": "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.592, DE 23 DE JUNHO DE 2026",
+      "B_TUSD": 0.45717,
+      "B_TE": 0.31085,
+      "A_FP_TUSD_TE": 0.44234,
+      "A_PT_TUSD_TE": 1.93894,
+      "A_TE_FP": 0.29575,
+      "A_TE_PT": 0.47555,
+      "A_FP_DEMANDA": 25.33
     },
     {
       "sigAgente": "COSERN",
