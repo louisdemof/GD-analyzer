@@ -310,7 +310,7 @@ export interface MonthlyResult {
   generation: number;     // kWh injected
   ppaCost: number;        // R$ PPA paid to Helexia
   // Per scenario
-  sem: { totalCost: number };
+  sem: { totalCost: number; teAclCost: number };
   com: { redeCost: number; totalCost: number; icmsAdditional: number; pisCofinsAdditional: number };
   economia: number;       // sem.totalCost - com.totalCost - icmsAdditional - pisCofinsAdditional
   economiaAcum: number;   // running total
@@ -342,6 +342,10 @@ export interface UCMonthlyDetail {
   bankDraw: number;
   bankEnd: number;
   costRede: number;
+  // ACL (SEM only): the energia-comprada-na-ACL (TE) portion of costRede, R$ this month.
+  // costRede − teAclCost − demanda = the distributor's TUSD (Fio B) energy charge.
+  // 0 for captive (CATIVO) projects. Used to split the SEM invoice (TE→ACL, rest→distribuidora).
+  teAclCost: number;
   ownGenerationUsed: number;
   icmsAdditional: number;
   pisCofinsAdditional: number;

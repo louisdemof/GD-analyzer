@@ -310,6 +310,7 @@ export function runSimulation(project: Project): SimulationResult {
     );
 
     let semTotalCost = 0;
+    let semTeAclCost = 0;
     let comRedeCost = 0;
     let comIcmsAdditional = 0;
     let comPisCofinsAdditional = 0;
@@ -324,6 +325,7 @@ export function runSimulation(project: Project): SimulationResult {
       const comUC = comResults[uc.id];
       if (semUC && semUC.monthlyDetails[m]) {
         semTotalCost += semUC.monthlyDetails[m].costRede;
+        semTeAclCost += semUC.monthlyDetails[m].teAclCost;
       }
       if (comUC && comUC.monthlyDetails[m]) {
         comRedeCost += comUC.monthlyDetails[m].costRede;
@@ -351,7 +353,7 @@ export function runSimulation(project: Project): SimulationResult {
       label: formatMonthLabel(project.plant.contractStartMonth, m),
       generation: gen,
       ppaCost,
-      sem: { totalCost: semTotalCost },
+      sem: { totalCost: semTotalCost, teAclCost: semTeAclCost },
       com: { redeCost: comRedeCost, totalCost: comTotalCost, icmsAdditional: comIcmsAdditional, pisCofinsAdditional: comPisCofinsAdditional },
       economia,
       economiaAcum,

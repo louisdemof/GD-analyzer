@@ -390,6 +390,13 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     totalIcmsAdditional += icmsAdditional;
     totalPisCofinsAdditional += pisCofinsAdditional;
 
+    // ACL TE portion of this month's energy bill. teAcl is added uniformly to every
+    // posto's effective tariff (T_*_eff = TUSD-after-discount + teAcl), so the energia-ACL
+    // cost = teAcl × total billed kWh across postos. 0 when not ACL (teAcl === 0).
+    const teAclCost = teAcl > 0
+      ? (monthlyResidualFP + monthlyResidualPT + monthlyResidualRSV) * teAcl
+      : 0;
+
     const hasRSVReport = (uc.consumptionReservado?.[m] ?? 0) > 0;
     monthlyDetails.push({
       ucId: uc.id,
@@ -402,6 +409,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       bankDraw,
       bankEnd: bank,
       costRede,
+      teAclCost,
       ownGenerationUsed: ownGen,
       icmsAdditional,
       pisCofinsAdditional,

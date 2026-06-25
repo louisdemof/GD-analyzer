@@ -29,6 +29,8 @@ export function KPICards({ summary, months, project, result }: Props) {
   const durationLabel = contractMonths % 12 === 0 ? `${contractMonths / 12} anos` : `${contractMonths}m`;
   // Distributor display name (was hardcoded "Energisa")
   const distName = project?.distributor?.name?.trim() || 'Distribuidora';
+  // ACL (Mercado Livre): the SEM baseline splits TE → comercializadora, TUSD + demanda → distribuidora.
+  const isACL = project?.marketType === 'ACL';
 
   // Compute demanda separately (same value in SEM and COM — not compensated by SCEE)
   const T_DEMANDA = useMemo(() => {
@@ -128,10 +130,14 @@ export function KPICards({ summary, months, project, result }: Props) {
   // - 'yearly':  Year 1 (months 0..11), or full contract if <12m
   // - 'monthly': average per month over the contract
   const scopeData = useMemo(() => {
+    // Total energia-ACL (TE) over the whole contract — split out of the SEM baseline
+    // when marketType === 'ACL' (TE → comercializadora, TUSD + demanda → distribuidora).
+    const totalTeAcl = (months ?? []).reduce((a, mm) => a + (mm.sem.teAclCost || 0), 0);
     if (invoiceScope === 'yearly') {
       const y1 = months?.slice(0, Math.min(12, months.length)) ?? [];
       const monthsInY1 = y1.length || 12;
       const sumSEM = y1.reduce((a, m) => a + m.sem.totalCost, 0);
+      const sumTeAcl = y1.reduce((a, m) => a + (m.sem.teAclCost || 0), 0);
       const sumPPA = y1.reduce((a, m) => a + m.ppaCost, 0);
       const sumRede = y1.reduce((a, m) => a + m.com.redeCost, 0);
       const sumIcms = y1.reduce((a, m) => a + (m.com.icmsAdditional || 0), 0);
@@ -139,7 +145,7 @@ export function KPICards({ summary, months, project, result }: Props) {
       const dem = monthlyDemandaR * monthsInY1;
       return {
         scopeLabel: 'Ano 1',
-        sem: sumSEM, energia: sumSEM - dem, demanda: dem,
+        sem: sumSEM, energia: sumSEM - dem, demanda: dem, teAcl: sumTeAcl,
         rede: sumRede, ppa: sumPPA, icmsAdd: sumIcms,
         comTotal: sumRede + sumPPA + sumIcms,
         economia: sumEco,
@@ -153,6 +159,7 @@ export function KPICards({ summary, months, project, result }: Props) {
         sem: summary.baselineSEM / m,
         energia: (summary.baselineSEM - demandaTotal) / m,
         demanda: monthlyDemandaR,
+        teAcl: totalTeAcl / m,
         rede: comRede / m,
         ppa: summary.totalPPACost / m,
         icmsAdd: 0,
@@ -166,6 +173,7 @@ export function KPICards({ summary, months, project, result }: Props) {
       sem: summary.baselineSEM,
       energia: semEnergia,
       demanda: demandaTotal,
+      teAcl: totalTeAcl,
       rede: comRede,
       ppa: summary.totalPPACost,
       icmsAdd: 0,
@@ -306,16 +314,31 @@ export function KPICards({ summary, months, project, result }: Props) {
                 {/* SEM Helexia — one invoice from distributor */}
                 <div className="border border-slate-300 rounded-lg p-4 bg-slate-50">
                   <h4 className="text-sm font-semibold text-slate-800 mb-3 border-b border-slate-300 pb-2">
-                    SEM Helexia — Fatura Distribuidora
+                    {isACL ? 'SEM Helexia — Energia ACL + Distribuidora' : 'SEM Helexia — Fatura Distribuidora'}
                     <span className="text-[11px] text-slate-500 font-normal ml-1">({scopeData.scopeLabel})</span>
                   </h4>
                   <div className="space-y-2 text-sm">
-                    <InvoiceLine label="Energia (FP + PT + RSV)" value={scopeData.energia} />
-                    <InvoiceLine label="Demanda contratada" value={scopeData.demanda} note="Não compensada" />
-                    <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between font-semibold text-slate-800">
-                      <span>Total Fatura {distName}</span>
-                      <span className="font-mono">{formatBRL(scopeData.sem)}</span>
-                    </div>
+                    {isACL ? (
+                      <>
+                        <div className="text-xs text-slate-600 uppercase font-semibold mt-1">Energia ACL</div>
+                        <InvoiceLine label="Energia ACL (TE)" value={scopeData.teAcl} note="Comercializadora" />
+                        <div className="text-xs text-slate-600 uppercase font-semibold mt-3">{distName}</div>
+                        <InvoiceLine label="Rede + demanda (TUSD Fio B)" value={Math.max(0, scopeData.sem - scopeData.teAcl)} note="Demanda c/ desconto incentivada" />
+                        <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between font-semibold text-slate-800">
+                          <span>Total atual (SEM)</span>
+                          <span className="font-mono">{formatBRL(scopeData.sem)}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <InvoiceLine label="Energia (FP + PT + RSV)" value={scopeData.energia} />
+                        <InvoiceLine label="Demanda contratada" value={scopeData.demanda} note="Não compensada" />
+                        <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between font-semibold text-slate-800">
+                          <span>Total Fatura {distName}</span>
+                          <span className="font-mono">{formatBRL(scopeData.sem)}</span>
+                        </div>
+                      </>
+                    )}
                     <div className="text-[10px] text-slate-500 mt-2 italic">
                       Obs: não inclui CIP, reativo excedente, subsídios rurais — valores marginais ignorados na simulação
                     </div>
