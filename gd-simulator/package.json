@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.3.2",
+    "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.2.2",
     "idb": "^8.0.3",
     "lz-string": "^1.5.0",

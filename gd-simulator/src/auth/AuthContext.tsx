@@ -1,0 +1,62 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase, isCloudEnabled } from '../lib/supabase';
+
+interface AuthState {
+  cloudEnabled: boolean;
+  loading: boolean;
+  session: Session | null;
+  user: User | null;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  signOut: () => Promise<void>;
+}
+
+const AuthCtx = createContext<AuthState | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  // When cloud is off, there's nothing to load — the app runs local-only.
+  const [loading, setLoading] = useState(isCloudEnabled);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const signIn: AuthState['signIn'] = async (email, password) => {
+    if (!supabase) return { error: 'Cloud não configurado' };
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    return { error: error?.message ?? null };
+  };
+
+  const signUp: AuthState['signUp'] = async (email, password) => {
+    if (!supabase) return { error: 'Cloud não configurado', needsConfirmation: false };
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+    // With "Confirm email" ON, signUp returns a user with no session until confirmed.
+    const needsConfirmation = !error && !data.session;
+    return { error: error?.message ?? null, needsConfirmation };
+  };
+
+  const signOut = async () => { await supabase?.auth.signOut(); };
+
+  return (
+    <AuthCtx.Provider value={{
+      cloudEnabled: isCloudEnabled, loading, session, user: session?.user ?? null,
+      signIn, signUp, signOut,
+    }}>
+      {children}
+    </AuthCtx.Provider>
+  );
+}
+
+export function useAuth(): AuthState {
+  const ctx = useContext(AuthCtx);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

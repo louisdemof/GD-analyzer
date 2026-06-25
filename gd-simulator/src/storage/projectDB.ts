@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Project } from '../engine/types';
+import { cloudUpsertProject, cloudDeleteProject, cloudUpsertFolder, cloudDeleteFolder } from './cloudSync';
 
 const DB_NAME = 'gd-analyzer';
 const DB_VERSION = 2;
@@ -38,6 +39,7 @@ function getDB() {
 export async function saveProjectToDB(project: Project): Promise<void> {
   const db = await getDB();
   await db.put(PROJECTS_STORE, { ...project, savedAt: new Date().toISOString() });
+  cloudUpsertProject(project).catch(() => {}); // mirror to cloud (no-op if offline/local-only)
 }
 
 export async function loadAllProjectsFromDB(): Promise<Project[]> {
@@ -45,9 +47,17 @@ export async function loadAllProjectsFromDB(): Promise<Project[]> {
   return db.getAll(PROJECTS_STORE);
 }
 
+// Write to IndexedDB only — used when storing cloud-pulled rows, so we don't
+// echo them straight back to the cloud during sync.
+export async function putProjectLocalOnly(project: Project): Promise<void> {
+  const db = await getDB();
+  await db.put(PROJECTS_STORE, project);
+}
+
 export async function deleteProjectFromDB(id: string): Promise<void> {
   const db = await getDB();
   await db.delete(PROJECTS_STORE, id);
+  cloudDeleteProject(id).catch(() => {});
 }
 
 // ─── Folders ──────────────────────────────────────────────
@@ -55,6 +65,7 @@ export async function deleteProjectFromDB(id: string): Promise<void> {
 export async function saveFolderToDB(folder: ClientFolder): Promise<void> {
   const db = await getDB();
   await db.put(FOLDERS_STORE, folder);
+  cloudUpsertFolder(folder).catch(() => {});
 }
 
 export async function loadAllFoldersFromDB(): Promise<ClientFolder[]> {
@@ -62,9 +73,15 @@ export async function loadAllFoldersFromDB(): Promise<ClientFolder[]> {
   return db.getAll(FOLDERS_STORE);
 }
 
+export async function putFolderLocalOnly(folder: ClientFolder): Promise<void> {
+  const db = await getDB();
+  await db.put(FOLDERS_STORE, folder);
+}
+
 export async function deleteFolderFromDB(id: string): Promise<void> {
   const db = await getDB();
   await db.delete(FOLDERS_STORE, id);
+  cloudDeleteFolder(id).catch(() => {});
 }
 
 // ─── Migration from localStorage ──────────────────────────

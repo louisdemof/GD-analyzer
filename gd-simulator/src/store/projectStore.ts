@@ -13,7 +13,8 @@ import superfrioData from '../../reference/SUPERFRIO_CWBII_ACL_DEMO.json';
 import superfrioPortfolioData from '../../reference/SUPERFRIO_PR_PORTFOLIO_DEMO.json';
 import superfrioFrontloadData from '../../reference/SUPERFRIO_PR_FRONTLOAD_DEMO.json';
 import superfrio5yData from '../../reference/SUPERFRIO_PR_5Y_DEMO.json';
-import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, type ClientFolder } from '../storage/projectDB';
+import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, putProjectLocalOnly, putFolderLocalOnly, type ClientFolder } from '../storage/projectDB';
+import { cloudPullProjects, cloudPullFolders, cloudUpsertProject, cloudUpsertFolder } from '../storage/cloudSync';
 
 interface ProjectStore {
   projects: Project[];
@@ -23,6 +24,8 @@ interface ProjectStore {
 
   // Init — load from IndexedDB
   initFromDB: () => Promise<void>;
+  // Sync — on login, pull cloud rows and merge with local (uploads local-only work)
+  syncFromCloud: () => Promise<void>;
 
   // Actions
   setCurrentProject: (id: string | null) => void;
@@ -216,6 +219,27 @@ export const useProjectStore = create<ProjectStore>()(
         } catch {
           set({ isLoaded: true });
         }
+      },
+
+      syncFromCloud: async () => {
+        try {
+          const [cloudProjects, cloudFolders] = await Promise.all([cloudPullProjects(), cloudPullFolders()]);
+          const localProjects = get().projects;
+          const localFolders = get().folders;
+          const cloudPIds = new Set(cloudProjects.map(p => p.id));
+          const cloudFIds = new Set(cloudFolders.map(f => f.id));
+
+          // cloud → local cache (cloud is authoritative for rows it has)
+          for (const p of cloudProjects) await putProjectLocalOnly(p);
+          for (const f of cloudFolders) await putFolderLocalOnly(f);
+          // local-only → cloud (one-time upload of pre-existing local work)
+          for (const p of localProjects) if (!cloudPIds.has(p.id)) cloudUpsertProject(p).catch(() => {});
+          for (const f of localFolders) if (!cloudFIds.has(f.id)) cloudUpsertFolder(f).catch(() => {});
+
+          const projects = [...cloudProjects, ...localProjects.filter(p => !cloudPIds.has(p.id))];
+          const folders = [...cloudFolders, ...localFolders.filter(f => !cloudFIds.has(f.id))];
+          set({ projects, folders });
+        } catch { /* offline or not signed in — keep local data */ }
       },
 
       setCurrentProject: (id) => set({ currentProjectId: id }),

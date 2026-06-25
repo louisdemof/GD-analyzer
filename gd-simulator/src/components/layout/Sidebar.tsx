@@ -1,8 +1,10 @@
 import { useProjectStore } from '../../store/projectStore';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthContext';
 
 export function Sidebar() {
   const { projects, currentProjectId, setCurrentProject, deleteProject, loadDemoProject } = useProjectStore();
+  const { cloudEnabled, user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -75,6 +77,18 @@ export function Sidebar() {
           Carregar Demo (Copasul CS3)
         </button>
       </div>
+
+      {cloudEnabled && user && (
+        <div className="p-3 border-t border-white/10">
+          <div className="text-[11px] text-white/50 truncate mb-1" title={user.email ?? ''}>{user.email}</div>
+          <button
+            onClick={() => signOut()}
+            className="w-full px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            Sair
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
