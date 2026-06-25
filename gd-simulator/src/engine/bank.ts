@@ -390,12 +390,18 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     totalIcmsAdditional += icmsAdditional;
     totalPisCofinsAdditional += pisCofinsAdditional;
 
-    // ACL TE portion of this month's energy bill. teAcl is added uniformly to every
-    // posto's effective tariff (T_*_eff = TUSD-after-discount + teAcl), so the energia-ACL
-    // cost = teAcl × total billed kWh across postos. 0 when not ACL (teAcl === 0).
+    // SEM bill decomposition — itemises costRede for the ACL invoice split. teAcl is added
+    // uniformly to every posto's effective tariff (T_*_eff = TUSD-after-discount + teAcl), so
+    // the energia-ACL (TE) cost = teAcl × billed kWh. The remainder of the energy charge is
+    // TUSD: ponta computed directly (Grupo A), fora-ponta (+ reservado) as the residual so the
+    // four parts always reconcile to costRede. demandaCost carries the (ACL-discounted) demanda.
+    const energyCost = costRede - demandaMensal;
     const teAclCost = teAcl > 0
       ? (monthlyResidualFP + monthlyResidualPT + monthlyResidualRSV) * teAcl
       : 0;
+    const tusdPtCost = uc.isGrupoA ? monthlyResidualPT * Math.max(0, T_APT_eff - teAcl) : 0;
+    const tusdFpCost = Math.max(0, energyCost - teAclCost - tusdPtCost);
+    const demandaCost = demandaMensal;
 
     const hasRSVReport = (uc.consumptionReservado?.[m] ?? 0) > 0;
     monthlyDetails.push({
@@ -410,6 +416,9 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       bankEnd: bank,
       costRede,
       teAclCost,
+      tusdFpCost,
+      tusdPtCost,
+      demandaCost,
       ownGenerationUsed: ownGen,
       icmsAdditional,
       pisCofinsAdditional,

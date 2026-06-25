@@ -311,6 +311,8 @@ export function runSimulation(project: Project): SimulationResult {
 
     let semTotalCost = 0;
     let semTeAclCost = 0;
+    let semTusdPtCost = 0;
+    let semDemandaCost = 0;
     let comRedeCost = 0;
     let comIcmsAdditional = 0;
     let comPisCofinsAdditional = 0;
@@ -326,6 +328,8 @@ export function runSimulation(project: Project): SimulationResult {
       if (semUC && semUC.monthlyDetails[m]) {
         semTotalCost += semUC.monthlyDetails[m].costRede;
         semTeAclCost += semUC.monthlyDetails[m].teAclCost;
+        semTusdPtCost += semUC.monthlyDetails[m].tusdPtCost;
+        semDemandaCost += semUC.monthlyDetails[m].demandaCost;
       }
       if (comUC && comUC.monthlyDetails[m]) {
         comRedeCost += comUC.monthlyDetails[m].costRede;
@@ -348,12 +352,16 @@ export function runSimulation(project: Project): SimulationResult {
     const economia = semTotalCost - comTotalCost - comIcmsAdditional - comPisCofinsAdditional;
     economiaAcum += economia;
 
+    // Fora-ponta TUSD as the residual so the SEM decomposition always reconciles to
+    // totalCost (also absorbs BAT-the-UC's captive bill, which isn't ACL-split).
+    const semTusdFpCost = Math.max(0, semTotalCost - semTeAclCost - semTusdPtCost - semDemandaCost);
+
     months.push({
       monthIndex: m,
       label: formatMonthLabel(project.plant.contractStartMonth, m),
       generation: gen,
       ppaCost,
-      sem: { totalCost: semTotalCost, teAclCost: semTeAclCost },
+      sem: { totalCost: semTotalCost, teAclCost: semTeAclCost, tusdFpCost: semTusdFpCost, tusdPtCost: semTusdPtCost, demandaCost: semDemandaCost },
       com: { redeCost: comRedeCost, totalCost: comTotalCost, icmsAdditional: comIcmsAdditional, pisCofinsAdditional: comPisCofinsAdditional },
       economia,
       economiaAcum,
