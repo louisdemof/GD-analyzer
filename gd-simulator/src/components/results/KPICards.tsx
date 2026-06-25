@@ -27,6 +27,8 @@ export function KPICards({ summary, months, project, result }: Props) {
   const comRede = summary.baselineSEM - summary.economiaLiquida - summary.totalPPACost;
   const contractMonths = months?.length || 24;
   const durationLabel = contractMonths % 12 === 0 ? `${contractMonths / 12} anos` : `${contractMonths}m`;
+  // Distributor display name (was hardcoded "Energisa")
+  const distName = project?.distributor?.name?.trim() || 'Distribuidora';
 
   // Compute demanda separately (same value in SEM and COM — not compensated by SCEE)
   const T_DEMANDA = useMemo(() => {
@@ -311,7 +313,7 @@ export function KPICards({ summary, months, project, result }: Props) {
                     <InvoiceLine label="Energia (FP + PT + RSV)" value={scopeData.energia} />
                     <InvoiceLine label="Demanda contratada" value={scopeData.demanda} note="Não compensada" />
                     <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between font-semibold text-slate-800">
-                      <span>Total Fatura Energisa</span>
+                      <span>Total Fatura {distName}</span>
                       <span className="font-mono">{formatBRL(scopeData.sem)}</span>
                     </div>
                     <div className="text-[10px] text-slate-500 mt-2 italic">
@@ -331,7 +333,7 @@ export function KPICards({ summary, months, project, result }: Props) {
                     <InvoiceLine label="Energia residual" value={scopeData.energiaResidual} note={scopeData.energiaResidual === 0 ? 'Totalmente compensada' : undefined} />
                     <InvoiceLine label="Demanda contratada" value={scopeData.demanda} note="Idêntica ao SEM" />
                     <div className="border-t border-slate-300 pt-1 mt-1 flex justify-between text-slate-700 text-xs">
-                      <span>Subtotal Energisa</span>
+                      <span>Subtotal {distName}</span>
                       <span className="font-mono">{formatBRL(scopeData.rede)}</span>
                     </div>
 
