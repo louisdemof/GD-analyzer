@@ -1,0 +1,27 @@
+<!-- Supabase → Authentication → Email Templates → "Invite user" -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+  <tr><td align="center">
+    <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0">
+      <tr><td style="background:#004B70;padding:22px 28px" align="left">
+        <img src="https://gd-analyzer.vercel.app/Helexia_logo_WHT_M.png" alt="Helexia" height="26" style="display:block;margin-bottom:6px">
+        <span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:.04em">GD ANALYZER</span>
+      </td></tr>
+      <tr><td style="padding:32px 28px 8px">
+        <h1 style="margin:0 0 12px;font-size:19px;color:#0f172a">Você foi convidado</h1>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#475569">
+          Você foi convidado para usar o <strong>GD Analyzer</strong> — a ferramenta de análise de projetos GD da Helexia. Clique abaixo para criar sua senha e acessar.
+        </p>
+        <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#004B70;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 22px;border-radius:9px">Aceitar convite</a>
+        <p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#94a3b8">
+          Se o botão não funcionar, copie e cole este link no navegador:<br>
+          <a href="{{ .ConfirmationURL }}" style="color:#0d9488;word-break:break-all">{{ .ConfirmationURL }}</a>
+        </p>
+      </td></tr>
+      <tr><td style="padding:20px 28px 28px">
+        <p style="margin:0;font-size:11px;color:#cbd5e1;border-top:1px solid #f1f5f9;padding-top:16px">
+          Helexia Brasil — GD Analyzer
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
