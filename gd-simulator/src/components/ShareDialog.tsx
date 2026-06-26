@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { cloudListShares, cloudShareProject, cloudUnshareProject } from '../storage/cloudSync';
+import { cloudListShares, cloudShareProject, cloudUnshareProject, cloudSearchUsers, type UserSuggestion } from '../storage/cloudSync';
 
 interface Props {
   projectId: string;
@@ -13,6 +13,20 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
+  const [showSug, setShowSug] = useState(false);
+
+  // Debounced user search for the autocomplete
+  useEffect(() => {
+    const q = email.trim();
+    if (q.length < 2) { setSuggestions([]); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      const res = await cloudSearchUsers(q);
+      if (alive) setSuggestions(res.filter(s => !shares.includes(s.email.toLowerCase())));
+    }, 200);
+    return () => { alive = false; clearTimeout(t); };
+  }, [email, shares]);
 
   async function reload() {
     setShares(await cloudListShares(projectId));
@@ -20,16 +34,16 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
   }
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [projectId]);
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    const v = email.trim().toLowerCase();
+  async function shareEmail(addr: string) {
+    const v = addr.trim().toLowerCase();
     if (!v) return;
     setBusy(true); setError(null);
     const { error } = await cloudShareProject(projectId, v);
     if (error) setError(error);
-    else { setEmail(''); await reload(); }
+    else { setEmail(''); setSuggestions([]); setShowSug(false); await reload(); }
     setBusy(false);
   }
+  async function add(e: React.FormEvent) { e.preventDefault(); await shareEmail(email); }
 
   async function remove(addr: string) {
     setBusy(true); setError(null);
@@ -49,10 +63,29 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
         <p className="text-xs text-slate-500 mb-4 truncate">{projectName}</p>
 
         <form onSubmit={add} className="flex gap-2 mb-4">
-          <input
-            type="email" required placeholder="email@helexia.eu" value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+          <div className="relative flex-1">
+            <input
+              type="text" required placeholder="Nome ou email (ex.: lucas)" value={email}
+              onChange={e => { setEmail(e.target.value); setShowSug(true); }}
+              onFocus={() => setShowSug(true)}
+              onBlur={() => setTimeout(() => setShowSug(false), 150)}
+              autoComplete="off"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            {showSug && suggestions.length > 0 && (
+              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-auto">
+                {suggestions.map(s => (
+                  <li key={s.email}>
+                    <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => shareEmail(s.email)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">
+                      {s.full_name
+                        ? <><span className="text-slate-700">{s.full_name}</span> <span className="text-slate-400 text-xs">{s.email}</span></>
+                        : <span className="text-slate-700">{s.email}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button type="submit" disabled={busy}
             className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
             style={{ backgroundColor: '#004B70' }}>Adicionar</button>

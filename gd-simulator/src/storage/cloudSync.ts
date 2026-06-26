@@ -72,6 +72,24 @@ export async function cloudListShares(projectId: string): Promise<string[]> {
   return data.map(r => r.email as string);
 }
 
+// User search for the Share dialog autocomplete. Queries the public `profiles` table
+// (mirror of auth.users via trigger). Matches email or name; safe-sanitised input.
+// Returns [] gracefully if the profiles table isn't set up yet.
+export interface UserSuggestion { email: string; full_name?: string }
+export async function cloudSearchUsers(query: string): Promise<UserSuggestion[]> {
+  if (!(await authed()) || !supabase) return [];
+  const q = query.trim().replace(/[%,()*\\]/g, '');
+  if (q.length < 2) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email, full_name')
+    .or(`email.ilike.%${q}%,full_name.ilike.%${q}%`)
+    .order('email')
+    .limit(8);
+  if (error || !data) return [];
+  return data as UserSuggestion[];
+}
+
 // Which of my visible projects are owned by me vs shared-in? (for "shared with me" UI)
 export async function cloudOwnedProjectIds(): Promise<Set<string>> {
   if (!(await authed()) || !supabase) return new Set();
