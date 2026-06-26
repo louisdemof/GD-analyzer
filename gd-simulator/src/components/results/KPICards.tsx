@@ -130,20 +130,19 @@ export function KPICards({ summary, months, project, result }: Props) {
   // - 'yearly':  Year 1 (months 0..11), or full contract if <12m
   // - 'monthly': average per month over the contract
   const scopeData = useMemo(() => {
-    // SEM baseline decomposition over the whole contract — used to itemise the ACL invoice
-    // (TE → comercializadora; TUSD FP, TUSD PT and demanda → distribuidora).
-    const totalTeAcl = (months ?? []).reduce((a, mm) => a + (mm.sem.teAclCost || 0), 0);
-    const totalTusdFp = (months ?? []).reduce((a, mm) => a + (mm.sem.tusdFpCost || 0), 0);
-    const totalTusdPt = (months ?? []).reduce((a, mm) => a + (mm.sem.tusdPtCost || 0), 0);
-    const totalDemAcl = (months ?? []).reduce((a, mm) => a + (mm.sem.demandaCost || 0), 0);
+    // SEM baseline decomposition over the whole contract — used to itemise the invoice into
+    // demanda + TUSD FP/PT + TE FP/PT (captive) or Energia ACL + TUSD FP/PT + demanda (ACL).
+    const sum = (f: (mm: MonthlyResult) => number) => (months ?? []).reduce((a, mm) => a + (f(mm) || 0), 0);
+    const totalTusdFp = sum(mm => mm.sem.tusdFpCost);
+    const totalTusdPt = sum(mm => mm.sem.tusdPtCost);
+    const totalTeFp = sum(mm => mm.sem.teFpCost);
+    const totalTePt = sum(mm => mm.sem.tePtCost);
+    const totalDem = sum(mm => mm.sem.demandaCost);
     if (invoiceScope === 'yearly') {
       const y1 = months?.slice(0, Math.min(12, months.length)) ?? [];
       const monthsInY1 = y1.length || 12;
       const sumSEM = y1.reduce((a, m) => a + m.sem.totalCost, 0);
-      const sumTeAcl = y1.reduce((a, m) => a + (m.sem.teAclCost || 0), 0);
-      const sumTusdFp = y1.reduce((a, m) => a + (m.sem.tusdFpCost || 0), 0);
-      const sumTusdPt = y1.reduce((a, m) => a + (m.sem.tusdPtCost || 0), 0);
-      const sumDemAcl = y1.reduce((a, m) => a + (m.sem.demandaCost || 0), 0);
+      const sy = (f: (m: MonthlyResult) => number) => y1.reduce((a, m) => a + (f(m) || 0), 0);
       const sumPPA = y1.reduce((a, m) => a + m.ppaCost, 0);
       const sumRede = y1.reduce((a, m) => a + m.com.redeCost, 0);
       const sumIcms = y1.reduce((a, m) => a + (m.com.icmsAdditional || 0), 0);
@@ -152,7 +151,8 @@ export function KPICards({ summary, months, project, result }: Props) {
       return {
         scopeLabel: 'Ano 1',
         sem: sumSEM, energia: sumSEM - dem, demanda: dem,
-        teAcl: sumTeAcl, tusdFp: sumTusdFp, tusdPt: sumTusdPt, demandaAcl: sumDemAcl,
+        tusdFp: sy(m => m.sem.tusdFpCost), tusdPt: sy(m => m.sem.tusdPtCost),
+        teFp: sy(m => m.sem.teFpCost), tePt: sy(m => m.sem.tePtCost), demandaAcl: sy(m => m.sem.demandaCost),
         rede: sumRede, ppa: sumPPA, icmsAdd: sumIcms,
         comTotal: sumRede + sumPPA + sumIcms,
         economia: sumEco,
@@ -166,8 +166,8 @@ export function KPICards({ summary, months, project, result }: Props) {
         sem: summary.baselineSEM / m,
         energia: (summary.baselineSEM - demandaTotal) / m,
         demanda: monthlyDemandaR,
-        teAcl: totalTeAcl / m,
-        tusdFp: totalTusdFp / m, tusdPt: totalTusdPt / m, demandaAcl: totalDemAcl / m,
+        tusdFp: totalTusdFp / m, tusdPt: totalTusdPt / m,
+        teFp: totalTeFp / m, tePt: totalTePt / m, demandaAcl: totalDem / m,
         rede: comRede / m,
         ppa: summary.totalPPACost / m,
         icmsAdd: 0,
@@ -181,8 +181,8 @@ export function KPICards({ summary, months, project, result }: Props) {
       sem: summary.baselineSEM,
       energia: semEnergia,
       demanda: demandaTotal,
-      teAcl: totalTeAcl,
-      tusdFp: totalTusdFp, tusdPt: totalTusdPt, demandaAcl: totalDemAcl,
+      tusdFp: totalTusdFp, tusdPt: totalTusdPt,
+      teFp: totalTeFp, tePt: totalTePt, demandaAcl: totalDem,
       rede: comRede,
       ppa: summary.totalPPACost,
       icmsAdd: 0,
@@ -330,7 +330,7 @@ export function KPICards({ summary, months, project, result }: Props) {
                     {isACL ? (
                       <>
                         <div className="text-xs text-slate-600 uppercase font-semibold mt-1">Energia ACL</div>
-                        <InvoiceLine label="Energia ACL (TE)" value={scopeData.teAcl} note="Comercializadora" />
+                        <InvoiceLine label="Energia ACL (TE)" value={scopeData.teFp + scopeData.tePt} note="Comercializadora" />
                         <div className="text-xs text-slate-600 uppercase font-semibold mt-3">{distName}</div>
                         <InvoiceLine label="TUSD Fora Ponta" value={scopeData.tusdFp} />
                         {scopeData.tusdPt > 0 && <InvoiceLine label="TUSD Ponta" value={scopeData.tusdPt} />}
@@ -346,8 +346,12 @@ export function KPICards({ summary, months, project, result }: Props) {
                       </>
                     ) : (
                       <>
-                        <InvoiceLine label="Energia (FP + PT + RSV)" value={scopeData.energia} />
-                        <InvoiceLine label="Demanda contratada" value={scopeData.demanda} note="Não compensada" />
+                        <div className="text-xs text-slate-600 uppercase font-semibold mt-1">{distName}</div>
+                        <InvoiceLine label="TUSD Fora Ponta" value={scopeData.tusdFp} />
+                        {scopeData.tusdPt > 0 && <InvoiceLine label="TUSD Ponta" value={scopeData.tusdPt} />}
+                        <InvoiceLine label="TE Fora Ponta" value={scopeData.teFp} />
+                        {scopeData.tePt > 0 && <InvoiceLine label="TE Ponta" value={scopeData.tePt} />}
+                        <InvoiceLine label="Demanda contratada" value={scopeData.demandaAcl} note="Não compensada" />
                         <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between font-semibold text-slate-800">
                           <span>Total Fatura {distName}</span>
                           <span className="font-mono">{formatBRL(scopeData.sem)}</span>
@@ -367,7 +371,7 @@ export function KPICards({ summary, months, project, result }: Props) {
                     <span className="text-[11px] text-slate-500 font-normal ml-1">({scopeData.scopeLabel})</span>
                   </h4>
                   <div className="space-y-2 text-sm">
-                    <div className="text-xs text-slate-600 uppercase font-semibold mt-1">Distribuidora</div>
+                    <div className="text-xs text-slate-600 uppercase font-semibold mt-1">{distName}</div>
                     <InvoiceLine label="Energia residual" value={scopeData.energiaResidual} note={scopeData.energiaResidual === 0 ? 'Totalmente compensada' : undefined} />
                     <InvoiceLine label="Demanda contratada" value={scopeData.demanda} note={isACL ? 'Cativo — demanda cheia (≠ SEM)' : 'Idêntica ao SEM'} />
                     <div className="border-t border-slate-300 pt-1 mt-1 flex justify-between text-slate-700 text-xs">

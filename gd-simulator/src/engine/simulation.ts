@@ -310,8 +310,9 @@ export function runSimulation(project: Project): SimulationResult {
     );
 
     let semTotalCost = 0;
-    let semTeAclCost = 0;
     let semTusdPtCost = 0;
+    let semTeFpCost = 0;
+    let semTePtCost = 0;
     let semDemandaCost = 0;
     let comRedeCost = 0;
     let comIcmsAdditional = 0;
@@ -327,8 +328,9 @@ export function runSimulation(project: Project): SimulationResult {
       const comUC = comResults[uc.id];
       if (semUC && semUC.monthlyDetails[m]) {
         semTotalCost += semUC.monthlyDetails[m].costRede;
-        semTeAclCost += semUC.monthlyDetails[m].teAclCost;
         semTusdPtCost += semUC.monthlyDetails[m].tusdPtCost;
+        semTeFpCost += semUC.monthlyDetails[m].teFpCost;
+        semTePtCost += semUC.monthlyDetails[m].tePtCost;
         semDemandaCost += semUC.monthlyDetails[m].demandaCost;
       }
       if (comUC && comUC.monthlyDetails[m]) {
@@ -353,15 +355,15 @@ export function runSimulation(project: Project): SimulationResult {
     economiaAcum += economia;
 
     // Fora-ponta TUSD as the residual so the SEM decomposition always reconciles to
-    // totalCost (also absorbs BAT-the-UC's captive bill, which isn't ACL-split).
-    const semTusdFpCost = Math.max(0, semTotalCost - semTeAclCost - semTusdPtCost - semDemandaCost);
+    // totalCost (also absorbs BAT-the-UC's captive bill, which isn't itemised here).
+    const semTusdFpCost = Math.max(0, semTotalCost - semTusdPtCost - semTeFpCost - semTePtCost - semDemandaCost);
 
     months.push({
       monthIndex: m,
       label: formatMonthLabel(project.plant.contractStartMonth, m),
       generation: gen,
       ppaCost,
-      sem: { totalCost: semTotalCost, teAclCost: semTeAclCost, tusdFpCost: semTusdFpCost, tusdPtCost: semTusdPtCost, demandaCost: semDemandaCost },
+      sem: { totalCost: semTotalCost, tusdFpCost: semTusdFpCost, tusdPtCost: semTusdPtCost, teFpCost: semTeFpCost, tePtCost: semTePtCost, demandaCost: semDemandaCost },
       com: { redeCost: comRedeCost, totalCost: comTotalCost, icmsAdditional: comIcmsAdditional, pisCofinsAdditional: comPisCofinsAdditional },
       economia,
       economiaAcum,

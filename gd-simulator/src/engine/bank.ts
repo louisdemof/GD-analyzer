@@ -390,18 +390,37 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     totalIcmsAdditional += icmsAdditional;
     totalPisCofinsAdditional += pisCofinsAdditional;
 
-    // SEM bill decomposition — itemises costRede for the ACL invoice split. teAcl is added
-    // uniformly to every posto's effective tariff (T_*_eff = TUSD-after-discount + teAcl), so
-    // the energia-ACL (TE) cost = teAcl × billed kWh. The remainder of the energy charge is
-    // TUSD: ponta computed directly (Grupo A), fora-ponta (+ reservado) as the residual so the
-    // four parts always reconcile to costRede. demandaCost carries the (ACL-discounted) demanda.
-    const energyCost = costRede - demandaMensal;
-    const teAclCost = teAcl > 0
-      ? (monthlyResidualFP + monthlyResidualPT + monthlyResidualRSV) * teAcl
-      : 0;
-    const tusdPtCost = uc.isGrupoA ? monthlyResidualPT * Math.max(0, T_APT_eff - teAcl) : 0;
-    const tusdFpCost = Math.max(0, energyCost - teAclCost - tusdPtCost);
+    // SEM bill decomposition — itemises costRede into demanda + TUSD/TE per posto, for both
+    // the captive (regulated) and ACL cases. Reconciles exactly to costRede:
+    //   demandaCost + tusdFpCost + tusdPtCost + teFpCost + tePtCost === costRede.
+    // Captive: TE per posto = regulated energy (T_x − T_x_TUSD). ACL: TE = energia comprada
+    // na ACL (teAcl, uniform per kWh); TUSD carries the incentivada discount. Reservado is
+    // folded into fora-ponta (its TUSD/TE split approximated by the FP TUSD/all-in ratio).
     const demandaCost = demandaMensal;
+    let tusdFpCost = 0, tusdPtCost = 0, teFpCost = 0, tePtCost = 0;
+    if (uc.isGrupoA) {
+      const rRSV = T_AFP > 0 ? T_AFP_TUSD / T_AFP : 1;
+      const tusdFPr = aclOn ? tusdAposBeneficio(T_AFP_TUSD, dCons) : T_AFP_TUSD;
+      const tusdPTr = aclOn ? tusdAposBeneficio(T_APT_TUSD, dConsPT) : T_APT_TUSD;
+      const tusdRSVr = aclOn ? tusdAposBeneficio(T_ARSV * rRSV, dCons) : T_ARSV * rRSV;
+      const teFPr = aclOn ? teAcl : (T_AFP - T_AFP_TUSD);
+      const tePTr = aclOn ? teAcl : (T_APT - T_APT_TUSD);
+      const teRSVr = aclOn ? teAcl : (T_ARSV - T_ARSV * rRSV);
+      tusdFpCost = monthlyResidualFP * tusdFPr + monthlyResidualRSV * tusdRSVr;
+      tusdPtCost = monthlyResidualPT * tusdPTr;
+      teFpCost = monthlyResidualFP * teFPr + monthlyResidualRSV * teRSVr;
+      tePtCost = monthlyResidualPT * tePTr;
+    } else {
+      // Grupo B: single posto (fora-ponta). Captive may carry the legacy Plin haircut.
+      const discF = (!aclOn && isSEM && competitorDiscount > 0) ? (1 - competitorDiscount) : 1;
+      const rBRSV = T_B3 > 0 ? T_B3_TUSD / T_B3 : 1;
+      const tusdBr = (aclOn ? tusdAposBeneficio(T_B3_TUSD, dCons) : T_B3_TUSD * discF);
+      const tusdBRSVr = (aclOn ? tusdAposBeneficio(T_BRSV * rBRSV, dCons) : T_BRSV * rBRSV * discF);
+      const teBr = (aclOn ? teAcl : (T_B3 - T_B3_TUSD) * discF);
+      const teBRSVr = (aclOn ? teAcl : (T_BRSV - T_BRSV * rBRSV) * discF);
+      tusdFpCost = monthlyResidualFP * tusdBr + monthlyResidualRSV * tusdBRSVr;
+      teFpCost = monthlyResidualFP * teBr + monthlyResidualRSV * teBRSVr;
+    }
 
     const hasRSVReport = (uc.consumptionReservado?.[m] ?? 0) > 0;
     monthlyDetails.push({
@@ -415,9 +434,10 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       bankDraw,
       bankEnd: bank,
       costRede,
-      teAclCost,
       tusdFpCost,
       tusdPtCost,
+      teFpCost,
+      tePtCost,
       demandaCost,
       ownGenerationUsed: ownGen,
       icmsAdditional,

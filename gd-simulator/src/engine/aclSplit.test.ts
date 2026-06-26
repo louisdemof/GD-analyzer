@@ -85,44 +85,36 @@ describe('SEM invoice decomposition (ACL split)', () => {
 
       it('components reconcile to costRede every month', () => {
         res.monthlyDetails.forEach((d, m) => {
-          const sum = d.teAclCost + d.tusdFpCost + d.tusdPtCost + d.demandaCost;
+          const sum = d.tusdFpCost + d.tusdPtCost + d.teFpCost + d.tePtCost + d.demandaCost;
           expect(Math.abs(sum - d.costRede), `month ${m}`).toBeLessThan(1e-4);
         });
       });
 
       it('every component is non-negative', () => {
         for (const d of res.monthlyDetails) {
-          expect(d.teAclCost).toBeGreaterThanOrEqual(-1e-9);
-          expect(d.tusdFpCost).toBeGreaterThanOrEqual(-1e-9);
-          expect(d.tusdPtCost).toBeGreaterThanOrEqual(-1e-9);
-          expect(d.demandaCost).toBeGreaterThanOrEqual(-1e-9);
+          for (const v of [d.tusdFpCost, d.tusdPtCost, d.teFpCost, d.tePtCost, d.demandaCost]) {
+            expect(v).toBeGreaterThanOrEqual(-1e-9);
+          }
         }
       });
 
-      it('fora-ponta residual is not floored (teAcl + tusdPt <= energy cost)', () => {
-        for (const d of res.monthlyDetails) {
-          const energyCost = d.costRede - d.demandaCost;
-          expect(d.teAclCost + d.tusdPtCost).toBeLessThanOrEqual(energyCost + 1e-4);
-        }
-      });
-
-      it('teAclCost equals billed kWh × independent ACL energy rate', () => {
+      it('TE (energy) equals billed kWh × rate — ACL: ACL price; captive: regulated TE', () => {
         res.monthlyDetails.forEach((d, m) => {
           const billed = d.residualFP + d.residualPT + d.residualRSV;
-          const expected = opts.aclOn ? billed * teAclPerKWh(Math.floor(m / 12)) : 0;
-          expect(Math.abs(d.teAclCost - expected), `month ${m}`).toBeLessThan(1e-3);
+          const te = d.teFpCost + d.tePtCost;
+          if (opts.aclOn) {
+            // ACL energy is uniform per kWh across postos
+            expect(Math.abs(te - billed * teAclPerKWh(Math.floor(m / 12))), `month ${m}`).toBeLessThan(1e-3);
+          } else {
+            // captive: TE is the regulated energy component, strictly positive when billing
+            if (billed > 0) expect(te).toBeGreaterThan(0);
+          }
         });
       });
 
       if (!opts.isGrupoA) {
-        it('grupo B has no TUSD ponta', () => {
-          for (const d of res.monthlyDetails) expect(d.tusdPtCost).toBe(0);
-        });
-      }
-
-      if (!opts.aclOn) {
-        it('cativo has no ACL energy (teAclCost = 0)', () => {
-          for (const d of res.monthlyDetails) expect(d.teAclCost).toBe(0);
+        it('grupo B has no ponta (TUSD nor TE)', () => {
+          for (const d of res.monthlyDetails) { expect(d.tusdPtCost).toBe(0); expect(d.tePtCost).toBe(0); }
         });
       }
 
@@ -140,10 +132,19 @@ describe('SEM invoice decomposition (ACL split)', () => {
 
   it('full compensation leaves only demanda', () => {
     const d = run({ isGrupoA: true, aclOn: true, months: 6, ownGenPerMonth: 9_000_000 }).monthlyDetails[0];
-    expect(d.teAclCost).toBe(0);
     expect(d.tusdFpCost).toBe(0);
     expect(d.tusdPtCost).toBe(0);
+    expect(d.teFpCost).toBe(0);
+    expect(d.tePtCost).toBe(0);
     expect(d.demandaCost).toBeGreaterThan(0);
+  });
+
+  it('captive Grupo A with ponta has both TE FP and TE PT > 0', () => {
+    const d = run({ isGrupoA: true, aclOn: false, months: 12 }).monthlyDetails[0];
+    expect(d.teFpCost).toBeGreaterThan(0);
+    expect(d.tePtCost).toBeGreaterThan(0);
+    expect(d.tusdFpCost).toBeGreaterThan(0);
+    expect(d.tusdPtCost).toBeGreaterThan(0);
   });
 
   it('SEM-ACL demanda is lower than COM (cativo) full demanda', () => {

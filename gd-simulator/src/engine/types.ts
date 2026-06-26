@@ -310,7 +310,7 @@ export interface MonthlyResult {
   generation: number;     // kWh injected
   ppaCost: number;        // R$ PPA paid to Helexia
   // Per scenario
-  sem: { totalCost: number; teAclCost: number; tusdFpCost: number; tusdPtCost: number; demandaCost: number };
+  sem: { totalCost: number; tusdFpCost: number; tusdPtCost: number; teFpCost: number; tePtCost: number; demandaCost: number };
   com: { redeCost: number; totalCost: number; icmsAdditional: number; pisCofinsAdditional: number };
   economia: number;       // sem.totalCost - com.totalCost - icmsAdditional - pisCofinsAdditional
   economiaAcum: number;   // running total
@@ -342,13 +342,14 @@ export interface UCMonthlyDetail {
   bankDraw: number;
   bankEnd: number;
   costRede: number;
-  // ACL (SEM only): the energia-comprada-na-ACL (TE) portion of costRede, R$ this month.
-  // 0 for captive (CATIVO) projects. Used to split the SEM invoice (TE→ACL, rest→distribuidora).
-  teAclCost: number;
-  // SEM bill decomposition (R$ this month). teAclCost + tusdFpCost + tusdPtCost + demandaCost
-  // = costRede. Used to itemise the distributor side of the ACL invoice (TUSD FP, TUSD PT, demanda).
+  // SEM bill decomposition (R$ this month): demandaCost + tusdFpCost + tusdPtCost + teFpCost
+  // + tePtCost = costRede. Itemises the SEM invoice for both captive and ACL projects.
+  // Captive: teFp/tePt are the regulated energy (TE). ACL: teFp/tePt are the energia comprada
+  // na ACL; demanda/TUSD carry the incentivada discount. tePtCost/tusdPtCost are 0 for Grupo B.
   tusdFpCost: number;   // TUSD fora-ponta (+ reservado)
-  tusdPtCost: number;   // TUSD ponta (Grupo A only)
+  tusdPtCost: number;   // TUSD ponta
+  teFpCost: number;     // TE fora-ponta (+ reservado) — or ACL energy when ACL
+  tePtCost: number;     // TE ponta — or ACL energy when ACL
   demandaCost: number;  // demanda contratada (discounted under ACL incentivada)
   ownGenerationUsed: number;
   icmsAdditional: number;
