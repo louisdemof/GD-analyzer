@@ -68,7 +68,7 @@ export function Dashboard() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">GD Simulator</h1>
+          <h1 className="text-2xl font-bold text-slate-800">GD Analyzer</h1>
           <p className="text-sm text-slate-500 mt-1">Simulador de Geracao Distribuida — Helexia Brasil</p>
         </div>
         <div className="flex gap-2">

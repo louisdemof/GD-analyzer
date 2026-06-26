@@ -83,7 +83,7 @@ export function TopBar() {
             <span className="text-xs text-slate-500 truncate">{project.plant.name || 'Planta não definida'}</span>
           </>
         ) : (
-          <h2 className="text-sm font-semibold text-slate-800">GD Simulator</h2>
+          <h2 className="text-sm font-semibold text-slate-800">GD Analyzer</h2>
         )}
       </div>
       <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">

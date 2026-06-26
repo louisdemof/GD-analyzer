@@ -12,7 +12,7 @@ export function Sidebar() {
     <aside className="w-64 bg-navy-900 text-white min-h-screen flex flex-col" style={{ backgroundColor: '#004B70' }}>
       <div className="p-4 border-b border-white/10">
         <img src={`${import.meta.env.BASE_URL}Helexia_logo_WHT_web.svg`} alt="Helexia" className="h-12 mb-2" />
-        <h1 className="text-lg font-bold tracking-tight">GD Simulator</h1>
+        <h1 className="text-lg font-bold tracking-tight">GD Analyzer</h1>
       </div>
 
       <nav className="flex-1 p-3 space-y-1">
