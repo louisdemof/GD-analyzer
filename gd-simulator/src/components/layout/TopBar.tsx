@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useNavigate } from 'react-router-dom';
+import { NotificationBell } from '../NotificationBell';
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -87,6 +88,7 @@ export function TopBar() {
         )}
       </div>
       <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
+        <NotificationBell />
         {project && (
           <button
             onClick={handleDuplicate}

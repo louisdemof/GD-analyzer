@@ -90,6 +90,39 @@ export async function cloudSearchUsers(query: string): Promise<UserSuggestion[]>
   return data as UserSuggestion[];
 }
 
+// Projects that others have shared WITH me (for the notifications bell).
+export interface IncomingShare { projectId: string; projectName: string; sharedBy: string; createdAt: string }
+export async function cloudIncomingShares(): Promise<IncomingShare[]> {
+  if (!(await authed()) || !supabase) return [];
+  const { data: u } = await supabase.auth.getUser();
+  const myEmail = u.user?.email?.toLowerCase();
+  const myId = u.user?.id;
+  if (!myEmail) return [];
+  const { data: shares } = await supabase.from('project_shares')
+    .select('project_id, created_at').eq('email', myEmail);
+  if (!shares || shares.length === 0) return [];
+  const ids = shares.map(s => s.project_id);
+  const { data: projs } = await supabase.from('projects').select('id, data, created_by').in('id', ids);
+  const projMap = new Map((projs ?? []).map(p => [p.id, p]));
+  const ownerIds = [...new Set((projs ?? []).map(p => p.created_by).filter(Boolean))] as string[];
+  const { data: owners } = ownerIds.length
+    ? await supabase.from('profiles').select('id, email').in('id', ownerIds)
+    : { data: [] as { id: string; email: string }[] };
+  const ownerMap = new Map((owners ?? []).map(o => [o.id, o.email]));
+  return shares
+    .filter(s => projMap.has(s.project_id) && projMap.get(s.project_id)!.created_by !== myId)
+    .map(s => {
+      const p = projMap.get(s.project_id)!;
+      return {
+        projectId: s.project_id,
+        projectName: (p.data as { clientName?: string })?.clientName || 'Projeto',
+        sharedBy: ownerMap.get(p.created_by) || 'um colega',
+        createdAt: s.created_at as string,
+      };
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 // Which of my visible projects are owned by me vs shared-in? (for "shared with me" UI)
 export async function cloudOwnedProjectIds(): Promise<Set<string>> {
   if (!(await authed()) || !supabase) return new Set();
