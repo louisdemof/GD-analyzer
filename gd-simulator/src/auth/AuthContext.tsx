@@ -7,15 +7,19 @@ interface AuthState {
   loading: boolean;
   session: Session | null;
   user: User | null;
+  recovery: boolean; // arrived via a password-reset link → must set a new password
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  updatePassword: (password: string) => Promise<{ error: string | null }>;
 }
 
 const AuthCtx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [recovery, setRecovery] = useState(false);
   // When cloud is off, there's nothing to load — the app runs local-only.
   const [loading, setLoading] = useState(isCloudEnabled);
 
@@ -25,7 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -45,10 +52,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => { await supabase?.auth.signOut(); };
 
+  const resetPassword: AuthState['resetPassword'] = async (email) => {
+    if (!supabase) return { error: 'Cloud não configurado' };
+    const redirectTo = window.location.origin + import.meta.env.BASE_URL;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    return { error: error?.message ?? null };
+  };
+
+  const updatePassword: AuthState['updatePassword'] = async (password) => {
+    if (!supabase) return { error: 'Cloud não configurado' };
+    const { error } = await supabase.auth.updateUser({ password });
+    if (!error) setRecovery(false);
+    return { error: error?.message ?? null };
+  };
+
   return (
     <AuthCtx.Provider value={{
-      cloudEnabled: isCloudEnabled, loading, session, user: session?.user ?? null,
-      signIn, signUp, signOut,
+      cloudEnabled: isCloudEnabled, loading, session, user: session?.user ?? null, recovery,
+      signIn, signUp, signOut, resetPassword, updatePassword,
     }}>
       {children}
     </AuthCtx.Provider>

@@ -14,12 +14,13 @@ import { LoginScreen } from './auth/LoginScreen';
 // Gate the app behind login only when cloud is configured. Without Supabase env
 // vars the app runs exactly as before (local-only), so nothing breaks offline.
 function Gate({ children }: { children: React.ReactNode }) {
-  const { cloudEnabled, loading, session } = useAuth();
+  const { cloudEnabled, loading, session, recovery } = useAuth();
   const syncFromCloud = useProjectStore(s => s.syncFromCloud);
-  // On login, pull the user's cloud projects and merge with local.
-  useEffect(() => { if (session) syncFromCloud(); }, [session, syncFromCloud]);
+  // On login, pull the user's cloud projects and merge with local (skip during recovery).
+  useEffect(() => { if (session && !recovery) syncFromCloud(); }, [session, recovery, syncFromCloud]);
   if (!cloudEnabled) return <>{children}</>;
   if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">Carregando…</div>;
+  if (recovery) return <LoginScreen />;   // arrived via reset link → set a new password
   if (!session) return <LoginScreen />;
   return <>{children}</>;
 }
