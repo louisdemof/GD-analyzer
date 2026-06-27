@@ -287,7 +287,7 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
     // KPIs
     React.createElement(View, { style: s.kpiRow },
       ...[
-        { label: `Geracao ${durationLabel(cm)}`, value: fmtKWh(sm.totalGeneration), sub: 'P50 injetado' },
+        { label: `Geração ${durationLabel(cm)}`, value: fmtKWh(sm.totalGeneration), sub: 'P50 injetado' },
         { label: 'Economia Liquida', value: fmtBRL(sm.economiaLiquida), sub: fmtPct(sm.economiaPct) + ' reducao' },
         { label: 'Banco Residual', value: fmtBRL(sm.bancoResidualValue), sub: fmtKWh(sm.bancoResidualKWh) },
         { label: 'VALOR TOTAL', value: fmtBRL(sm.valorTotal), sub: 'Economia + Banco' },
@@ -379,11 +379,11 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
         )
       );
     })(),
-    // Yearly summary table — adds "Consumo" column before "Geracao".
+    // Yearly summary table — adds "Consumo" column before "Geração".
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 16 } }, `Resumo por Ano (${durationLabel(cm)})`),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Periodo', 'Consumo', 'Geracao', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
+        ...['Período', 'Consumo', 'Geração', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
           React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '12%' : '14.66%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
@@ -604,10 +604,10 @@ function BankPage({ project, result }: { project: Project; result: SimulationRes
       )
     ),
     // Sensitivity table (scales main plant + additional plants p50)
-    React.createElement(Text, { style: { ...s.sectionTitle, marginTop: 20 } }, 'Sensibilidade de Geracao'),
+    React.createElement(Text, { style: { ...s.sectionTitle, marginTop: 20 } }, 'Sensibilidade de Geração'),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Cenario', `Geracao ${durationLabel(computeSimulationMonths(project))}`, 'PPA (R$)', 'Economia (R$)', 'Reducao (%)'].map((h, i) =>
+        ...['Cenário', `Geração ${durationLabel(computeSimulationMonths(project))}`, 'PPA (R$)', 'Economia (R$)', 'Redução (%)'].map((h, i) =>
           React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: '20%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
@@ -775,17 +775,17 @@ function NotesPage({ project }: { project: Project }) {
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'Notas Regulatorias'),
     React.createElement(Text, { style: s.noteTitle }, 'Lei 14.300/2022 — SCEE Autoconsumo Remoto'),
-    React.createElement(Text, { style: s.noteText }, 'O Sistema de Compensacao de Energia Eletrica (SCEE) permite que a energia injetada pela usina solar gere creditos que compensam o consumo das Unidades Consumidoras (UCs) do cliente, mesmo que em enderecos diferentes, dentro da mesma area de concessao.'),
+    React.createElement(Text, { style: s.noteText }, 'O Sistema de Compensacao de Energia Elétrica (SCEE) permite que a energia injetada pela usina solar gere créditos que compensam o consumo das Unidades Consumidoras (UCs) do cliente, mesmo que em enderecos diferentes, dentro da mesma area de concessao.'),
     React.createElement(Text, { style: s.noteTitle }, 'Rateio Fixo por Periodos'),
-    React.createElement(Text, { style: s.noteText }, `A alocacao dos creditos entre as UCs segue o modelo de rateio fixo por periodos ao longo do contrato de ${durationLabel(computeSimulationMonths(project))}. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.`),
-    React.createElement(Text, { style: s.noteTitle }, 'Validade dos Creditos'),
-    React.createElement(Text, { style: s.noteText }, 'Conforme a Lei 14.300/2022 (Art. 5º), os creditos de energia gerados no ambito do SCEE tem validade de 60 meses a partir do mes de injecao, podendo ser acumulados no banco de creditos da distribuidora e utilizados em faturas futuras dentro desse prazo. Creditos nao utilizados apos 60 meses expiram.'),
+    React.createElement(Text, { style: s.noteText }, `A alocacao dos créditos entre as UCs segue o modelo de rateio fixo por periodos ao longo do contrato de ${durationLabel(computeSimulationMonths(project))}. O rateio e otimizado para maximizar a economia liquida do cliente, considerando o perfil de consumo de cada UC e suas tarifas.`),
+    React.createElement(Text, { style: s.noteTitle }, 'Validade dos Créditos'),
+    React.createElement(Text, { style: s.noteText }, 'Conforme a Lei 14.300/2022 (Art. 5º), os créditos de energia gerados no âmbito do SCEE tem validade de 60 meses a partir do mês de injeção, podendo ser acumulados no banco de créditos da distribuidora e utilizados em faturas futuras dentro desse prazo. Créditos não utilizados após 60 meses expiram.'),
     !project.scenarios.icmsExempt && React.createElement(View, null,
       React.createElement(Text, { style: { ...s.noteTitle, color: '#dc2626' } }, 'Risco ICMS (Art. 23-A RICMS)'),
-      React.createElement(Text, { style: s.noteText }, 'ATENCAO: A isencao de ICMS nao esta ativada para esta simulacao. Caso o estado aplique ICMS sobre a energia compensada, os custos adicionais estimados estao refletidos no campo "Risco ICMS" do resumo executivo.')
+      React.createElement(Text, { style: s.noteText }, 'ATENÇÃO: A isenção de ICMS não esta ativada para esta simulacao. Caso o estado aplique ICMS sobre a energia compensada, os custos adicionais estimados estao refletidos no campo "Risco ICMS" do resumo executivo.')
     ),
     React.createElement(View, { style: { marginTop: 30, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 10 } },
-      React.createElement(Text, { style: { fontSize: 7, color: '#94a3b8' } }, 'Este documento e uma estimativa baseada em dados fornecidos e projecoes de geracao P50. Os valores reais podem variar conforme condicoes climaticas, alteracoes tarifarias e disponibilidade da usina. Helexia Brasil nao garante os valores apresentados.'),
+      React.createElement(Text, { style: { fontSize: 7, color: '#94a3b8' } }, 'Este documento e uma estimativa baseada em dados fornecidos e projeções de geração P50. Os valores reais podem variar conforme condições climaticas, alterações tarifarias e disponibilidade da usina. Helexia Brasil não garante os valores apresentados.'),
     )
   );
 }

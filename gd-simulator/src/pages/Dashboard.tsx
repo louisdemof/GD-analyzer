@@ -40,7 +40,7 @@ export function Dashboard() {
       try {
         importProject(reader.result as string);
         navigate(`/project/${useProjectStore.getState().currentProjectId}`);
-      } catch { alert('Ficheiro invalido'); }
+      } catch { alert('Ficheiro inválido'); }
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -78,7 +78,7 @@ export function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">GD Analyzer</h1>
-          <p className="text-sm text-slate-500 mt-1">Simulador de Geracao Distribuida — Helexia Brasil</p>
+          <p className="text-sm text-slate-500 mt-1">Simulador de Geração Distribuída — Helexia Brasil</p>
         </div>
         <div className="flex gap-2">
           {/* Demos — tucked into a dropdown to declutter the header */}
@@ -247,7 +247,7 @@ export function Dashboard() {
                           </span>
                         )}
                         <h3 className="font-semibold text-slate-800 truncate">{p.clientName || 'Sem nome'}</h3>
-                        <p className="text-xs text-slate-500 mt-1">{p.plant.name || 'Planta nao definida'}</p>
+                        <p className="text-xs text-slate-500 mt-1">{p.plant.name || 'Planta não definida'}</p>
                       </div>
                       <div className="flex gap-1">
                         <button onClick={(e) => handleDuplicate(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Duplicar">

@@ -169,7 +169,7 @@ export function ProjectEditor() {
           <div className="bg-white rounded-xl shadow-xl p-6 max-w-lg w-full mx-4">
             {importModal.type === 'error' ? (
               <>
-                <h3 className="text-lg font-semibold text-red-700 mb-3">Erros na importacao</h3>
+                <h3 className="text-lg font-semibold text-red-700 mb-3">Erros na importação</h3>
                 <ul className="text-sm text-red-600 space-y-1 mb-4 max-h-60 overflow-y-auto">
                   {importModal.result.errors.map((err, i) => <li key={i}>• {err}</li>)}
                 </ul>
@@ -187,7 +187,7 @@ export function ProjectEditor() {
               </>
             ) : (
               <>
-                <h3 className="text-lg font-semibold text-slate-800 mb-3">Confirmar importacao</h3>
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">Confirmar importação</h3>
                 <p className="text-sm text-slate-600 mb-2">
                   Importar consumo de {importModal.result.updates?.ucs.length ?? 0} UC(s)?
                 </p>
@@ -256,7 +256,7 @@ export function ProjectEditor() {
           <div>
             <h1 className="text-xl font-bold text-slate-800">{project.clientName}</h1>
             <p className="text-xs text-slate-500">
-              Configuracao do Projeto · {' '}
+              Configuração do Projeto · {' '}
               <button onClick={() => logoInputRef.current?.click()} className="text-teal-600 hover:underline">
                 {project.clientLogo ? 'trocar logo' : '🖼️ adicionar logo do cliente'}
               </button>

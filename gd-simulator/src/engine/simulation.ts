@@ -125,7 +125,7 @@ function formatMonthLabel(contractStart: string, monthIndex: number): string {
  */
 function validateProject(project: Project, d: Distributor): void {
   if (project.ucs.length === 0) {
-    throw new Error('O projeto nao tem Unidades Consumidoras. Adicione pelo menos uma UC antes de simular.');
+    throw new Error('O projeto não tem Unidades Consumidoras. Adicione pelo menos uma UC antes de simular.');
   }
 
   const checks: [string, number | undefined][] = [
@@ -135,7 +135,7 @@ function validateProject(project: Project, d: Distributor): void {
   ];
   for (const [name, value] of checks) {
     if (value === undefined || value === null || isNaN(value) || value <= 0) {
-      throw new Error(`Tarifa invalida: ${name} = ${value} para ${d.name}. Preencha todos os campos tarifarios antes de simular.`);
+      throw new Error(`Tarifa inválida: ${name} = ${value} para ${d.name}. Preencha todos os campos tarifários antes de simular.`);
     }
   }
 
@@ -144,11 +144,11 @@ function validateProject(project: Project, d: Distributor): void {
   }
 
   if (!project.plant.p50Profile?.length || project.plant.p50Profile.every(v => v === 0)) {
-    throw new Error('Perfil de geracao invalido — todos os valores sao zero. Adicione os dados de geracao da usina.');
+    throw new Error('Perfil de geração inválido — todos os valores são zero. Adicione os dados de geração da usina.');
   }
 
   if (!project.plant.ppaRateRsBRLkWh || project.plant.ppaRateRsBRLkWh <= 0) {
-    throw new Error('Tarifa PPA invalida. Defina o preco do PPA em R$/kWh antes de simular.');
+    throw new Error('Tarifa PPA inválida. Defina o preço do PPA em R$/kWh antes de simular.');
   }
 }
 

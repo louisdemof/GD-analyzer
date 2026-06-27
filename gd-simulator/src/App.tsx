@@ -27,7 +27,7 @@ function Gate({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <ErrorBoundary fallbackTitle="Erro na aplicacao">
+    <ErrorBoundary fallbackTitle="Erro na aplicação">
       <AuthProvider>
        <Gate>
       <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>

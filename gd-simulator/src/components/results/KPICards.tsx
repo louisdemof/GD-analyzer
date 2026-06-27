@@ -197,7 +197,7 @@ export function KPICards({ summary, months, project, result }: Props) {
   if (months && months.length > 0) {
     const paybackIdx = months.findIndex(m => m.economiaAcum > 0);
     if (paybackIdx >= 0) {
-      paybackLabel = `Payback: ${months[paybackIdx].label} (mes ${paybackIdx + 1})`;
+      paybackLabel = `Payback: ${months[paybackIdx].label} (mês ${paybackIdx + 1})`;
     }
   }
 

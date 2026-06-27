@@ -65,7 +65,7 @@ function getRateioFraction(
 /**
  * Simulate credit bank for a single UC over contractMonths.
  *
- * Matches Excel V10 Simulacao formulas exactly:
+ * Matches Excel V10 Simulação formulas exactly:
  *
  * Grupo A (rows 25-37 NHS, 43-55 AMD):
  *   Row 25: autoCompFP = MIN(ownGen, consFP)
@@ -210,8 +210,8 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       const consRSV = uc.consumptionReservado?.[m] ?? 0;
       const hasRSV = consRSV > 0;
 
-      // ═══ Excel V10 Simulacao formulas — Grupo A (NHS/AMD) ═══
-      // Ref: rows 25-37 (NHS) and 43-55 (AMD) in Simulacao sheet
+      // ═══ Excel V10 Simulação formulas — Grupo A (NHS/AMD) ═══
+      // Ref: rows 25-37 (NHS) and 43-55 (AMD) in Simulação sheet
       //
       // Extended for horário reservado (REN 1000 Art. 186): RSV pertence ao posto
       // Fora Ponta — FP credits compensate RSV 1:1, same as regular FP. Only the

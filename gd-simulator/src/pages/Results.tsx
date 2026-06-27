@@ -216,7 +216,7 @@ export function Results() {
     { key: 'recebimento', label: 'Recebimento Helexia' },
     ...(result.attribution ? [{ key: 'atribuicao' as ResultTab, label: 'Atribuição' }] : []),
     { key: 'sensibilidades', label: 'Sensibilidades' },
-    { key: 'sensibilidade-geracao', label: 'Sensibilidade Geracao' },
+    { key: 'sensibilidade-geracao', label: 'Sensibilidade Geração' },
   ];
 
   return (

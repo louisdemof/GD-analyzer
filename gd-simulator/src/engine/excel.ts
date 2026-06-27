@@ -30,18 +30,18 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
     [''],
     ['Metrica', 'Valor', 'Unidade'],
     [`Consumo Total ${lbl}`, Math.round(consumoTotal), 'kWh'],
-    [`Geracao Total ${lbl}`, Math.round(sm.totalGeneration), 'kWh'],
+    [`Geração Total ${lbl}`, Math.round(sm.totalGeneration), 'kWh'],
     [`PPA Pago ${lbl}`, Math.round(sm.totalPPACost), 'R$'],
     [`Custo SEM Helexia ${lbl}`, Math.round(sm.baselineSEM), 'R$'],
     [`Economia Liquida ${lbl}`, Math.round(sm.economiaLiquida), 'R$'],
-    ['Reducao da Fatura', (sm.economiaPct * 100).toFixed(1) + '%', ''],
-    ['Economia Mensal Media', Math.round(sm.economiaPerMonth), 'R$/mes'],
+    ['Redução da Fatura', (sm.economiaPct * 100).toFixed(1) + '%', ''],
+    ['Economia Mensal Media', Math.round(sm.economiaPerMonth), 'R$/mês'],
     ['Banco Residual COM', Math.round(sm.bancoResidualKWh), 'kWh'],
     ['Banco Residual (Valor)', Math.round(sm.bancoResidualValue), 'R$ @ PPA'],
     ['Banco Net Helexia', Math.round(sm.bancoNetHelexia), 'R$'],
     ['VALOR TOTAL', Math.round(sm.valorTotal), 'R$'],
-    ['Risco ICMS (se isencao perdida)', Math.round(sm.icmsRisk), 'R$'],
-    ['PIS/COFINS Adicional (se nao isento)', Math.round(totalPisCofins), 'R$'],
+    ['Risco ICMS (se isenção perdida)', Math.round(sm.icmsRisk), 'R$'],
+    ['PIS/COFINS Adicional (se não isento)', Math.round(totalPisCofins), 'R$'],
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(resumoData);
   ws1['!cols'] = [{ wch: 25 }, { wch: 18 }, { wch: 12 }];
@@ -154,8 +154,8 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
     XLSX.utils.book_append_sheet(wb, wsDet, 'Detalhe Impostos');
   }
 
-  // Sheet 2: Mensal — "Consumo" goes before "Geracao", PIS/COFINS next to ICMS.
-  const mensalHeader = ['Mes', 'Consumo (kWh)', 'Geracao (kWh)', 'PPA (R$)', 'Custo SEM (R$)', 'Custo COM Rede (R$)', 'Custo COM Total (R$)', 'ICMS Adicional (R$)', 'PIS/COFINS Adicional (R$)', 'Economia (R$)', 'Economia Acum. (R$)'];
+  // Sheet 2: Mensal — "Consumo" goes before "Geração", PIS/COFINS next to ICMS.
+  const mensalHeader = ['Mês', 'Consumo (kWh)', 'Geração (kWh)', 'PPA (R$)', 'Custo SEM (R$)', 'Custo COM Rede (R$)', 'Custo COM Total (R$)', 'ICMS Adicional (R$)', 'PIS/COFINS Adicional (R$)', 'Economia (R$)', 'Economia Acum. (R$)'];
   const consumoForMonth = (mi: number) => {
     let sum = 0;
     for (const uc of project.ucs) {
@@ -202,7 +202,7 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
   XLSX.utils.book_append_sheet(wb, ws3, 'Banco por UC');
 
   // Sheet 4: Sensibilidade
-  const sensHeader = ['Cenario', 'Geracao 24m (kWh)', 'PPA (R$)', 'Economia (R$)', 'Reducao (%)', 'Banco Residual (kWh)', 'VALOR TOTAL (R$)'];
+  const sensHeader = ['Cenário', 'Geração 24m (kWh)', 'PPA (R$)', 'Economia (R$)', 'Redução (%)', 'Banco Residual (kWh)', 'VALOR TOTAL (R$)'];
   const scenarios = [
     { label: 'P90 Pessimista', mult: 0.90 },
     { label: 'P50 Base', mult: 1.00 },
@@ -262,7 +262,7 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
       ]),
       [''],
       ['DECOMPOSIÇÃO MENSAL'],
-      ['Mes', 'Banco inicial (R$)', 'Geração própria (R$)', 'BAT distrib (R$)', `${project.plant.name || 'Usina Helexia'} (R$)`, 'Economia total (R$)'],
+      ['Mês', 'Banco inicial (R$)', 'Geração própria (R$)', 'BAT distrib (R$)', `${project.plant.name || 'Usina Helexia'} (R$)`, 'Economia total (R$)'],
       ...a.monthly.map(m => [
         m.label,
         Math.round(m.initialBankEffect),
@@ -328,9 +328,9 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
       return rows;
     })(),
     [''],
-    ['Isencao ICMS', project.scenarios.icmsExempt ? 'Sim' : 'Nao'],
-    ['Desconto Concorrente', project.scenarios.competitorDiscount > 0 ? `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%` : 'Nao'],
-    ['Numero de UCs', `${project.ucs.length}`],
+    ['Isenção ICMS', project.scenarios.icmsExempt ? 'Sim' : 'Não'],
+    ['Desconto Concorrente', project.scenarios.competitorDiscount > 0 ? `${(project.scenarios.competitorDiscount * 100).toFixed(0)}%` : 'Não'],
+    ['Número de UCs', `${project.ucs.length}`],
     ['UCs Grupo A', `${project.ucs.filter(u => u.isGrupoA).length}`],
     ['UCs Grupo B', `${project.ucs.filter(u => !u.isGrupoA).length}`],
   ];

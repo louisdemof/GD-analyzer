@@ -159,7 +159,7 @@ export function PlantForm({
     <div className="space-y-4">
       {/* Source toggle */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">Fonte de Geracao</label>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Fonte de Geração</label>
         <div className="flex gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -445,12 +445,12 @@ export function PlantForm({
                   <span className="font-medium">{selectedHelexiaPlant.potenciaDC.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kWp</span>
                 </div>
                 <div>
-                  <span className="block text-slate-400">Geracao Anual P50</span>
+                  <span className="block text-slate-400">Geração Anual P50</span>
                   <span className="font-medium">{selectedHelexiaPlant.geracaoAnualP50.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MWh</span>
                 </div>
               </div>
               <div className="text-xs text-slate-500">
-                Ano de exposicao solar: {selectedHelexiaPlant.anoExposicaoSolar} | Ano de geracao: {selectedHelexiaPlant.anoGeracao}
+                Ano de exposição solar: {selectedHelexiaPlant.anoExposicaoSolar} | Ano de geracao: {selectedHelexiaPlant.anoGeracao}
               </div>
             </div>
           )}
@@ -499,7 +499,7 @@ export function PlantForm({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Degradacao anual (%)
+                Degradação anual (%)
               </label>
               <input
                 type="number"
@@ -510,7 +510,7 @@ export function PlantForm({
                 onChange={e => debouncedProjectFieldChange({ degradationPct: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
-              <p className="text-xs text-slate-400 mt-0.5">Padrao: 0.5% a.a.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Padrão: 0.5% a.a.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -525,7 +525,7 @@ export function PlantForm({
                 onChange={e => debouncedProjectFieldChange({ lossPct: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               />
-              <p className="text-xs text-slate-400 mt-0.5">Padrao: 0%</p>
+              <p className="text-xs text-slate-400 mt-0.5">Padrão: 0%</p>
             </div>
           </div>
 
@@ -533,7 +533,7 @@ export function PlantForm({
           {profile24 && chartData.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Perfil de Geracao 24 meses (kWh/mes)
+                Perfil de Geração 24 meses (kWh/mês)
               </label>
               <div className="bg-white border border-slate-200 rounded-lg p-3">
                 <ResponsiveContainer width="100%" height={200}>
@@ -542,7 +542,7 @@ export function PlantForm({
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={1} />
                     <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
                     <Tooltip
-                      formatter={(value) => [formatKWh(value as number) + ' kWh', 'Geracao']}
+                      formatter={(value) => [formatKWh(value as number) + ' kWh', 'Geração']}
                       labelStyle={{ fontWeight: 600 }}
                     />
                     <Bar dataKey="kWh" fill="#004B70" radius={[2, 2, 0, 0]} />
@@ -624,7 +624,7 @@ export function PlantForm({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Perfil de Geracao P50 (kWh/mes) — 24 meses
+              Perfil de Geração P50 (kWh/mês) — 24 meses
             </label>
             <div className="grid grid-cols-6 gap-2">
               {plant.p50Profile.map((val, i) => (

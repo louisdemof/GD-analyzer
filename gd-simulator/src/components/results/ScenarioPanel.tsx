@@ -22,7 +22,7 @@ export function ScenarioPanel({
 }: Props) {
   return (
     <div className="space-y-4 p-4 bg-slate-50 rounded-xl">
-      <h3 className="text-sm font-semibold text-slate-700">Cenarios</h3>
+      <h3 className="text-sm font-semibold text-slate-700">Cenários</h3>
 
       <Toggle
         checked={scenarios.icmsExempt}
@@ -100,12 +100,12 @@ export function ScenarioPanel({
               />
               <span className="text-sm text-slate-500">% a.a.</span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Padrao: 2,5%. Usado para contratos &gt; 12 meses.</p>
+            <p className="text-[10px] text-slate-400 mt-1">Padrão: 2,5%. Usado para contratos &gt; 12 meses.</p>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Degradacao anual da geracao
+              Degradação anual da geracao
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -119,7 +119,7 @@ export function ScenarioPanel({
               />
               <span className="text-sm text-slate-500">% a.a.</span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Padrao: 0,5%. Degradacao dos modulos fotovoltaicos.</p>
+            <p className="text-[10px] text-slate-400 mt-1">Padrão: 0,5%. Degradação dos módulos fotovoltaicos.</p>
           </div>
 
           <div>
@@ -142,7 +142,7 @@ export function ScenarioPanel({
               />
               <span className="text-sm text-slate-500">% do P50</span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Padrao: 100%. Reduza (ex: 90%) para refletir underperformance real.</p>
+            <p className="text-[10px] text-slate-400 mt-1">Padrão: 100%. Reduza (ex: 90%) para refletir underperformance real.</p>
           </div>
         </div>
       </div>

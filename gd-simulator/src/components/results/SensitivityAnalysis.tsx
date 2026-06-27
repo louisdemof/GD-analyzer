@@ -80,12 +80,12 @@ export function SensitivityAnalysis({ project }: Props) {
   ];
 
   const metrics = [
-    { label: 'Geracao Total', getValue: (s: ScenarioResult) => formatKWh(s.result.summary.totalGeneration), getRaw: (s: ScenarioResult) => s.result.summary.totalGeneration },
+    { label: 'Geração Total', getValue: (s: ScenarioResult) => formatKWh(s.result.summary.totalGeneration), getRaw: (s: ScenarioResult) => s.result.summary.totalGeneration },
     { label: 'Custo PPA Total', getValue: (s: ScenarioResult) => formatBRL(s.result.summary.totalPPACost), getRaw: (s: ScenarioResult) => s.result.summary.totalPPACost },
     { label: 'Baseline SEM Helexia', getValue: (s: ScenarioResult) => formatBRL(s.result.summary.baselineSEM), getRaw: (s: ScenarioResult) => s.result.summary.baselineSEM },
     { label: 'Economia Liquida', getValue: (s: ScenarioResult) => formatBRL(s.result.summary.economiaLiquida), getRaw: (s: ScenarioResult) => s.result.summary.economiaLiquida },
     { label: 'Economia %', getValue: (s: ScenarioResult) => formatPct(s.result.summary.economiaPct), getRaw: (s: ScenarioResult) => s.result.summary.economiaPct },
-    { label: 'Economia/Mes', getValue: (s: ScenarioResult) => formatBRL(s.result.summary.economiaPerMonth), getRaw: (s: ScenarioResult) => s.result.summary.economiaPerMonth },
+    { label: 'Economia/Mês', getValue: (s: ScenarioResult) => formatBRL(s.result.summary.economiaPerMonth), getRaw: (s: ScenarioResult) => s.result.summary.economiaPerMonth },
     { label: 'Banco Residual', getValue: (s: ScenarioResult) => formatKWh(s.result.summary.bancoResidualKWh), getRaw: (s: ScenarioResult) => s.result.summary.bancoResidualKWh },
     { label: 'Valor Total', getValue: (s: ScenarioResult) => formatBRL(s.result.summary.valorTotal), getRaw: (s: ScenarioResult) => s.result.summary.valorTotal },
   ];
@@ -103,7 +103,7 @@ export function SensitivityAnalysis({ project }: Props) {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Sensibilidade de Geracao</h3>
+          <h3 className="text-lg font-semibold text-slate-800 mb-1">Sensibilidade de Geração</h3>
           <p className="text-sm text-slate-500">
             Comparacao entre cenarios pessimista, base e otimista.
           </p>
@@ -140,7 +140,7 @@ export function SensitivityAnalysis({ project }: Props) {
           <span className="text-xs text-slate-400">%</span>
         </div>
         <p className="text-[10px] text-slate-400 flex-1">
-          Use os fatores do relatorio PVsyst se disponivel.
+          Use os fatores do relatório PVsyst se disponível.
         </p>
       </div>
 

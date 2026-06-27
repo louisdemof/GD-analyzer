@@ -201,7 +201,7 @@ export function RateioTable({ rateio, ucs, onRateioChange }: Props) {
           <span className="text-teal-600 font-medium">Optimizado</span>
         ) : (
           <span className="text-slate-400">
-            {manualPeriods.size > 0 ? 'Editado manualmente' : 'Distribuicao padrao (igual)'}
+            {manualPeriods.size > 0 ? 'Editado manualmente' : 'Distribuição padrao (igual)'}
           </span>
         )}
         {rateio.lastOptimisedAt && (
