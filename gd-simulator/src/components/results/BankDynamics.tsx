@@ -40,7 +40,9 @@ function getRateioFraction(rateio: RateioAllocation, ucId: string, monthIndex: n
 
 export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation }: Props) {
   const activeUCs = ucs.filter(uc => uc.id !== 'bat');
-  const [selectedUC, setSelectedUC] = useState(activeUCs[0]?.id || '');
+  // '__all__' = aggregated view (all UCs' banks summed)
+  const [selectedUC, setSelectedUC] = useState('__all__');
+  const isAll = selectedUC === '__all__';
 
   // PPA paid to Helexia attributable to the selected UC in month i. The plant-level
   // PPA (months[i].ppaCost, already escalated) is split by the UC's share of the
@@ -56,17 +58,22 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
   const totalBankSEM = result.bankPerUC.reduce((s, b) => s + b.finalBankSEM, 0);
   const netHelexia = totalBankCOM - totalBankSEM;
 
-  // Chart data for selected UC
+  // Chart data — for the selected UC, or summed across all UCs in '__all__' mode.
   const chartData = useMemo(() => {
-    const comDetails = result.ucDetailsCOM[selectedUC] || [];
-    const semDetails = result.ucDetailsSEM[selectedUC] || [];
-    return months.map((m, i) => ({
-      label: m.label,
-      bankCOM: comDetails[i]?.bankEnd ?? 0,
-      bankSEM: semDetails[i]?.bankEnd ?? 0,
-      depleted: (comDetails[i]?.bankEnd ?? 0) === 0 || (semDetails[i]?.bankEnd ?? 0) === 0,
-    }));
-  }, [selectedUC, result, months]);
+    return months.map((m, i) => {
+      let bankCOM = 0, bankSEM = 0;
+      if (isAll) {
+        for (const uc of activeUCs) {
+          bankCOM += result.ucDetailsCOM[uc.id]?.[i]?.bankEnd ?? 0;
+          bankSEM += result.ucDetailsSEM[uc.id]?.[i]?.bankEnd ?? 0;
+        }
+      } else {
+        bankCOM = result.ucDetailsCOM[selectedUC]?.[i]?.bankEnd ?? 0;
+        bankSEM = result.ucDetailsSEM[selectedUC]?.[i]?.bankEnd ?? 0;
+      }
+      return { label: m.label, bankCOM, bankSEM, depleted: bankCOM === 0 || bankSEM === 0 };
+    });
+  }, [selectedUC, isAll, activeUCs, result, months]);
 
   // Detailed table for selected UC
   const comDetails = result.ucDetailsCOM[selectedUC] || [];
@@ -119,6 +126,15 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
 
       {/* UC Selector */}
       <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => setSelectedUC('__all__')}
+          className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+            isAll ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+          style={isAll ? { backgroundColor: '#2F927B' } : undefined}
+        >
+          📊 Todas (Total)
+        </button>
         {activeUCs.map(uc => (
           <button
             key={uc.id}
@@ -136,10 +152,12 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
       </div>
 
       {/* Bank Evolution Chart */}
-      {selUC && (
+      {(selUC || isAll) && (
         <div>
           <h4 className="text-sm font-medium text-slate-600 mb-2">
-            Evolução do Banco — {selUC.name} ({selUC.tariffGroup})
+            {isAll
+              ? 'Evolução do Banco — Total (todas as UCs)'
+              : `Evolução do Banco — ${selUC!.name} (${selUC!.tariffGroup})`}
           </h4>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={chartData}>
