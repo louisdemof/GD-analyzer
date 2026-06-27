@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { cloudListShares, cloudShareProject, cloudUnshareProject, cloudSearchUsers, type UserSuggestion } from '../storage/cloudSync';
+import { Button } from './ui/Button';
 
 interface Props {
   projectId: string;
@@ -86,9 +87,7 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
               </ul>
             )}
           </div>
-          <button type="submit" disabled={busy}
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            style={{ backgroundColor: '#004B70' }}>Adicionar</button>
+          <Button type="submit" variant="navy" disabled={busy}>Adicionar</Button>
         </form>
 
         {error && <p className="text-sm text-red-600 mb-2">{error}</p>}

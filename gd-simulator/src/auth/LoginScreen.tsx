@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
+import { Button } from '../components/ui/Button';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -78,11 +79,9 @@ export function LoginScreen() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
-          <button type="submit" disabled={busy}
-            className="w-full rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-60"
-            style={{ backgroundColor: '#004B70' }}>
+          <Button type="submit" variant="navy" disabled={busy} className="w-full">
             {busy ? 'Aguarde…' : cta}
-          </button>
+          </Button>
 
           {!recovery && (
             <p className="text-center text-xs text-slate-500">

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { Button } from '../components/ui/Button';
 import { useProjectStore } from '../store/projectStore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -125,13 +126,7 @@ export function Dashboard() {
             Importar Projeto
           </button>
           <input ref={fileInputRef} type="file" accept=".json,.gdproject.json" className="hidden" onChange={handleImport} />
-          <button
-            onClick={() => navigate('/new')}
-            className="px-4 py-2 text-sm text-white rounded-lg font-medium"
-            style={{ backgroundColor: '#2F927B' }}
-          >
-            + Novo Projeto
-          </button>
+          <Button variant="primary" onClick={() => navigate('/new')}>+ Novo Projeto</Button>
         </div>
       </div>
 
@@ -228,13 +223,7 @@ export function Dashboard() {
               <p className="text-sm text-slate-500 mt-1 mb-5 max-w-sm mx-auto">
                 Crie um projeto do zero ou importe faturas (Energisa MS / COPEL) para preencher tudo automaticamente.
               </p>
-              <button
-                onClick={() => navigate('/new')}
-                className="px-5 py-2.5 text-sm text-white rounded-lg font-medium hover:opacity-90"
-                style={{ backgroundColor: '#2F927B' }}
-              >
-                + Criar primeiro projeto
-              </button>
+              <Button variant="primary" onClick={() => navigate('/new')}>+ Criar primeiro projeto</Button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">

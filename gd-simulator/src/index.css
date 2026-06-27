@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* ── Helexia brand design tokens ──────────────────────────────────
+   Use as Tailwind utilities: bg-brand-navy, text-brand-teal, border-brand-teal…
+   Centralizes the ~50 hardcoded inline hex colors scattered across components. */
+@theme {
+  --color-brand-navy: #004B70;     /* primary brand / headers */
+  --color-brand-navy-700: #003a57;
+  --color-brand-teal: #2F927B;     /* primary CTA (green) */
+  --color-brand-teal-700: #267a66;
+  --color-brand-lime: #C6DA38;     /* accent */
+  --color-brand-steel: #6692A8;    /* muted brand (charts) */
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

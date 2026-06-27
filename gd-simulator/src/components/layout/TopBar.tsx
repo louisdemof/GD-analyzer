@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NotificationBell } from '../NotificationBell';
+import { Button } from '../ui/Button';
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -95,15 +96,10 @@ export function TopBar() {
       <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
         <NotificationBell />
         {activeProject && (
-          <button
-            onClick={handleDuplicate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90"
-            style={{ backgroundColor: '#2F927B' }}
-            title="Criar uma cópia desta simulação"
-          >
+          <Button variant="primary" size="sm" onClick={handleDuplicate} title="Criar uma cópia desta simulação">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
             Duplicar simulação
-          </button>
+          </Button>
         )}
       </div>
     </header>
