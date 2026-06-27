@@ -34,6 +34,7 @@ export interface ParsedFatura {
   warnings: string[];
   needsPassword?: boolean;     // PDF is encrypted and the supplied password was wrong/missing
   notThisDistributor?: boolean; // content didn't match this parser → caller can try another
+  distributorSig?: string;     // detected distributor (e.g. 'COPEL-DIS', 'EMS') for project build
   // Identification
   ucMatricula?: string;        // raw e.g. "0001935906-2026-03-3"
   ucNumero?: string;           // canonical e.g. "1935906-6"
@@ -390,6 +391,7 @@ export async function parseCopelFatura(file: File, password?: string): Promise<P
     result.errors.push('Não parece ser uma fatura COPEL.');
     return result;
   }
+  result.distributorSig = 'COPEL-DIS';
 
   // Tariff group + modalidade / mercado
   const grp = findFirstMatch(lines, /\bA([1-4])\b[^|]*(Comercial|Industrial|Rural|Trifasico|Monofasico|Bifasico|Armazens)/i);

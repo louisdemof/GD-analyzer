@@ -14,6 +14,16 @@
 import type { ConsumptionUnit, Distributor, Plant, Project, RateioAllocation, TariffGroup } from './types';
 import type { ParsedFatura, MonthRow } from './faturaParser';
 import { computeDerivedTariffs } from './tariff';
+import { aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
+import bundledTariffs from '../data/aneel-tariffs.json';
+
+// Build a distributor from the bundled ANEEL snapshot by SigAgente (e.g. 'COPEL-DIS').
+// Used when faturas come from a distributor whose tariffs we have in ANEEL data rather
+// than derived from the bill itself.
+function distributorFromBundle(sig: string): Distributor | null {
+  const src = (bundledTariffs.distributors as ANEELDistributor[]).find(d => d.sigAgente === sig);
+  return src ? aneelToDistributor(src) : null;
+}
 
 const DEFAULT_PIS = 0.0153;
 const DEFAULT_COFINS = 0.0703;
@@ -202,7 +212,10 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
 
   // Pick an A-class fatura as the base for distribuidora (richer tariff data); fall back to first.
   const base = dedup.find(p => /A[1-4]/.test(p.classificacao || '')) || dedup[0];
-  const distributor = buildDistributorFromFatura(base);
+  // If the fatura declares a known distributor (e.g. COPEL), use its ANEEL tariffs;
+  // otherwise derive the distributor from the bill prices (Energisa path).
+  const distributor = (base.distributorSig && distributorFromBundle(base.distributorSig))
+    || buildDistributorFromFatura(base);
 
   const ucs: ConsumptionUnit[] = dedup.map((p, idx) => buildUCFromFatura(p, `uc-${idx}`));
 
@@ -211,7 +224,7 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
     id: generateId(),
     clientName: clientName.trim() || (base.cnpj ? `Cliente ${base.cnpj}` : 'Cliente Importado'),
     distributor,
-    plant: defaultPlant(),
+    plant: { ...defaultPlant(), distributor: distributor.id },
     ucs,
     scenarios: {
       icmsExempt: true,

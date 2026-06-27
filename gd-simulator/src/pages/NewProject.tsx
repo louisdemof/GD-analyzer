@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
-import { parseEnergisaFatura, type ParsedFatura } from '../engine/faturaParser';
+import { parseEnergisaFatura, parseCopelFatura, type ParsedFatura } from '../engine/faturaParser';
 import { buildProjectFromFaturas } from '../engine/projectFromFaturas';
 import type { Distributor } from '../engine/types';
 
@@ -99,12 +99,18 @@ export function NewProject() {
     const results: ParsedItem[] = [];
     for (const file of arr) {
       try {
-        const parsed = await parseEnergisaFatura(file);
+        // COPEL bills are encrypted — password is often the numeric code in the filename
+        // (e.g. "CWBII_0206.pdf" → "0206"). Try COPEL first, fall back to Energisa.
+        const pw = file.name.match(/_(\d{3,8})(?=\.pdf$|$)/i)?.[1];
+        let parsed = await parseCopelFatura(file, pw);
+        if (parsed.notThisDistributor) parsed = await parseEnergisaFatura(file);
         results.push({
           fileName: file.name,
           ok: parsed.ok,
           parsed,
-          error: parsed.errors.join('; ') || undefined,
+          error: parsed.needsPassword
+            ? 'PDF protegido — senha não encontrada no nome do arquivo (ex.: NOME_0206.pdf).'
+            : (parsed.errors.join('; ') || undefined),
         });
       } catch (e) {
         results.push({
@@ -207,7 +213,7 @@ export function NewProject() {
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-xl font-bold text-slate-800 mb-1">Novo Projeto</h1>
       <p className="text-sm text-slate-500 mb-6">
-        Crie manualmente ou solte faturas Energisa MS (PDF) para preencher tudo automaticamente.
+        Crie manualmente ou solte faturas Energisa MS ou COPEL (PDF) para preencher tudo automaticamente.
       </p>
 
       <div className="space-y-5">
@@ -311,7 +317,7 @@ export function NewProject() {
                 Arraste e solte os PDFs das faturas — ou clique para selecionar
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Energisa MS (DANF3E). Múltiplos arquivos suportados — uma fatura por UC, ou várias.
+                Energisa MS (DANF3E) e COPEL (Paraná). COPEL: senha = código no nome do arquivo (ex.: CWBII_0206.pdf). Múltiplos arquivos — uma fatura por UC.
               </p>
               <input
                 ref={fileInput}
@@ -444,7 +450,10 @@ export function NewProject() {
 
         {hasFaturas && (
           <div className="text-xs text-slate-500 italic px-1">
-            Distribuidora detectada das faturas: <strong>Energisa Mato Grosso do Sul</strong>
+            Distribuidora detectada das faturas: <strong>{
+              successItems[0]?.parsed?.distributorSig === 'COPEL-DIS'
+                ? 'COPEL Distribuição (PR)' : 'Energisa Mato Grosso do Sul'
+            }</strong>
           </div>
         )}
 
