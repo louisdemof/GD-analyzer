@@ -11,6 +11,14 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { cloudEnabled } = useAuth();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
+  // Drag-and-drop: id of the folder currently hovered while dragging a project ('none' = Sem pasta)
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const dropProject = (e: React.DragEvent, folderId: string | null) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    if (id) moveProjectToFolder(id, folderId);
+    setDragOverFolder(null);
+  };
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null); // null = all
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -166,7 +174,10 @@ export function Dashboard() {
             </button>
             <button
               onClick={() => setSelectedFolder('none')}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'none' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
+              onDragOver={e => { e.preventDefault(); setDragOverFolder('none'); }}
+              onDragLeave={() => setDragOverFolder(null)}
+              onDrop={e => dropProject(e, null)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'none' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'} ${dragOverFolder === 'none' ? 'ring-2 ring-teal-400 bg-teal-50' : ''}`}
             >
               Sem pasta ({projects.filter(p => !p.folderId).length})
             </button>
@@ -176,10 +187,13 @@ export function Dashboard() {
             </div>
 
             {folders.map(f => (
-              <div key={f.id} className="group flex items-center">
+              <div key={f.id} className="group flex items-center"
+                onDragOver={e => { e.preventDefault(); setDragOverFolder(f.id); }}
+                onDragLeave={() => setDragOverFolder(null)}
+                onDrop={e => dropProject(e, f.id)}>
                 <button
                   onClick={() => setSelectedFolder(f.id)}
-                  className={`flex-1 text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${selectedFolder === f.id ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
+                  className={`flex-1 text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${selectedFolder === f.id ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'} ${dragOverFolder === f.id ? 'ring-2 ring-teal-400 bg-teal-50' : ''}`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
                   <span className="truncate">{f.name}</span>
@@ -245,7 +259,10 @@ export function Dashboard() {
                 return (
                   <div
                     key={p.id}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
                     onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
+                    title="Arraste para uma pasta à esquerda"
                     className="p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all group"
                   >
                     <div className="flex items-start justify-between">
