@@ -105,7 +105,6 @@ export function TopBar() {
             Duplicar simulação
           </button>
         )}
-        <span>v1.0 MVP</span>
       </div>
     </header>
   );

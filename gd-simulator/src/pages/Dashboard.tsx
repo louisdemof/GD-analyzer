@@ -222,8 +222,19 @@ export function Dashboard() {
         {/* Right panel — projects */}
         <div className="flex-1">
           {filteredProjects.length === 0 ? (
-            <div className="text-center py-16 bg-slate-50 rounded-xl">
-              <p className="text-slate-500 text-sm">Nenhum projeto nesta vista.</p>
+            <div className="text-center py-16 px-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              <div className="text-4xl mb-3">⚡</div>
+              <h3 className="text-base font-semibold text-slate-700">Nenhum projeto ainda</h3>
+              <p className="text-sm text-slate-500 mt-1 mb-5 max-w-sm mx-auto">
+                Crie um projeto do zero ou importe faturas (Energisa MS / COPEL) para preencher tudo automaticamente.
+              </p>
+              <button
+                onClick={() => navigate('/new')}
+                className="px-5 py-2.5 text-sm text-white rounded-lg font-medium hover:opacity-90"
+                style={{ backgroundColor: '#2F927B' }}
+              >
+                + Criar primeiro projeto
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
