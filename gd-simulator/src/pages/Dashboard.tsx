@@ -11,6 +11,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const { cloudEnabled } = useAuth();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
+  const [showDemos, setShowDemos] = useState(false);
   // Drag-and-drop: id of the folder currently hovered while dragging a project ('none' = Sem pasta)
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const dropProject = (e: React.DragEvent, folderId: string | null) => {
@@ -80,71 +81,43 @@ export function Dashboard() {
           <p className="text-sm text-slate-500 mt-1">Simulador de Geracao Distribuida — Helexia Brasil</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => { loadDemoProject(); navigate('/project/copasul-cs3-demo'); }}
-            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
-          >
-            Demo Copasul
-          </button>
-          <button
-            onClick={() => { loadBeloAlimentosDemo(); navigate('/project/belo-alimentos-demo'); }}
-            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
-          >
-            Demo Belo Alimentos
-          </button>
-          <button
-            onClick={() => { loadCopelDemo(); navigate('/project/copel-demo'); }}
-            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
-          >
-            Demo COPEL (PR)
-          </button>
-          <button
-            onClick={() => { loadCopelDemo2(); navigate('/project/copel-demo-2'); }}
-            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
-          >
-            Simulação 2 COPEL
-          </button>
-          <button
-            onClick={() => { loadCopelDemo3(); navigate('/project/copel-demo-3'); }}
-            className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
-          >
-            Simulação 3 COPEL (HAP02+HAP03)
-          </button>
-          <button
-            onClick={() => { loadCopelDemo4(); navigate('/project/copel-demo-4'); }}
-            className="px-4 py-2 text-sm border border-amber-300 text-amber-900 bg-amber-50 rounded-lg hover:bg-amber-50"
-            title="Cenário Proposta: PPA 18m + horizonte 24m + markup tarifário +10% + ICMS TE_ONLY + PIS/COFINS isento"
-          >
-            Simulação 4 COPEL — Proposta
-          </button>
-          <button
-            onClick={() => { loadSuperfrioCwbiiDemo(); navigate('/project/superfrio-cwbii-acl'); }}
-            className="px-4 py-2 text-sm border border-teal-300 text-teal-900 bg-teal-50 rounded-lg hover:bg-teal-50"
-            title="Cliente Livre (ACL): baseline = energia ACL R$300/MWh + TUSD com desconto incentivada; PPA R$450 flat. Tarifas COPEL calibradas só p/ este caso."
-          >
-            SUPERFRIO CWBII — ACL
-          </button>
-          <button
-            onClick={() => { loadSuperfrioPortfolioDemo(); navigate('/project/superfrio-pr-portfolio'); }}
-            className="px-4 py-2 text-sm border border-teal-400 text-teal-900 bg-teal-50 rounded-lg hover:bg-teal-100"
-            title="Portfólio Paraná: 5 UCs + 3× Alto Paraná (HAP02-04), rateio otimizado, cenário Dez/2027 (energia 268 + reajuste), FA desativado. Economia ~5,7%."
-          >
-            SUPERFRIO Paraná — Portfólio (5 UCs + HAP)
-          </button>
-          <button
-            onClick={() => { loadSuperfrioFrontloadDemo(); navigate('/project/superfrio-pr-frontload'); }}
-            className="px-4 py-2 text-sm border border-teal-400 text-teal-900 bg-teal-50 rounded-lg hover:bg-teal-100"
-            title="Portfólio + HAP05 nos 12 primeiros meses (front-load do banco de créditos). 24 meses. Economia ~9,2%."
-          >
-            SUPERFRIO PR — Portfólio +HAP05 front-load (~9,2%)
-          </button>
-          <button
-            onClick={() => { loadSuperfrio5yDemo(); navigate('/project/superfrio-pr-5y'); }}
-            className="px-4 py-2 text-sm border border-teal-500 text-teal-900 bg-teal-100 rounded-lg hover:bg-teal-200"
-            title="5 anos: TE TRAVADO (lock-in ACL) · TUSD +13,5%/a vs PPA +5%/a (IPCA). Total ~+3,4% (R$1,14M). Destrave o TE no editor (toggle) p/ ver o cenário com energia subindo (~+15,7%)."
-          >
-            SUPERFRIO PR — 5 anos · TE travado vs PPA +5% (~+3,4%)
-          </button>
+          {/* Demos — tucked into a dropdown to declutter the header */}
+          <div className="relative">
+            <button
+              onClick={() => setShowDemos(v => !v)}
+              className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
+            >
+              Demos ▾
+            </button>
+            {showDemos && (
+              <div
+                className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg z-30 p-2 max-h-[70vh] overflow-auto"
+                onMouseLeave={() => setShowDemos(false)}
+              >
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider px-2 py-1">Projetos de demonstração</p>
+                {([
+                  { label: 'Demo Copasul', fn: loadDemoProject, route: 'copasul-cs3-demo' },
+                  { label: 'Demo Belo Alimentos', fn: loadBeloAlimentosDemo, route: 'belo-alimentos-demo' },
+                  { label: 'Demo COPEL (PR)', fn: loadCopelDemo, route: 'copel-demo' },
+                  { label: 'Simulação 2 COPEL', fn: loadCopelDemo2, route: 'copel-demo-2' },
+                  { label: 'Simulação 3 COPEL (HAP02+HAP03)', fn: loadCopelDemo3, route: 'copel-demo-3' },
+                  { label: 'Simulação 4 COPEL — Proposta', fn: loadCopelDemo4, route: 'copel-demo-4' },
+                  { label: 'SUPERFRIO CWBII — ACL', fn: loadSuperfrioCwbiiDemo, route: 'superfrio-cwbii-acl' },
+                  { label: 'SUPERFRIO Paraná — Portfólio (5 UCs + HAP)', fn: loadSuperfrioPortfolioDemo, route: 'superfrio-pr-portfolio' },
+                  { label: 'SUPERFRIO PR — Portfólio +HAP05 front-load', fn: loadSuperfrioFrontloadDemo, route: 'superfrio-pr-frontload' },
+                  { label: 'SUPERFRIO PR — 5 anos · TE travado', fn: loadSuperfrio5yDemo, route: 'superfrio-pr-5y' },
+                ] as const).map(d => (
+                  <button
+                    key={d.route}
+                    onClick={() => { setShowDemos(false); d.fn(); navigate(`/project/${d.route}`); }}
+                    className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-slate-50 text-slate-700"
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50"
