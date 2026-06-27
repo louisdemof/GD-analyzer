@@ -32,6 +32,8 @@ export interface ParsedFatura {
   ok: boolean;
   errors: string[];
   warnings: string[];
+  needsPassword?: boolean;     // PDF is encrypted and the supplied password was wrong/missing
+  notThisDistributor?: boolean; // content didn't match this parser → caller can try another
   // Identification
   ucMatricula?: string;        // raw e.g. "0001935906-2026-03-3"
   ucNumero?: string;           // canonical e.g. "1935906-6"
@@ -89,9 +91,9 @@ interface PdfLine {
   text: string; // joined "x | y | z"
 }
 
-async function extractLines(file: File): Promise<PdfLine[]> {
+async function extractLines(file: File, password?: string): Promise<PdfLine[]> {
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password }).promise;
   const allItems: PdfTextItem[] = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -354,6 +356,81 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
     result.warnings.push('Nenhuma linha do histórico de 13 meses foi reconhecida — verifique o layout do PDF.');
   }
 
+  result.ok = result.errors.length === 0;
+  return result;
+}
+
+// ─── COPEL (DANF3E-PR / Cliente Livre) parser ──────────────────────────────
+// COPEL bills are password-protected (the password is often the 4-digit code in
+// the filename, e.g. "CWBII_0206" → "0206") and carry a full 12-month history on
+// the LAST page ("Histórico de Consumo e Pagamentos"). One PDF → 12 months.
+// History row columns (bare numbers, after the dates/valor are filtered out):
+//   [0] Consumo Ponta · [1] Consumo Fora Ponta · [2] Demanda Ponta ·
+//   [3] Demanda Fora Ponta · [4] Dem.Cont Ponta · [5] Dem.Cont Fora Ponta · …
+export async function parseCopelFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch (e) {
+    const msg = (e as { name?: string; message?: string });
+    if (/password/i.test(msg?.name || '') || /password/i.test(msg?.message || '')) {
+      result.needsPassword = true;
+      result.errors.push('PDF protegido por senha.');
+      return result;
+    }
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+
+  const allText = lines.map(l => l.text).join('\n');
+  if (!/copel/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura COPEL.');
+    return result;
+  }
+
+  // Tariff group + modalidade / mercado
+  const grp = findFirstMatch(lines, /\bA([1-4])\b[^|]*(Comercial|Industrial|Rural|Trifasico|Monofasico|Bifasico|Armazens)/i);
+  const grpStr = grp ? `A${grp[1]}` : undefined;
+  const isVerde = /TARIFA\s+HOR[ÁA]RIA\s+VERDE/i.test(allText);
+  const isAzul = /TARIFA\s+HOR[ÁA]RIA\s+AZUL/i.test(allText);
+  const isACL = /CLIENTE\s+LIVRE/i.test(allText) || /ENERGIA\s+ELETRICA\s+ACL/i.test(allText);
+  result.classificacao = [grpStr, isVerde ? 'VERDE' : isAzul ? 'AZUL' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+    .filter(Boolean).join(' — ') || undefined;
+
+  // Reference month
+  const refM = allText.match(/Consumo\/Uso do Sistema:?\s*\|?\s*(\d{2})\/(\d{4})/i)
+    || allText.match(/FATURA DO MES\s*\|?\s*(\d{2})\/(\d{4})/i);
+  if (refM) result.refMes = `${refM[1]}/${refM[2]}`;
+
+  // History table (last page) — rows starting with MM/YYYY with ≥6 bare numbers
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const mm = line.text.match(/^\s*(\d{2})\/(\d{4})\b/);
+    if (!mm) continue;
+    const nums = line.text.split('|').map(s => s.trim()).filter(t => /^\d+(\.\d+)?$/.test(t)).map(Number);
+    if (nums.length < 6) continue;
+    const iso = `${mm[2]}-${mm[1]}`;
+    if (seen.has(iso)) continue;
+    seen.add(iso);
+    result.history.push({
+      monthLabel: `${mm[1]}/${mm[2].slice(2)}`,
+      monthIso: iso,
+      consumoPonta: nums[0],
+      consumoForaPonta: nums[1],
+      consumoReservado: 0,
+      demandaPonta: nums[2],
+      demandaForaPonta: nums[3],
+    });
+    if (result.demandaContratadaFP == null && nums[5] > 0) result.demandaContratadaFP = nums[5];
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+
+  if (result.history.length === 0) {
+    result.errors.push('Histórico de consumo não reconhecido na última página da fatura COPEL.');
+  }
   result.ok = result.errors.length === 0;
   return result;
 }

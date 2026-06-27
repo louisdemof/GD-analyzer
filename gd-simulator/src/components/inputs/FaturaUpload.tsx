@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import type { ConsumptionUnit } from '../../engine/types';
-import { parseEnergisaFatura, type ParsedFatura } from '../../engine/faturaParser';
+import { parseEnergisaFatura, parseCopelFatura, type ParsedFatura } from '../../engine/faturaParser';
 
 interface Props {
   ucs: ConsumptionUnit[];
@@ -26,7 +26,18 @@ export function FaturaUpload({ ucs, onApply }: Props) {
     setError(null);
     setParsing(true);
     try {
-      const result = await parseEnergisaFatura(file);
+      // COPEL bills are encrypted — the password is often the numeric code in the
+      // filename (e.g. "CWBII_0206.pdf" → "0206"). Try COPEL first; fall back to Energisa.
+      const pwMatch = file.name.match(/_(\d{3,8})(?=\.pdf$|$)/i);
+      let result = await parseCopelFatura(file, pwMatch?.[1]);
+      if (result.needsPassword) {
+        const pw = window.prompt('Fatura COPEL protegida por senha. Informe a senha (ex.: código no nome do arquivo):');
+        if (!pw) { setParsing(false); setError('Senha necessária para abrir o PDF.'); return; }
+        result = await parseCopelFatura(file, pw);
+      }
+      if (result.notThisDistributor) {
+        result = await parseEnergisaFatura(file); // not a COPEL bill
+      }
       setParsing(false);
       if (!result.ok) {
         setError(result.errors.join('; ') || 'Erro ao parsear');
