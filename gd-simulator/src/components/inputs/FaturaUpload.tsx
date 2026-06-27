@@ -40,7 +40,12 @@ export function FaturaUpload({ ucs, onApply }: Props) {
       }
       setParsing(false);
       if (!result.ok) {
-        setError(result.errors.join('; ') || 'Erro ao parsear');
+        console.error('[FaturaUpload] parse failed:', result);
+        setError((result.errors.join('; ') || 'Erro ao parsear') + ' — se for COPEL, confirme a senha (código no nome do arquivo).');
+        return;
+      }
+      if (result.history.length === 0) {
+        setError('Fatura lida, mas nenhum mês de consumo foi reconhecido. Envie-me uma captura para ajustar o parser.');
         return;
       }
       setParsed(result);

@@ -1,16 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { useProjectStore } from '../../store/projectStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { NotificationBell } from '../NotificationBell';
 
 export function TopBar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const duplicateProject = useProjectStore(s => s.duplicateProject);
   const updateProject = useProjectStore(s => s.updateProject);
+  // Only treat a project as "open" on project/results routes — otherwise the dashboard
+  // and new-project pages would keep showing the last opened project in the top bar.
+  const onProjectRoute = /^\/(project|results)\//.test(location.pathname);
   const project = useProjectStore(s => {
     const id = s.currentProjectId;
     return id ? s.projects.find(p => p.id === id) : null;
   });
+  const activeProject = onProjectRoute ? project : null;
 
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
@@ -54,7 +59,7 @@ export function TopBar() {
   return (
     <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6">
       <div className="flex items-center gap-3 min-w-0">
-        {project ? (
+        {activeProject ? (
           <>
             {editing ? (
               <input
@@ -76,12 +81,12 @@ export function TopBar() {
                 className="group flex items-center gap-1.5 text-sm font-semibold text-slate-800 hover:text-teal-700 truncate"
                 title="Clique para renomear o projeto"
               >
-                <span className="truncate">{project.clientName}</span>
+                <span className="truncate">{activeProject.clientName}</span>
                 <svg className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
               </button>
             )}
             <span className="text-xs text-slate-400">|</span>
-            <span className="text-xs text-slate-500 truncate">{project.plant.name || 'Planta não definida'}</span>
+            <span className="text-xs text-slate-500 truncate">{activeProject.plant.name || 'Planta não definida'}</span>
           </>
         ) : (
           <h2 className="text-sm font-semibold text-slate-800">GD Analyzer</h2>
@@ -89,7 +94,7 @@ export function TopBar() {
       </div>
       <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
         <NotificationBell />
-        {project && (
+        {activeProject && (
           <button
             onClick={handleDuplicate}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90"
