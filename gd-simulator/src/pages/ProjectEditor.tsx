@@ -144,69 +144,6 @@ export function ProjectEditor() {
     return <div className="p-6 text-slate-500">Projeto não encontrado.</div>;
   }
 
-  // ── One-click preset: Apply Energisa MS REH 3.582 (RTA 04/2026) + V11 inputs ──
-  const applyV11RTA2026 = () => {
-    if (!project) return;
-    if (!confirm(
-      'Aplicar preset V11 RTA 04/2026?\n\n' +
-      '• Tarifas Energisa MS → REH 3.582/2026 (publicada 22/04/2026)\n' +
-      '  - Consumo TUSD+TE FP: 0,48504 R$/kWh\n' +
-      '  - Consumo TUSD+TE Ponta: 2,38151 R$/kWh\n' +
-      '  - Consumo Grupo B: 0,66201 + 0,32459 R$/kWh\n' +
-      '  - Demanda FP: 35,79 R$/kW (+3,2%)\n' +
-      '• PPA Helexia → R$ 0,5222/kWh\n' +
-      '• Reajuste anual PPA → 4,5%/ano (composto Y2-Y10)\n' +
-      '• Reajuste anual Distribuidora → 4,5%/ano (paralelo simétrico)\n' +
-      '• Banco NHS → 786.669 kWh (Demonstrativo Abr/2026)\n' +
-      '• Banco AMD → 0 kWh (drenado pela safra Abr/2026)\n' +
-      '• Banco BAT → 791.092 kWh (Demonstrativo Mar/2026)\n\n' +
-      'Após aplicar, vá em Resultados e rode "Otimizar Rateio".'
-    )) return;
-
-    // 1. Distributor — REH 3.582/2026 raw tariffs (sem impostos)
-    const newDistributor = computeDerivedTariffs({
-      ...project.distributor,
-      resolution: 'RESOLUÇÃO HOMOLOGATÓRIA Nº 3.582, DE 22 DE ABRIL DE 2026',
-      tariffs: {
-        ...project.distributor.tariffs,
-        B_TUSD: 0.66201,
-        B_TE: 0.32459,
-        A_FP_TUSD_TE: 0.48504,    // TUSD FP 0.17971 + TE FP 0.30533
-        A_PT_TUSD_TE: 2.38151,    // TUSD Ponta 1.89203 + TE Ponta 0.48948
-        A_TE_FP: 0.30533,
-        A_TE_PT: 0.48948,
-        A_FP_DEMANDA: 35.79,       // Demanda Grupo A FP (R$/kW) — REH 3.582/2026 (+3,2% vs 2025)
-      },
-    });
-    updateDistributor(project.id, newDistributor);
-
-    // 2. Plant — PPA R$ 0,5222
-    updatePlant(project.id, { ...project.plant, ppaRateRsBRLkWh: 0.5222 });
-
-    // 3. UC banks — NHS, AMD, BAT
-    const bankUpdates: Record<string, number> = {
-      'nhs': 786669,
-      'amd': 0,
-    };
-    for (const uc of project.ucs) {
-      if (uc.id in bankUpdates) {
-        updateUC(project.id, uc.id, { openingBank: bankUpdates[uc.id] });
-      }
-    }
-
-    // 4. BAT bank + annual escalation (4,5%/ano simétrico PPA e distribuidora)
-    const updates: Partial<typeof project> = {
-      tariffEscalationPPA: 0.045,
-      tariffEscalationDistributor: 0.045,
-    };
-    if (project.batBank) {
-      updates.batBank = { ...project.batBank, openingKWh: 791092 };
-    }
-    updateProject(project.id, updates);
-
-    setToast('✓ Preset V11 RTA 04/2026 aplicado (incl. escalação 4,5% a.a.). Vá em Resultados → Otimizar Rateio.');
-    setTimeout(() => setToast(null), 6000);
-  };
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'distributor', label: 'Distribuidora & Tarifas' },
@@ -330,13 +267,6 @@ export function ProjectEditor() {
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={applyV11RTA2026}
-            className="px-4 py-2 text-sm border border-amber-500 text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 font-medium"
-            title="Aplicar tarifas Energisa MS REH 3.582/2026 + PPA R$ 0,5222 + bancos atualizados"
-          >
-            ⚡ Aplicar V11 RTA 04/2026
-          </button>
           <button
             onClick={() => exportConsumptionExcel(project)}
             className="px-4 py-2 text-sm border border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50"
