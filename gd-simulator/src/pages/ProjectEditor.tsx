@@ -13,6 +13,7 @@ import { DemandaAnalysisPanel } from '../components/inputs/DemandaAnalysisPanel'
 import { FaturaEspelho } from '../components/inputs/FaturaEspelho';
 import { createDefaultRateio } from '../engine/optimiser';
 import { computeDerivedTariffs } from '../engine/tariff';
+import { timelineWarnings } from '../engine/timeline';
 import { exportConsumptionExcel, importConsumptionExcel, type ImportResult } from '../engine/consumptionExcel';
 import type { ACLBaseline } from '../engine/types';
 
@@ -162,6 +163,23 @@ export function ProjectEditor() {
           <button onClick={() => setToast(null)} className="ml-3 text-white/60 hover:text-white">&#x2715;</button>
         </div>
       )}
+
+      {/* Timeline sanity warnings (non-blocking) */}
+      {(() => {
+        const tl = timelineWarnings(project, new Date().toISOString().slice(0, 7));
+        if (tl.length === 0) return null;
+        const hasError = tl.some(w => w.level === 'error');
+        return (
+          <div className={`mb-4 rounded-lg border p-3 text-sm ${hasError ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+            <p className={`font-medium mb-1 ${hasError ? 'text-red-700' : 'text-amber-800'}`}>
+              {hasError ? '⛔ Verifique a linha do tempo' : '⚠️ Avisos da linha do tempo'}
+            </p>
+            <ul className={`space-y-0.5 ${hasError ? 'text-red-600' : 'text-amber-700'}`}>
+              {tl.map((w, i) => <li key={i}>• {w.message}</li>)}
+            </ul>
+          </div>
+        );
+      })()}
 
       {/* Import Modal */}
       {importModal && (
