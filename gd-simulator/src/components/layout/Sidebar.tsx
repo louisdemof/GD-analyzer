@@ -3,10 +3,15 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 
 export function Sidebar() {
-  const { projects, currentProjectId, setCurrentProject, deleteProject, loadDemoProject } = useProjectStore();
+  const { projects, currentProjectId, setCurrentProject } = useProjectStore();
   const { cloudEnabled, user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Compact quick-switch: 5 most recently updated projects (full list lives on the Dashboard).
+  const recents = [...projects]
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+    .slice(0, 5);
 
   return (
     <aside className="w-64 bg-navy-900 text-white min-h-screen flex flex-col" style={{ backgroundColor: '#004B70' }}>
@@ -33,50 +38,35 @@ export function Sidebar() {
           + Novo Projeto
         </button>
 
-        <div className="pt-3 pb-1">
-          <p className="text-xs text-white/40 uppercase tracking-wider px-3">Projetos</p>
-        </div>
-
-        {projects.map(p => (
-          <div
-            key={p.id}
-            className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-              currentProjectId === p.id ? 'bg-white/20' : 'hover:bg-white/10'
-            }`}
-            onClick={() => {
-              setCurrentProject(p.id);
-              navigate(`/project/${p.id}`);
-            }}
-          >
-            <span className="truncate">{p.clientName || 'Sem nome'}</span>
+        {recents.length > 0 && (
+          <>
+            <div className="pt-3 pb-1">
+              <p className="text-xs text-white/40 uppercase tracking-wider px-3">Recentes</p>
+            </div>
+            {recents.map(p => (
+              <div
+                key={p.id}
+                className={`px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors truncate ${
+                  currentProjectId === p.id ? 'bg-white/20' : 'hover:bg-white/10'
+                }`}
+                onClick={() => {
+                  setCurrentProject(p.id);
+                  navigate(`/project/${p.id}`);
+                }}
+                title={p.clientName || 'Sem nome'}
+              >
+                {p.clientName || 'Sem nome'}
+              </div>
+            ))}
             <button
-              onClick={e => {
-                e.stopPropagation();
-                if (confirm('Excluir projeto?')) deleteProject(p.id);
-              }}
-              className="opacity-0 group-hover:opacity-100 text-white/50 hover:text-red-300 text-xs"
+              onClick={() => navigate('/')}
+              className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-white/50 hover:bg-white/10 transition-colors"
             >
-              ✕
+              Ver todos →
             </button>
-          </div>
-        ))}
-
-        {projects.length === 0 && (
-          <p className="text-xs text-white/30 px-3 py-2">Nenhum projeto criado</p>
+          </>
         )}
       </nav>
-
-      <div className="p-3 border-t border-white/10">
-        <button
-          onClick={() => {
-            loadDemoProject();
-            navigate('/project/copasul-cs3-demo');
-          }}
-          className="w-full px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-        >
-          Carregar Demo (Copasul CS3)
-        </button>
-      </div>
 
       {cloudEnabled && user && (
         <div className="p-3 border-t border-white/10">

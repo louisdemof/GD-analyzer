@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import type { ProjectStatus } from '../engine/types';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
 import { useProjectStore } from '../store/projectStore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { cloudOwnedProjectIds } from '../storage/cloudSync';
 import { ShareDialog } from '../components/ShareDialog';
 
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
@@ -31,14 +32,30 @@ export function Dashboard() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'created'>('updated');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | null>(null);
+  const [view, setView] = useState<'cards' | 'table'>(() =>
+    (localStorage.getItem('gd-dashboard-view') as 'cards' | 'table') || 'cards');
+  useEffect(() => { localStorage.setItem('gd-dashboard-view', view); }, [view]);
 
-  // folder → search → status, then sort
+  // Ownership: server-side (projects.created_by). Fetch the set of owned IDs so we can
+  // separate "Compartilhados comigo" from owned projects. Empty when cloud is off → all owned.
+  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    cloudOwnedProjectIds().then(setOwnedIds).catch(() => {});
+  }, [cloudEnabled, projects.length]);
+  const sharingActive = cloudEnabled && ownedIds.size > 0;
+  const isShared = (id: string) => sharingActive && !ownedIds.has(id);
+  const sharedCount = sharingActive ? projects.filter(p => isShared(p.id)).length : 0;
+
+  // scope (owned/shared) → folder → search → status, then sort
   const filteredProjects = (() => {
-    let list = selectedFolder === null
-      ? projects
-      : selectedFolder === 'none'
-        ? projects.filter(p => !p.folderId)
-        : projects.filter(p => p.folderId === selectedFolder);
+    let list = selectedFolder === 'shared'
+      ? projects.filter(p => isShared(p.id))
+      : selectedFolder === null
+        ? projects.filter(p => !isShared(p.id))
+        : selectedFolder === 'none'
+          ? projects.filter(p => !p.folderId && !isShared(p.id))
+          : projects.filter(p => p.folderId === selectedFolder && !isShared(p.id));
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(p =>
       (p.clientName || '').toLowerCase().includes(q) ||
@@ -101,18 +118,22 @@ export function Dashboard() {
   // One project card. showFolderBadge=false in the grouped view (header already shows it).
   const renderCard = (p: typeof projects[number], showFolderBadge = true) => {
     const folder = folders.find(f => f.id === p.folderId);
+    const shared = isShared(p.id);
     return (
       <div
         key={p.id}
-        draggable
+        draggable={!shared}
         onDragStart={e => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
         onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
-        title="Arraste para uma pasta à esquerda"
+        title={shared ? 'Projeto compartilhado com você' : 'Arraste para uma pasta à esquerda'}
         className="p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all group"
       >
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            {showFolderBadge && folder && (
+            {shared && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 mb-1">🔗 compartilhado</span>
+            )}
+            {showFolderBadge && !shared && folder && (
               <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 mb-1">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
                 {folder.name}
@@ -128,12 +149,12 @@ export function Dashboard() {
             <button onClick={(e) => handleExport(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Exportar">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             </button>
-            {cloudEnabled && (
+            {cloudEnabled && !shared && (
               <button onClick={(e) => { e.stopPropagation(); setShareTarget({ id: p.id, name: p.clientName || 'Sem nome' }); }} className="p-1 text-slate-400 hover:text-teal-600" title="Compartilhar">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
               </button>
             )}
-            {folders.length > 0 && (
+            {folders.length > 0 && !shared && (
               <select
                 onClick={e => e.stopPropagation()}
                 value={p.folderId || ''}
@@ -169,6 +190,90 @@ export function Dashboard() {
       </div>
     );
   };
+
+  // Dense table view (flat, already-sorted list). Clickable headers reuse `sortBy`.
+  const SortTh = ({ col, label, align }: { col?: 'name' | 'updated'; label: string; align?: string }) => (
+    <th
+      onClick={() => col && setSortBy(col)}
+      className={`py-2 px-3 font-medium text-slate-500 ${align || 'text-left'} ${col ? 'cursor-pointer hover:text-slate-700 select-none' : ''}`}
+    >
+      {label}{col && sortBy === col ? ' ↓' : ''}
+    </th>
+  );
+  const renderTable = (list: typeof projects) => (
+    <div className="overflow-x-auto border border-slate-200 rounded-xl">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <SortTh col="name" label="Cliente" />
+            <th className="text-left py-2 px-3 font-medium text-slate-500">Pasta</th>
+            <th className="text-left py-2 px-3 font-medium text-slate-500">Distribuidora</th>
+            <th className="text-right py-2 px-3 font-medium text-slate-500">UCs</th>
+            <th className="text-right py-2 px-3 font-medium text-slate-500">Prazo</th>
+            <th className="text-left py-2 px-3 font-medium text-slate-500">Status</th>
+            <SortTh col="updated" label="Atualizado" />
+            <th className="py-2 px-3"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map(p => {
+            const folder = folders.find(f => f.id === p.folderId);
+            const shared = isShared(p.id);
+            return (
+              <tr
+                key={p.id}
+                onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
+                className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer"
+              >
+                <td className="py-2 px-3 font-medium text-slate-800 max-w-[220px] truncate">
+                  {shared && <span className="text-[10px] text-blue-600 mr-1" title="Compartilhado">🔗</span>}
+                  {p.clientName || 'Sem nome'}
+                </td>
+                <td className="py-2 px-3 text-slate-500">
+                  {folder ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />{folder.name}
+                    </span>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="py-2 px-3 text-slate-500">{p.distributor.name || '—'}</td>
+                <td className="py-2 px-3 text-right text-slate-500">{p.ucs.length}</td>
+                <td className="py-2 px-3 text-right text-slate-500">{p.plant.contractMonths || 24}m</td>
+                <td className="py-2 px-3">
+                  <select
+                    value={statusOf(p.status)}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); updateProject(p.id, { status: e.target.value as ProjectStatus }); }}
+                    className={`text-[10px] font-medium rounded-full px-2 py-0.5 border-none cursor-pointer focus:outline-none ${STATUS_META[statusOf(p.status)].chip}`}
+                  >
+                    {STATUS_ORDER.map(st => <option key={st} value={st}>{STATUS_META[st].label}</option>)}
+                  </select>
+                </td>
+                <td className="py-2 px-3 text-slate-400 text-xs whitespace-nowrap">
+                  {new Date(p.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </td>
+                <td className="py-2 px-3">
+                  <div className="flex gap-1 justify-end" onClick={e => e.stopPropagation()}>
+                    <button onClick={(e) => handleDuplicate(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Duplicar">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    </button>
+                    <button onClick={(e) => handleExport(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Exportar">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </button>
+                    {cloudEnabled && !shared && (
+                      <button onClick={(e) => { e.stopPropagation(); setShareTarget({ id: p.id, name: p.clientName || 'Sem nome' }); }} className="p-1 text-slate-400 hover:text-teal-600" title="Compartilhar">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -234,7 +339,7 @@ export function Dashboard() {
               onClick={() => setSelectedFolder(null)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === null ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
             >
-              Todos os Projetos ({projects.length})
+              Todos os Projetos ({projects.filter(p => !isShared(p.id)).length})
             </button>
             <button
               onClick={() => setSelectedFolder('none')}
@@ -243,8 +348,16 @@ export function Dashboard() {
               onDrop={e => dropProject(e, null)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'none' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'} ${dragOverFolder === 'none' ? 'ring-2 ring-teal-400 bg-teal-50' : ''}`}
             >
-              Sem pasta ({projects.filter(p => !p.folderId).length})
+              Sem pasta ({projects.filter(p => !p.folderId && !isShared(p.id)).length})
             </button>
+            {sharingActive && sharedCount > 0 && (
+              <button
+                onClick={() => setSelectedFolder('shared')}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'shared' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
+              >
+                🔗 Compartilhados comigo ({sharedCount})
+              </button>
+            )}
 
             <div className="pt-3 pb-1">
               <p className="text-[10px] text-slate-400 uppercase tracking-wider px-3">Clientes</p>
@@ -333,6 +446,18 @@ export function Dashboard() {
               <option value="name">Nome (A–Z)</option>
               <option value="created">Data de criação</option>
             </select>
+            <div className="flex border border-slate-300 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setView('cards')}
+                className={`px-2.5 py-2 text-sm ${view === 'cards' ? 'bg-slate-700 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                title="Cartões"
+              >▦</button>
+              <button
+                onClick={() => setView('table')}
+                className={`px-2.5 py-2 text-sm border-l border-slate-300 ${view === 'table' ? 'bg-slate-700 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                title="Lista"
+              >☰</button>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 mb-4 flex-wrap">
             <button
@@ -373,6 +498,8 @@ export function Dashboard() {
                 </>
               )}
             </div>
+          ) : view === 'table' ? (
+            renderTable(filteredProjects)
           ) : selectedFolder === null ? (
             /* Grouped by client (folder) */
             <div className="space-y-8">
