@@ -1,0 +1,121 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`engine regression — real demo cases > Belo Alimentos 1`] = `
+{
+  "bancoResidualKWh": 628609,
+  "baselineSEM": 2697793,
+  "economiaLiquida": -66209,
+  "economiaPct": -2.45,
+  "months": 24,
+  "totalGeneration": 4699862,
+  "valorTotal": 248095,
+}
+`;
+
+exports[`engine regression — real demo cases > COPEL demo 1`] = `
+{
+  "bancoResidualKWh": 1069142,
+  "baselineSEM": 1679588,
+  "economiaLiquida": -268108,
+  "economiaPct": -15.96,
+  "months": 15,
+  "totalGeneration": 2955598,
+  "valorTotal": 266463,
+}
+`;
+
+exports[`engine regression — real demo cases > COPEL demo 2 1`] = `
+{
+  "bancoResidualKWh": 0,
+  "baselineSEM": 4301325,
+  "economiaLiquida": 347164,
+  "economiaPct": 8.07,
+  "months": 30,
+  "totalGeneration": 3070399,
+  "valorTotal": 347164,
+}
+`;
+
+exports[`engine regression — real demo cases > COPEL demo 3 1`] = `
+{
+  "bancoResidualKWh": 2049852,
+  "baselineSEM": 5200778,
+  "economiaLiquida": -407382,
+  "economiaPct": -7.83,
+  "months": 24,
+  "totalGeneration": 9606764,
+  "valorTotal": 617544,
+}
+`;
+
+exports[`engine regression — real demo cases > COPEL demo 4 (proposta) 1`] = `
+{
+  "bancoResidualKWh": 0,
+  "baselineSEM": 5720856,
+  "economiaLiquida": 1173367,
+  "economiaPct": 20.51,
+  "months": 24,
+  "totalGeneration": 6980084,
+  "valorTotal": 1173367,
+}
+`;
+
+exports[`engine regression — real demo cases > Copasul (sample) 1`] = `
+{
+  "bancoResidualKWh": 2725282,
+  "baselineSEM": 2566042,
+  "economiaLiquida": -410037,
+  "economiaPct": -15.98,
+  "months": 24,
+  "totalGeneration": 3366888,
+  "valorTotal": 519220,
+}
+`;
+
+exports[`engine regression — real demo cases > SUPERFRIO CWBII (ACL) 1`] = `
+{
+  "bancoResidualKWh": 0,
+  "baselineSEM": 4100522,
+  "economiaLiquida": 272473,
+  "economiaPct": 6.64,
+  "months": 24,
+  "totalGeneration": 5625682,
+  "valorTotal": 272473,
+}
+`;
+
+exports[`engine regression — real demo cases > SUPERFRIO PR 5 anos 1`] = `
+{
+  "bancoResidualKWh": 6810889,
+  "baselineSEM": 33626525,
+  "economiaLiquida": -7424512,
+  "economiaPct": -22.08,
+  "months": 60,
+  "totalGeneration": 35576686,
+  "valorTotal": -4359611,
+}
+`;
+
+exports[`engine regression — real demo cases > SUPERFRIO PR frontload 1`] = `
+{
+  "bancoResidualKWh": 3717550,
+  "baselineSEM": 11781138,
+  "economiaLiquida": -1915901,
+  "economiaPct": -16.26,
+  "months": 24,
+  "totalGeneration": 16705823,
+  "valorTotal": -243003,
+}
+`;
+
+exports[`engine regression — real demo cases > SUPERFRIO PR portfolio 1`] = `
+{
+  "bancoResidualKWh": 2770327,
+  "baselineSEM": 11781138,
+  "economiaLiquida": -1764273,
+  "economiaPct": -14.98,
+  "months": 24,
+  "totalGeneration": 14337764,
+  "valorTotal": -517626,
+}
+`;
