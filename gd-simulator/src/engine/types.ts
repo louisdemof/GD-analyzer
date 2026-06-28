@@ -146,6 +146,9 @@ export interface ACLBaseline {
   energyPisCofinsPct?: number;      // default 0.0925
 }
 
+// Commercial pipeline stage of a project (deal tracking on the dashboard).
+export type ProjectStatus = 'rascunho' | 'proposta' | 'negociacao' | 'ganho' | 'perdido';
+
 export interface Project {
   id: string;
   clientName: string;
@@ -183,6 +186,8 @@ export interface Project {
   lossPct?: number;
   // Folder
   folderId?: string;
+  // Deal pipeline status (defaults to 'rascunho' when absent)
+  status?: ProjectStatus;
   // Growth & degradation for multi-year contracts
   growthRate?: number;              // annual consumption growth, e.g. 0.025 (2.5%)
   generationDegradation?: number;   // annual gen degradation, e.g. 0.005 (0.5%)

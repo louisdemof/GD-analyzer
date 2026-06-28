@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { Button } from '../components/ui/Button';
+import type { ProjectStatus } from '../engine/types';
+import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
 import { useProjectStore } from '../store/projectStore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -8,7 +10,7 @@ import { ShareDialog } from '../components/ShareDialog';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject } = useProjectStore();
   const navigate = useNavigate();
   const { cloudEnabled } = useAuth();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
@@ -26,12 +28,30 @@ export function Dashboard() {
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState(FOLDER_COLORS[0]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'updated' | 'name' | 'created'>('updated');
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | null>(null);
 
-  const filteredProjects = selectedFolder === null
-    ? projects
-    : selectedFolder === 'none'
-      ? projects.filter(p => !p.folderId)
-      : projects.filter(p => p.folderId === selectedFolder);
+  // folder → search → status, then sort
+  const filteredProjects = (() => {
+    let list = selectedFolder === null
+      ? projects
+      : selectedFolder === 'none'
+        ? projects.filter(p => !p.folderId)
+        : projects.filter(p => p.folderId === selectedFolder);
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter(p =>
+      (p.clientName || '').toLowerCase().includes(q) ||
+      (p.plant?.name || '').toLowerCase().includes(q) ||
+      (p.distributor?.name || '').toLowerCase().includes(q));
+    if (statusFilter) list = list.filter(p => statusOf(p.status) === statusFilter);
+    const sorted = [...list];
+    sorted.sort((a, b) =>
+      sortBy === 'name' ? (a.clientName || '').localeCompare(b.clientName || '')
+      : sortBy === 'created' ? (b.createdAt || '').localeCompare(a.createdAt || '')
+      : (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    return sorted;
+  })();
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -216,14 +236,66 @@ export function Dashboard() {
 
         {/* Right panel — projects */}
         <div className="flex-1">
+          {/* Toolbar: search · sort · status filter */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[180px]">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por cliente, distribuidora…"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <span className="absolute left-2.5 top-2.5 text-slate-400 text-sm">🔍</span>
+            </div>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              className="text-sm border border-slate-300 rounded-lg px-2 py-2 bg-white text-slate-600"
+              title="Ordenar"
+            >
+              <option value="updated">Mais recentes</option>
+              <option value="name">Nome (A–Z)</option>
+              <option value="created">Data de criação</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+            <button
+              onClick={() => setStatusFilter(null)}
+              className={`px-2.5 py-1 text-xs rounded-full border ${statusFilter === null ? 'bg-slate-700 text-white border-slate-700' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+            >
+              Todos
+            </button>
+            {STATUS_ORDER.map(st => {
+              const count = projects.filter(p => statusOf(p.status) === st).length;
+              if (count === 0 && statusFilter !== st) return null;
+              return (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(statusFilter === st ? null : st)}
+                  className={`px-2.5 py-1 text-xs rounded-full border ${statusFilter === st ? 'ring-2 ring-offset-1 ring-slate-400 ' : ''}${STATUS_META[st].chip} border-transparent`}
+                >
+                  {STATUS_META[st].label} {count > 0 && <span className="opacity-60">({count})</span>}
+                </button>
+              );
+            })}
+          </div>
           {filteredProjects.length === 0 ? (
             <div className="text-center py-16 px-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-              <div className="text-4xl mb-3">⚡</div>
-              <h3 className="text-base font-semibold text-slate-700">Nenhum projeto ainda</h3>
-              <p className="text-sm text-slate-500 mt-1 mb-5 max-w-sm mx-auto">
-                Crie um projeto do zero ou importe faturas (Energisa MS / COPEL) para preencher tudo automaticamente.
-              </p>
-              <Button variant="primary" onClick={() => navigate('/new')}>+ Criar primeiro projeto</Button>
+              {projects.length === 0 ? (
+                <>
+                  <div className="text-4xl mb-3">⚡</div>
+                  <h3 className="text-base font-semibold text-slate-700">Nenhum projeto ainda</h3>
+                  <p className="text-sm text-slate-500 mt-1 mb-5 max-w-sm mx-auto">
+                    Crie um projeto do zero ou importe faturas (Energisa MS / COPEL) para preencher tudo automaticamente.
+                  </p>
+                  <Button variant="primary" onClick={() => navigate('/new')}>+ Criar primeiro projeto</Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-500">Nenhum projeto corresponde à busca/filtros.</p>
+                  <button onClick={() => { setSearch(''); setStatusFilter(null); }} className="text-sm text-teal-600 mt-2 hover:underline">Limpar filtros</button>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -280,9 +352,20 @@ export function Dashboard() {
                       <span>{p.plant.contractMonths || 24}m</span>
                       <span>{p.distributor.name || '—'}</span>
                     </div>
-                    <p className="text-[10px] text-slate-300 mt-2">
-                      {new Date(p.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-[10px] text-slate-300">
+                        {new Date(p.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                      <select
+                        value={statusOf(p.status)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => { e.stopPropagation(); updateProject(p.id, { status: e.target.value as ProjectStatus }); }}
+                        title="Status do negócio"
+                        className={`text-[10px] font-medium rounded-full px-2 py-0.5 border-none cursor-pointer focus:outline-none ${STATUS_META[statusOf(p.status)].chip}`}
+                      >
+                        {STATUS_ORDER.map(st => <option key={st} value={st}>{STATUS_META[st].label}</option>)}
+                      </select>
+                    </div>
                   </div>
                 );
               })}
