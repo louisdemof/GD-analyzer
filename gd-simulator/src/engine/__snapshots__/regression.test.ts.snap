@@ -1,5 +1,115 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > Belo Alimentos 1`] = `
+{
+  "bancoResidualKWh": 535072,
+  "baselineSEM": 2697793,
+  "economiaLiquida": 14189,
+  "economiaPct": 0.53,
+  "months": 24,
+  "valorTotal": 281725,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > COPEL demo 1`] = `
+{
+  "bancoResidualKWh": 1069142,
+  "baselineSEM": 1679588,
+  "economiaLiquida": -268108,
+  "economiaPct": -15.96,
+  "months": 15,
+  "valorTotal": 266463,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > COPEL demo 2 1`] = `
+{
+  "bancoResidualKWh": 0,
+  "baselineSEM": 4301325,
+  "economiaLiquida": 347164,
+  "economiaPct": 8.07,
+  "months": 30,
+  "valorTotal": 347164,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > COPEL demo 3 1`] = `
+{
+  "bancoResidualKWh": 2049852,
+  "baselineSEM": 5200778,
+  "economiaLiquida": -407382,
+  "economiaPct": -7.83,
+  "months": 24,
+  "valorTotal": 617544,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > COPEL demo 4 (proposta) 1`] = `
+{
+  "bancoResidualKWh": 0,
+  "baselineSEM": 5720856,
+  "economiaLiquida": 1173367,
+  "economiaPct": 20.51,
+  "months": 24,
+  "valorTotal": 1173367,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > Copasul (sample) 1`] = `
+{
+  "bancoResidualKWh": 1553143,
+  "baselineSEM": 2565646,
+  "economiaLiquida": 504915,
+  "economiaPct": 19.68,
+  "months": 24,
+  "valorTotal": 914794,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > SUPERFRIO CWBII (ACL) 1`] = `
+{
+  "bancoResidualKWh": 0,
+  "baselineSEM": 4100522,
+  "economiaLiquida": 272473,
+  "economiaPct": 6.64,
+  "months": 24,
+  "valorTotal": 272473,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > SUPERFRIO PR 5 anos 1`] = `
+{
+  "bancoResidualKWh": 75574,
+  "baselineSEM": 33626525,
+  "economiaLiquida": 1189181,
+  "economiaPct": 3.54,
+  "months": 60,
+  "valorTotal": 1223189,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > SUPERFRIO PR frontload 1`] = `
+{
+  "bancoResidualKWh": 75649,
+  "baselineSEM": 11781138,
+  "economiaLiquida": 1079700,
+  "economiaPct": 9.16,
+  "months": 24,
+  "valorTotal": 1113742,
+}
+`;
+
+exports[`engine regression — OPTIMIZED rateio (client-facing case) > SUPERFRIO PR portfolio 1`] = `
+{
+  "bancoResidualKWh": 93552,
+  "baselineSEM": 11781138,
+  "economiaLiquida": 676842,
+  "economiaPct": 5.75,
+  "months": 24,
+  "valorTotal": 718940,
+}
+`;
+
 exports[`engine regression — real demo cases > Belo Alimentos 1`] = `
 {
   "bancoResidualKWh": 628609,

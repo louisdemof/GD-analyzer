@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runSimulation } from './simulation';
-import { createDefaultRateio } from './optimiser';
+import { createDefaultRateio, optimiseRateio } from './optimiser';
+import { computeDerivedTariffs } from './tariff';
 import type { Project } from './types';
 
 import sampleData from '../../reference/SAMPLE_DATA.json';
@@ -73,6 +74,41 @@ describe('engine regression — real demo cases', () => {
       // Per-month economia reconciles to the headline (within rounding)
       const sumMonthly = r.months.reduce((a, m) => a + m.economia, 0);
       expect(sumMonthly).toBeCloseTo(s.economiaLiquida, 0);
+    });
+  }
+});
+
+// The optimized rateio is what's actually presented to clients. This locks those
+// numbers and proves optimization never makes the economy worse than the default split.
+describe('engine regression — OPTIMIZED rateio (client-facing case)', () => {
+  for (const [name, raw, id] of CASES) {
+    it(name, () => {
+      const base = buildDemo(raw, id);
+      const defaultEco = runSimulation(base).summary.economiaLiquida;
+
+      // Same prep the optimiser.worker does: attribution off (display-only) + derived tariffs.
+      const prepped: Project = {
+        ...base,
+        scenarios: { ...base.scenarios, runAttribution: false },
+        distributor: computeDerivedTariffs(base.distributor),
+      };
+      const opt = optimiseRateio(prepped);
+      const r = runSimulation({ ...prepped, rateio: opt.allocation });
+      const s = r.summary;
+
+      expect({
+        months: r.months.length,
+        baselineSEM: Math.round(s.baselineSEM),
+        economiaLiquida: Math.round(s.economiaLiquida),
+        economiaPct: +(s.economiaPct * 100).toFixed(2),
+        valorTotal: Math.round(s.valorTotal),
+        bancoResidualKWh: Math.round(s.bancoResidualKWh),
+      }).toMatchSnapshot();
+
+      // Optimization must not be worse than the default split (default is a candidate).
+      expect(s.economiaLiquida).toBeGreaterThanOrEqual(defaultEco - 1);
+      // The re-simulated economia matches what the optimiser reported as best.
+      expect(s.economiaLiquida).toBeCloseTo(opt.bestEconomia, 0);
     });
   }
 });
