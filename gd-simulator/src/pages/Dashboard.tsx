@@ -94,6 +94,82 @@ export function Dashboard() {
     setShowNewFolder(false);
   };
 
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setCollapsedGroups(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  // One project card. showFolderBadge=false in the grouped view (header already shows it).
+  const renderCard = (p: typeof projects[number], showFolderBadge = true) => {
+    const folder = folders.find(f => f.id === p.folderId);
+    return (
+      <div
+        key={p.id}
+        draggable
+        onDragStart={e => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
+        onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
+        title="Arraste para uma pasta à esquerda"
+        className="p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all group"
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            {showFolderBadge && folder && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 mb-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
+                {folder.name}
+              </span>
+            )}
+            <h3 className="font-semibold text-slate-800 truncate">{p.clientName || 'Sem nome'}</h3>
+            <p className="text-xs text-slate-500 mt-1">{p.plant.name || 'Planta não definida'}</p>
+          </div>
+          <div className="flex gap-1">
+            <button onClick={(e) => handleDuplicate(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Duplicar">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            </button>
+            <button onClick={(e) => handleExport(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Exportar">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            </button>
+            {cloudEnabled && (
+              <button onClick={(e) => { e.stopPropagation(); setShareTarget({ id: p.id, name: p.clientName || 'Sem nome' }); }} className="p-1 text-slate-400 hover:text-teal-600" title="Compartilhar">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+              </button>
+            )}
+            {folders.length > 0 && (
+              <select
+                onClick={e => e.stopPropagation()}
+                value={p.folderId || ''}
+                onChange={e => { e.stopPropagation(); moveProjectToFolder(p.id, e.target.value || null); }}
+                className="text-[10px] text-slate-400 bg-transparent border-none cursor-pointer p-0"
+                title="Mover para pasta"
+              >
+                <option value="">Sem pasta</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
+          <span>{p.ucs.length} UCs</span>
+          <span>{p.plant.contractMonths || 24}m</span>
+          <span>{p.distributor.name || '—'}</span>
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <p className="text-[10px] text-slate-300">
+            {new Date(p.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+          <select
+            value={statusOf(p.status)}
+            onClick={e => e.stopPropagation()}
+            onChange={e => { e.stopPropagation(); updateProject(p.id, { status: e.target.value as ProjectStatus }); }}
+            title="Status do negócio"
+            className={`text-[10px] font-medium rounded-full px-2 py-0.5 border-none cursor-pointer focus:outline-none ${STATUS_META[statusOf(p.status)].chip}`}
+          >
+            {STATUS_ORDER.map(st => <option key={st} value={st}>{STATUS_META[st].label}</option>)}
+          </select>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -297,79 +373,35 @@ export function Dashboard() {
                 </>
               )}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {filteredProjects.map(p => {
-                const folder = folders.find(f => f.id === p.folderId);
+          ) : selectedFolder === null ? (
+            /* Grouped by client (folder) */
+            <div className="space-y-8">
+              {[...folders, null].map(f => {
+                const fid = f ? f.id : null;
+                const ps = filteredProjects.filter(p => (p.folderId || null) === fid);
+                if (ps.length === 0) return null;
+                const key = fid ?? 'none';
+                const collapsed = collapsedGroups.has(key);
                 return (
-                  <div
-                    key={p.id}
-                    draggable
-                    onDragStart={e => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
-                    onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
-                    title="Arraste para uma pasta à esquerda"
-                    className="p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        {folder && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 mb-1">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
-                            {folder.name}
-                          </span>
-                        )}
-                        <h3 className="font-semibold text-slate-800 truncate">{p.clientName || 'Sem nome'}</h3>
-                        <p className="text-xs text-slate-500 mt-1">{p.plant.name || 'Planta não definida'}</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <button onClick={(e) => handleDuplicate(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Duplicar">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                        </button>
-                        <button onClick={(e) => handleExport(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Exportar">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        </button>
-                        {cloudEnabled && (
-                          <button onClick={(e) => { e.stopPropagation(); setShareTarget({ id: p.id, name: p.clientName || 'Sem nome' }); }} className="p-1 text-slate-400 hover:text-teal-600" title="Compartilhar">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
-                          </button>
-                        )}
-                        {folders.length > 0 && (
-                          <select
-                            onClick={e => e.stopPropagation()}
-                            value={p.folderId || ''}
-                            onChange={e => { e.stopPropagation(); moveProjectToFolder(p.id, e.target.value || null); }}
-                            className="text-[10px] text-slate-400 bg-transparent border-none cursor-pointer p-0"
-                            title="Mover para pasta"
-                          >
-                            <option value="">Sem pasta</option>
-                            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
-                      <span>{p.ucs.length} UCs</span>
-                      <span>{p.plant.contractMonths || 24}m</span>
-                      <span>{p.distributor.name || '—'}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-[10px] text-slate-300">
-                        {new Date(p.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </p>
-                      <select
-                        value={statusOf(p.status)}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => { e.stopPropagation(); updateProject(p.id, { status: e.target.value as ProjectStatus }); }}
-                        title="Status do negócio"
-                        className={`text-[10px] font-medium rounded-full px-2 py-0.5 border-none cursor-pointer focus:outline-none ${STATUS_META[statusOf(p.status)].chip}`}
-                      >
-                        {STATUS_ORDER.map(st => <option key={st} value={st}>{STATUS_META[st].label}</option>)}
-                      </select>
-                    </div>
+                  <div key={key}>
+                    <button
+                      onClick={() => toggleGroup(key)}
+                      className="flex items-center gap-2 mb-3 text-sm font-semibold text-slate-700 hover:text-slate-900"
+                    >
+                      <span className="text-slate-400 w-3 text-center">{collapsed ? '\u25b8' : '\u25be'}</span>
+                      {f && <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: f.color }} />}
+                      {f ? f.name : 'Sem pasta'}
+                      <span className="text-xs font-normal text-slate-400">({ps.length})</span>
+                    </button>
+                    {!collapsed && (
+                      <div className="grid grid-cols-2 gap-4">{ps.map(p => renderCard(p, false))}</div>
+                    )}
                   </div>
                 );
               })}
             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">{filteredProjects.map(p => renderCard(p, true))}</div>
           )}
         </div>
       </div>
