@@ -101,6 +101,31 @@ export async function cloudLogEvent(projectId: string, action: AuditAction, deta
   await supabase.from('audit_log').insert({ project_id: projectId, actor_email: email, action, detail: detail ?? null });
 }
 
+export interface ActivityEntry extends AuditEntry { projectId: string }
+// Recent activity across ALL projects the caller can see (super-admins see everything).
+export async function cloudRecentActivity(limit = 100): Promise<ActivityEntry[]> {
+  if (!(await authed()) || !supabase) return [];
+  const { data, error } = await supabase.from('audit_log')
+    .select('id, project_id, actor_email, action, detail, created_at')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error || !data) return [];
+  return data.map(r => ({ id: r.id as number, projectId: r.project_id as string, actorEmail: r.actor_email as string, action: r.action as AuditAction, detail: r.detail as string | null, createdAt: r.created_at as string }));
+}
+
+export async function cloudIsSuperAdmin(): Promise<boolean> {
+  if (!(await authed()) || !supabase) return false;
+  const { data, error } = await supabase.rpc('is_super_admin');
+  return !error && data === true;
+}
+
+export interface DirectoryUser { id: string; email: string; full_name: string | null }
+export async function cloudListUsers(): Promise<DirectoryUser[]> {
+  if (!(await authed()) || !supabase) return [];
+  const { data, error } = await supabase.from('profiles').select('id, email, full_name').order('email');
+  if (error || !data) return [];
+  return data.map(r => ({ id: r.id as string, email: r.email as string, full_name: (r.full_name as string) ?? null }));
+}
+
 export async function cloudListAudit(projectId: string, limit = 50): Promise<AuditEntry[]> {
   if (!(await authed()) || !supabase) return [];
   const { data, error } = await supabase.from('audit_log')

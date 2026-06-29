@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { NewProject } from './pages/NewProject';
 import { ProjectEditor } from './pages/ProjectEditor';
 import { Results } from './pages/Results';
+import { AdminPanel } from './pages/AdminPanel';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LoginScreen } from './auth/LoginScreen';
@@ -49,6 +50,7 @@ function App() {
                     <Results />
                   </ErrorBoundary>
                 } />
+                <Route path="/admin" element={<AdminPanel />} />
               </Routes>
             </main>
           </div>

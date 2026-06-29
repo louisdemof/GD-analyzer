@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { AccountPanel } from '../AccountPanel';
+import { cloudIsSuperAdmin } from '../../storage/cloudSync';
 
 export function Sidebar() {
   const { projects, currentProjectId, setCurrentProject } = useProjectStore();
@@ -10,6 +11,8 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showAccount, setShowAccount] = useState(false);
+  const [isSuper, setIsSuper] = useState(false);
+  useEffect(() => { if (cloudEnabled) cloudIsSuperAdmin().then(setIsSuper).catch(() => {}); }, [cloudEnabled, user?.id]);
 
   // Compact quick-switch: 5 most recently updated projects (full list lives on the Dashboard).
   const recents = [...projects]
@@ -40,6 +43,16 @@ export function Sidebar() {
         >
           + Novo Projeto
         </button>
+        {isSuper && (
+          <button
+            onClick={() => navigate('/admin')}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+              location.pathname === '/admin' ? 'bg-white/20' : 'hover:bg-white/10'
+            }`}
+          >
+            🛡️ Admin
+          </button>
+        )}
 
         {recents.length > 0 && (
           <>

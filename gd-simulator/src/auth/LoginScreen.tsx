@@ -25,6 +25,10 @@ export function LoginScreen() {
       const { error } = await signIn(email, password);
       if (error) setError(error);
     } else if (mode === 'signup') {
+      if (!/@helexia\.eu$/i.test(email.trim())) {
+        setError('Cadastro restrito a e-mails @helexia.eu. Fale com um admin para acesso externo.');
+        setBusy(false); return;
+      }
       const { error, needsConfirmation } = await signUp(email, password, fullName);
       if (error) setError(error);
       else if (needsConfirmation) setNotice('Conta criada! Verifique seu e-mail para confirmar antes de entrar.');
