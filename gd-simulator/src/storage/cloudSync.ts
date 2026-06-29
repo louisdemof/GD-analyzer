@@ -48,13 +48,22 @@ export async function cloudPullFolders(): Promise<ClientFolder[]> {
   return data.map(r => r.data as ClientFolder);
 }
 
-// ─── Per-project sharing ──────────────────────────────────
-export interface ProjectShare { project_id: string; email: string }
+// ─── Per-project sharing (with roles) ──────────────────────
+export type ShareRole = 'admin' | 'editor' | 'viewer';
+export type MyRole = 'owner' | ShareRole | null;
+export interface ProjectShare { email: string; role: ShareRole }
 
-export async function cloudShareProject(projectId: string, email: string): Promise<{ error: string | null }> {
+export async function cloudShareProject(projectId: string, email: string, role: ShareRole = 'editor'): Promise<{ error: string | null }> {
   if (!supabase) return { error: 'Cloud não configurado' };
   const { error } = await supabase.from('project_shares')
-    .upsert({ project_id: projectId, email: email.trim().toLowerCase() }, { onConflict: 'project_id,email' });
+    .upsert({ project_id: projectId, email: email.trim().toLowerCase(), role }, { onConflict: 'project_id,email' });
+  return { error: error?.message ?? null };
+}
+
+export async function cloudSetShareRole(projectId: string, email: string, role: ShareRole): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Cloud não configurado' };
+  const { error } = await supabase.from('project_shares')
+    .update({ role }).eq('project_id', projectId).eq('email', email.trim().toLowerCase());
   return { error: error?.message ?? null };
 }
 
@@ -65,11 +74,27 @@ export async function cloudUnshareProject(projectId: string, email: string): Pro
   return { error: error?.message ?? null };
 }
 
-export async function cloudListShares(projectId: string): Promise<string[]> {
+export async function cloudListShares(projectId: string): Promise<ProjectShare[]> {
   if (!(await authed()) || !supabase) return [];
-  const { data, error } = await supabase.from('project_shares').select('email').eq('project_id', projectId);
+  const { data, error } = await supabase.from('project_shares').select('email, role').eq('project_id', projectId);
   if (error || !data) return [];
-  return data.map(r => r.email as string);
+  return data.map(r => ({ email: r.email as string, role: (r.role as ShareRole) ?? 'editor' }));
+}
+
+// My effective role on a project ('owner' | 'admin' | 'editor' | 'viewer' | null).
+export async function cloudMyRole(projectId: string): Promise<MyRole> {
+  if (!(await authed()) || !supabase) return null;
+  const { data, error } = await supabase.rpc('my_role_on', { pid: projectId });
+  if (error) return null;
+  return (data as MyRole) ?? null;
+}
+
+// Email of the project's creator (owner), for "creator" display.
+export async function cloudProjectOwnerEmail(projectId: string): Promise<string | null> {
+  if (!(await authed()) || !supabase) return null;
+  const { data, error } = await supabase.rpc('project_owner_email', { pid: projectId });
+  if (error) return null;
+  return (data as string) ?? null;
 }
 
 // User search for the Share dialog autocomplete. Queries the public `profiles` table

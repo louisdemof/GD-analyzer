@@ -1,6 +1,8 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../store/projectStore';
+import { useAuth } from '../auth/AuthContext';
+import { cloudMyRole, cloudProjectOwnerEmail, type MyRole } from '../storage/cloudSync';
 import { useSimulationStore } from '../store/simulationStore';
 import { DistributorForm } from '../components/inputs/DistributorForm';
 import { PlantForm } from '../components/inputs/PlantForm';
@@ -31,6 +33,17 @@ export function ProjectEditor() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const pendingImportRef = useRef<ImportResult | null>(null);
+
+  // Access / ownership info (cloud only).
+  const { cloudEnabled } = useAuth();
+  const [myRole, setMyRole] = useState<MyRole>(null);
+  const [ownerEmail, setOwnerEmail] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cloudEnabled || !id) return;
+    cloudMyRole(id).then(setMyRole).catch(() => {});
+    cloudProjectOwnerEmail(id).then(setOwnerEmail).catch(() => {});
+  }, [cloudEnabled, id]);
+  const isViewer = myRole === 'viewer';
 
   // Carrega o logo do cliente (PNG/JPEG) como data URL para exibir no PDF.
   const handleLogoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -306,6 +319,31 @@ export function ProjectEditor() {
           </button>
         </div>
       </div>
+
+      {/* Creator / access info */}
+      {cloudEnabled && (ownerEmail || myRole) && (
+        <div className="mb-4 text-xs text-slate-500 flex items-center gap-3 flex-wrap">
+          {ownerEmail && <span>Criado por: <strong className="text-slate-700">{ownerEmail}</strong></span>}
+          {myRole && (
+            <span>
+              Seu acesso:{' '}
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                myRole === 'owner' ? 'bg-blue-100 text-blue-700'
+                : myRole === 'admin' ? 'bg-violet-100 text-violet-700'
+                : myRole === 'editor' ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-slate-200 text-slate-600'
+              }`}>
+                {myRole === 'owner' ? 'Proprietário' : myRole === 'admin' ? 'Admin' : myRole === 'editor' ? 'Editor' : 'Leitor'}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+      {isViewer && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          👁️ Acesso somente leitura — você pode visualizar este projeto, mas alterações não serão salvas. Peça a um admin para mudar sua permissão.
+        </div>
+      )}
 
       <div className="flex gap-1 mb-6 border-b border-slate-200">
         {tabs.map(t => (
