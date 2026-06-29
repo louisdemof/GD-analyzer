@@ -73,3 +73,49 @@ describe('variable PPA lengths across usinas', () => {
     expect(totalPPA).toBeCloseTo(10000 * 0.40 * 24 + 5000 * 0.50 * 12, 4);
   });
 });
+
+describe('economic reconciliation across a variable-PPA transition', () => {
+  // Consumo 12.000/mês. Usina A: 8.000 ×24m @0,40. Usina B: 5.000 ×12m @0,50.
+  //   meses 0–11: geração 13.000 > consumo → compensa tudo, sobra 1.000/m no banco
+  //   meses 12+ : geração 8.000 < consumo → puxa do banco; quando esgota, paga a distribuidora
+  const cons = new Array(24).fill(12000);
+  const uc: ConsumptionUnit = { ...ucB, consumptionFP: cons };
+  const A = plant({ id: 'A', name: 'A', p50Profile: new Array(24).fill(8000), contractMonths: 24, ppaRateRsBRLkWh: 0.40 });
+  const B = plant({ id: 'B', name: 'B', p50Profile: new Array(24).fill(5000), contractMonths: 12, ppaRateRsBRLkWh: 0.50 });
+  const project = (() => { const p = build([A, B]); p.ucs = [uc]; p.rateio = createDefaultRateio(p); return p; })();
+  const r = runSimulation(project);
+
+  it('Custo SEM is flat — it is the pure distributor bill, independent of the usinas', () => {
+    const sems = r.months.map(m => m.sem.totalCost);
+    expect(Math.max(...sems) - Math.min(...sems)).toBeCloseTo(0, 4);
+  });
+
+  it('monthly identity: economia = Custo SEM − residual distribuidora − PPA − impostos', () => {
+    for (const m of r.months) {
+      const recon = m.sem.totalCost - m.com.redeCost - m.ppaCost - m.com.icmsAdditional - m.com.pisCofinsAdditional;
+      expect(m.economia).toBeCloseTo(recon, 4);
+      expect(m.com.redeCost).toBeGreaterThanOrEqual(0); // "remaining from the distributor" never negative
+    }
+  });
+
+  it('residual to the distributor is ~0 while compensated, then appears after the bank drains', () => {
+    expect(r.months[0].com.redeCost).toBeCloseTo(0, 4);   // surplus period — fully compensated
+    expect(r.months[12].com.redeCost).toBeCloseTo(0, 4);  // B gone, but bank still covers the shortfall
+    expect(r.months[23].com.redeCost).toBeGreaterThan(0); // bank drained → client pays the distributor
+  });
+
+  it('PPA drops when B ends; economia improves while the bank covers, then erodes once it drains', () => {
+    expect(r.months[12].ppaCost).toBeLessThan(r.months[11].ppaCost);     // less paid to Helexia
+    expect(r.months[12].economia).toBeGreaterThan(r.months[11].economia); // less PPA, still no distributor cost
+    expect(r.months[23].economia).toBeLessThan(r.months[0].economia);     // now paying the distributor
+  });
+
+  it('summary reconciles: baselineSEM = ΣSEM, economiaLiquida = Σeconomia, COM total = Σ(rede+PPA+impostos)', () => {
+    const sumSEM = r.months.reduce((a, m) => a + m.sem.totalCost, 0);
+    const sumEco = r.months.reduce((a, m) => a + m.economia, 0);
+    const sumCOM = r.months.reduce((a, m) => a + m.com.redeCost + m.ppaCost + m.com.icmsAdditional + m.com.pisCofinsAdditional, 0);
+    expect(r.summary.baselineSEM).toBeCloseTo(sumSEM, 0);
+    expect(r.summary.economiaLiquida).toBeCloseTo(sumEco, 0);
+    expect(r.summary.baselineSEM - r.summary.economiaLiquida).toBeCloseTo(sumCOM, 0);
+  });
+});
