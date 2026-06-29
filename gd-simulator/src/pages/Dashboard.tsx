@@ -5,7 +5,7 @@ import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
 import { useProjectStore } from '../store/projectStore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { cloudOwnedProjectIds } from '../storage/cloudSync';
+import { cloudIncomingShares } from '../storage/cloudSync';
 import { ShareDialog } from '../components/ShareDialog';
 
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
@@ -36,16 +36,17 @@ export function Dashboard() {
     (localStorage.getItem('gd-dashboard-view') as 'cards' | 'table') || 'cards');
   useEffect(() => { localStorage.setItem('gd-dashboard-view', view); }, [view]);
 
-  // Ownership: server-side (projects.created_by). Fetch the set of owned IDs so we can
-  // separate "Compartilhados comigo" from owned projects. Empty when cloud is off → all owned.
-  const [ownedIds, setOwnedIds] = useState<Set<string>>(new Set());
+  // "Shared with me" = projects that appear in my incoming shares (someone else owns them).
+  // Anything else — including local-only demos and offline projects — counts as mine.
+  // (Don't infer shared from "not in cloud-owned": that misflags local-only projects.)
+  const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!cloudEnabled) return;
-    cloudOwnedProjectIds().then(setOwnedIds).catch(() => {});
+    cloudIncomingShares().then(list => setSharedIds(new Set(list.map(s => s.projectId)))).catch(() => {});
   }, [cloudEnabled, projects.length]);
-  const sharingActive = cloudEnabled && ownedIds.size > 0;
-  const isShared = (id: string) => sharingActive && !ownedIds.has(id);
-  const sharedCount = sharingActive ? projects.filter(p => isShared(p.id)).length : 0;
+  const isShared = (id: string) => sharedIds.has(id);
+  const sharedCount = projects.filter(p => isShared(p.id)).length;
+  const sharingActive = sharedCount > 0;
 
   // scope (owned/shared) → folder → search → status, then sort
   const filteredProjects = (() => {
