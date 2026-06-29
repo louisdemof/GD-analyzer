@@ -1,0 +1,65 @@
+import { useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { Button } from './ui/Button';
+
+// Personal account panel: who you are, change password, sign out.
+export function AccountPanel({ onClose }: { onClose: () => void }) {
+  const { user, updatePassword, signOut } = useAuth();
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const name = (meta.full_name as string) || (meta.name as string) || '';
+  const initials = (name || user?.email || '?').slice(0, 2).toUpperCase();
+
+  async function changePw(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null); setMsg(null);
+    if (pw.length < 6) { setErr('A senha deve ter ao menos 6 caracteres.'); return; }
+    if (pw !== pw2) { setErr('As senhas não coincidem.'); return; }
+    setBusy(true);
+    const { error } = await updatePassword(pw);
+    setBusy(false);
+    if (error) setErr(error);
+    else { setMsg('Senha atualizada com sucesso.'); setPw(''); setPw2(''); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-white rounded-xl shadow-xl p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-base font-semibold text-slate-800">Minha conta</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+        </div>
+
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-11 h-11 rounded-full bg-brand-navy text-white flex items-center justify-center text-sm font-semibold">{initials}</div>
+          <div className="min-w-0">
+            {name && <p className="font-medium text-slate-800 truncate">{name}</p>}
+            <p className="text-sm text-slate-500 truncate">{user?.email}</p>
+          </div>
+        </div>
+
+        <form onSubmit={changePw} className="space-y-2 border-t border-slate-100 pt-4">
+          <p className="text-xs font-medium text-slate-600">Alterar senha</p>
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Nova senha"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" autoComplete="new-password" />
+          <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirmar nova senha"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" autoComplete="new-password" />
+          {err && <p className="text-xs text-red-600">{err}</p>}
+          {msg && <p className="text-xs text-emerald-700">{msg}</p>}
+          <Button type="submit" variant="navy" disabled={busy} className="w-full">{busy ? 'Salvando…' : 'Atualizar senha'}</Button>
+        </form>
+
+        <div className="border-t border-slate-100 mt-4 pt-4">
+          <button onClick={() => signOut()} className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50">
+            Sair da conta
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

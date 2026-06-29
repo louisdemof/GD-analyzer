@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { AccountPanel } from '../AccountPanel';
 
 export function Sidebar() {
   const { projects, currentProjectId, setCurrentProject } = useProjectStore();
-  const { cloudEnabled, user, signOut } = useAuth();
+  const { cloudEnabled, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showAccount, setShowAccount] = useState(false);
 
   // Compact quick-switch: 5 most recently updated projects (full list lives on the Dashboard).
   const recents = [...projects]
@@ -70,15 +73,20 @@ export function Sidebar() {
 
       {cloudEnabled && user && (
         <div className="p-3 border-t border-white/10">
-          <div className="text-[11px] text-white/50 truncate mb-1" title={user.email ?? ''}>{user.email}</div>
           <button
-            onClick={() => signOut()}
-            className="w-full px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            onClick={() => setShowAccount(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-left"
+            title="Minha conta"
           >
-            Sair
+            <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-semibold shrink-0">
+              {(user.email ?? '?').slice(0, 2).toUpperCase()}
+            </span>
+            <span className="truncate flex-1">{user.email}</span>
+            <span className="text-white/50">⚙️</span>
           </button>
         </div>
       )}
+      {showAccount && <AccountPanel onClose={() => setShowAccount(false)} />}
     </aside>
   );
 }

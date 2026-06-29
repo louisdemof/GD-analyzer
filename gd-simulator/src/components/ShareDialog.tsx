@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   cloudListShares, cloudShareProject, cloudUnshareProject, cloudSetShareRole, cloudSearchUsers,
-  cloudProjectOwnerEmail, type UserSuggestion, type ProjectShare, type ShareRole,
+  cloudProjectOwnerEmail, cloudMyRole, type UserSuggestion, type ProjectShare, type ShareRole, type MyRole,
 } from '../storage/cloudSync';
 import { Button } from './ui/Button';
 
@@ -11,15 +11,11 @@ interface Props {
   onClose: () => void;
 }
 
-const ROLE_LABEL: Record<ShareRole, string> = {
-  admin: 'Admin (co-proprietário)',
-  editor: 'Editor (pode modificar)',
-  viewer: 'Leitor (somente leitura)',
-};
-
 export function ShareDialog({ projectId, projectName, onClose }: Props) {
   const [shares, setShares] = useState<ProjectShare[]>([]);
   const [owner, setOwner] = useState<string | null>(null);
+  const [myRole, setMyRole] = useState<MyRole>(null);
+  const canManage = myRole === 'owner' || myRole === 'admin';
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<ShareRole>('editor');
   const [busy, setBusy] = useState(false);
@@ -41,9 +37,11 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
   }, [email, shares]);
 
   async function reload() {
-    const [s, o] = await Promise.all([cloudListShares(projectId), cloudProjectOwnerEmail(projectId)]);
-    setShares(s); setOwner(o); setLoading(false);
+    const [s, o, r] = await Promise.all([cloudListShares(projectId), cloudProjectOwnerEmail(projectId), cloudMyRole(projectId)]);
+    setShares(s); setOwner(o); setMyRole(r); setLoading(false);
   }
+  const friendly = (e: string) => /row-level security|violates/i.test(e)
+    ? 'Sem permissão — apenas o proprietário ou um admin pode alterar acessos.' : e;
   useEffect(() => { reload(); /* eslint-disable-next-line */ }, [projectId]);
 
   async function shareEmail(addr: string, r: ShareRole) {
@@ -51,7 +49,7 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
     if (!v) return;
     setBusy(true); setError(null);
     const { error } = await cloudShareProject(projectId, v, r);
-    if (error) setError(error);
+    if (error) setError(friendly(error));
     else { setEmail(''); setSuggestions([]); setShowSug(false); await reload(); }
     setBusy(false);
   }
@@ -60,14 +58,14 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
   async function changeRole(addr: string, r: ShareRole) {
     setBusy(true); setError(null);
     const { error } = await cloudSetShareRole(projectId, addr, r);
-    if (error) setError(error); else await reload();
+    if (error) setError(friendly(error)); else await reload();
     setBusy(false);
   }
 
   async function remove(addr: string) {
     setBusy(true); setError(null);
     const { error } = await cloudUnshareProject(projectId, addr);
-    if (error) setError(error); else await reload();
+    if (error) setError(friendly(error)); else await reload();
     setBusy(false);
   }
 
@@ -80,7 +78,13 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
         </div>
         <p className="text-xs text-slate-500 mb-4 truncate">{projectName}</p>
 
-        <form onSubmit={add} className="flex gap-2 mb-3">
+        {!loading && !canManage && (
+          <div className="mb-3 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">
+            Você não é proprietário/admin deste projeto — pode ver quem tem acesso, mas só o proprietário ou um admin altera permissões.
+          </div>
+        )}
+
+        <form onSubmit={add} className="flex gap-2 mb-3" hidden={!loading && !canManage}>
           <div className="relative flex-1">
             <input
               type="text" required placeholder="Nome ou email (ex.: lucas)" value={email}
@@ -130,14 +134,16 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
             shares.map(s => (
               <div key={s.email} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-50 text-sm">
                 <span className="text-slate-700 truncate flex-1">{s.email}</span>
-                <select value={s.role} onChange={e => changeRole(s.email, e.target.value as ShareRole)} disabled={busy}
-                  className="text-xs bg-white border border-slate-200 rounded px-1.5 py-1 text-slate-600" title="Permissão">
+                <select value={s.role} onChange={e => changeRole(s.email, e.target.value as ShareRole)} disabled={busy || !canManage}
+                  className="text-xs bg-white border border-slate-200 rounded px-1.5 py-1 text-slate-600 disabled:opacity-60" title="Permissão">
                   <option value="admin">Admin</option>
                   <option value="editor">Editor</option>
                   <option value="viewer">Leitor</option>
                 </select>
-                <button onClick={() => remove(s.email)} disabled={busy}
-                  className="text-slate-400 hover:text-red-600 text-xs shrink-0">Remover</button>
+                {canManage && (
+                  <button onClick={() => remove(s.email)} disabled={busy}
+                    className="text-slate-400 hover:text-red-600 text-xs shrink-0">Remover</button>
+                )}
               </div>
             ))
           )}
