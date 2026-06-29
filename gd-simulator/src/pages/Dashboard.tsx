@@ -11,7 +11,7 @@ import { ShareDialog } from '../components/ShareDialog';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject, deleteProject } = useProjectStore();
   const navigate = useNavigate();
   const { cloudEnabled } = useAuth();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
@@ -48,15 +48,20 @@ export function Dashboard() {
   const sharedCount = projects.filter(p => isShared(p.id)).length;
   const sharingActive = sharedCount > 0;
 
-  // scope (owned/shared) → folder → search → status, then sort
+  // Is the project in one of MY folders? (shared projects carry the owner's folderId,
+  // which won't match my folders, so they fall outside folder/Sem-pasta views.)
+  const inMyFolder = (p: typeof projects[number]) => folders.some(f => f.id === p.folderId);
+
+  // scope → folder → search → status, then sort.
+  // 'Todos' = everything I can see (owned + shared). Folders/'Sem pasta' = my own org.
   const filteredProjects = (() => {
     let list = selectedFolder === 'shared'
       ? projects.filter(p => isShared(p.id))
       : selectedFolder === null
-        ? projects.filter(p => !isShared(p.id))
+        ? projects
         : selectedFolder === 'none'
-          ? projects.filter(p => !p.folderId && !isShared(p.id))
-          : projects.filter(p => p.folderId === selectedFolder && !isShared(p.id));
+          ? projects.filter(p => !inMyFolder(p) && !isShared(p.id))
+          : projects.filter(p => p.folderId === selectedFolder);
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(p =>
       (p.clientName || '').toLowerCase().includes(q) ||
@@ -105,6 +110,13 @@ export function Dashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
+    if (confirm(`Excluir o projeto "${name}"? Esta ação não pode ser desfeita.`)) {
+      deleteProject(id);
+    }
+  };
+
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) return;
     createFolder(newFolderName.trim(), newFolderColor);
@@ -123,10 +135,10 @@ export function Dashboard() {
     return (
       <div
         key={p.id}
-        draggable={!shared}
+        draggable
         onDragStart={e => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
         onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
-        title={shared ? 'Projeto compartilhado com você' : 'Arraste para uma pasta à esquerda'}
+        title={shared ? 'Compartilhado com você — arraste para organizar nas suas pastas' : 'Arraste para uma pasta à esquerda'}
         className="p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all group"
       >
         <div className="flex items-start justify-between">
@@ -155,7 +167,7 @@ export function Dashboard() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
               </button>
             )}
-            {folders.length > 0 && !shared && (
+            {folders.length > 0 && (
               <select
                 onClick={e => e.stopPropagation()}
                 value={p.folderId || ''}
@@ -167,6 +179,9 @@ export function Dashboard() {
                 {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             )}
+            <button onClick={(e) => handleDelete(e, p.id, p.clientName || 'Sem nome')} className="p-1 text-slate-400 hover:text-red-600" title="Excluir">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
@@ -266,6 +281,9 @@ export function Dashboard() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
                       </button>
                     )}
+                    <button onClick={(e) => handleDelete(e, p.id, p.clientName || 'Sem nome')} className="p-1 text-slate-400 hover:text-red-600" title="Excluir">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -340,7 +358,7 @@ export function Dashboard() {
               onClick={() => setSelectedFolder(null)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === null ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
             >
-              Todos os Projetos ({projects.filter(p => !isShared(p.id)).length})
+              Todos os Projetos ({projects.length})
             </button>
             <button
               onClick={() => setSelectedFolder('none')}
@@ -349,7 +367,7 @@ export function Dashboard() {
               onDrop={e => dropProject(e, null)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'none' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'} ${dragOverFolder === 'none' ? 'ring-2 ring-teal-400 bg-teal-50' : ''}`}
             >
-              Sem pasta ({projects.filter(p => !p.folderId && !isShared(p.id)).length})
+              Sem pasta ({projects.filter(p => !inMyFolder(p) && !isShared(p.id)).length})
             </button>
             {sharingActive && sharedCount > 0 && (
               <button
@@ -506,7 +524,9 @@ export function Dashboard() {
             <div className="space-y-8">
               {[...folders, null].map(f => {
                 const fid = f ? f.id : null;
-                const ps = filteredProjects.filter(p => (p.folderId || null) === fid);
+                const ps = f
+                  ? filteredProjects.filter(p => p.folderId === fid)
+                  : filteredProjects.filter(p => !inMyFolder(p)); // Sem pasta + shared/foreign
                 if (ps.length === 0) return null;
                 const key = fid ?? 'none';
                 const collapsed = collapsedGroups.has(key);
