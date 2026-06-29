@@ -8,6 +8,7 @@ export function LoginScreen() {
   const { signIn, signUp, resetPassword, updatePassword, recovery } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export function LoginScreen() {
       const { error } = await signIn(email, password);
       if (error) setError(error);
     } else if (mode === 'signup') {
-      const { error, needsConfirmation } = await signUp(email, password);
+      const { error, needsConfirmation } = await signUp(email, password, fullName);
       if (error) setError(error);
       else if (needsConfirmation) setNotice('Conta criada! Verifique seu e-mail para confirmar antes de entrar.');
     } else if (mode === 'reset') {
@@ -55,6 +56,14 @@ export function LoginScreen() {
         </div>
 
         <form onSubmit={submit} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+          {mode === 'signup' && !recovery && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Nome completo</label>
+              <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)}
+                autoComplete="name" placeholder="Ex.: Lucas Velloso"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            </div>
+          )}
           {!recovery && (
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">E-mail</label>

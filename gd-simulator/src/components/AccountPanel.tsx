@@ -4,16 +4,30 @@ import { Button } from './ui/Button';
 
 // Personal account panel: who you are, change password, sign out.
 export function AccountPanel({ onClose }: { onClose: () => void }) {
-  const { user, updatePassword, signOut } = useAuth();
+  const { user, updatePassword, updateName, signOut } = useAuth();
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const initialName = (meta.full_name as string) || (meta.name as string) || '';
+
+  const [name, setName] = useState(initialName);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameMsg, setNameMsg] = useState<string | null>(null);
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
-  const name = (meta.full_name as string) || (meta.name as string) || '';
   const initials = (name || user?.email || '?').slice(0, 2).toUpperCase();
+
+  async function saveName(e: React.FormEvent) {
+    e.preventDefault();
+    setNameMsg(null);
+    if (!name.trim()) return;
+    setNameBusy(true);
+    const { error } = await updateName(name);
+    setNameBusy(false);
+    setNameMsg(error ? error : 'Nome atualizado.');
+  }
 
   async function changePw(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +57,18 @@ export function AccountPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <form onSubmit={changePw} className="space-y-2 border-t border-slate-100 pt-4">
+        <form onSubmit={saveName} className="space-y-2 border-t border-slate-100 pt-4">
+          <label className="text-xs font-medium text-slate-600">Nome de exibição</label>
+          <div className="flex gap-2">
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Seu nome"
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+            <Button type="submit" variant="secondary" disabled={nameBusy || name.trim() === initialName.trim()}>{nameBusy ? '…' : 'Salvar'}</Button>
+          </div>
+          {nameMsg && <p className="text-xs text-emerald-700">{nameMsg}</p>}
+          <p className="text-[11px] text-slate-400">É assim que seu nome aparece para colegas (compartilhamentos, histórico).</p>
+        </form>
+
+        <form onSubmit={changePw} className="space-y-2 border-t border-slate-100 pt-4 mt-4">
           <p className="text-xs font-medium text-slate-600">Alterar senha</p>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Nova senha"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" autoComplete="new-password" />

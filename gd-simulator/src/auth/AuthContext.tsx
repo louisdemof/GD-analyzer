@@ -9,10 +9,11 @@ interface AuthState {
   user: User | null;
   recovery: boolean; // arrived via a password-reset link → must set a new password
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   updatePassword: (password: string) => Promise<{ error: string | null }>;
+  updateName: (fullName: string) => Promise<{ error: string | null }>;
 }
 
 const AuthCtx = createContext<AuthState | null>(null);
@@ -42,9 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
-  const signUp: AuthState['signUp'] = async (email, password) => {
+  const signUp: AuthState['signUp'] = async (email, password, fullName) => {
     if (!supabase) return { error: 'Cloud não configurado', needsConfirmation: false };
-    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+    const name = fullName?.trim();
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(), password,
+      options: name ? { data: { full_name: name } } : undefined,
+    });
     // With "Confirm email" ON, signUp returns a user with no session until confirmed.
     const needsConfirmation = !error && !data.session;
     return { error: error?.message ?? null, needsConfirmation };
@@ -66,10 +71,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
 
+  // Update display name in auth metadata + mirror to profiles so others see the name.
+  const updateName: AuthState['updateName'] = async (fullName) => {
+    if (!supabase) return { error: 'Cloud não configurado' };
+    const name = fullName.trim();
+    const { data, error } = await supabase.auth.updateUser({ data: { full_name: name } });
+    if (error) return { error: error.message };
+    const u = data.user;
+    if (u) await supabase.from('profiles').upsert({ id: u.id, email: u.email, full_name: name }, { onConflict: 'id' }).then(() => {}, () => {});
+    return { error: null };
+  };
+
   return (
     <AuthCtx.Provider value={{
       cloudEnabled: isCloudEnabled, loading, session, user: session?.user ?? null, recovery,
-      signIn, signUp, signOut, resetPassword, updatePassword,
+      signIn, signUp, signOut, resetPassword, updatePassword, updateName,
     }}>
       {children}
     </AuthCtx.Provider>
