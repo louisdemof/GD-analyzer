@@ -612,3 +612,82 @@ export async function parseEquatorialFatura(file: File, password?: string): Prom
   result.ok = result.errors.length === 0;
   return result;
 }
+
+// ── Light / Enel RJ (Rio de Janeiro) — DANF3E ────────────────────────────────
+// History is metric-row-major: each line is "<metric> MON/YY <val> MON/YY <val> …".
+// The distributor isn't named in the text (logo is an image) → identify by the metric-row
+// layout + the emitter CNPJ in the access key (60444437 = Light).
+function lightParsePairs(t: string): Record<string, number> {
+  const map: Record<string, number> = {};
+  const re = /\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/(\d{2})[\s|]*(\d[\d.,]*)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(t))) {
+    const mon = PT_MONTHS3.indexOf(m[1].toUpperCase());
+    if (mon < 0) continue;
+    map[`20${m[2]}-${String(mon + 1).padStart(2, '0')}`] = brNum(m[3]);
+  }
+  return map;
+}
+
+export async function parseLightFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch {
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+
+  const allText = lines.map(l => l.text).join('\n');
+  // Signature: the metric-row history "Consumo Fora Ponta MON/YY …" (unique to this layout).
+  if (!/Consumo\s+Fora\s+Ponta[\s|]+[A-Z]{3}\/\d{2}/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura Light/Enel RJ.');
+    return result;
+  }
+  result.distributorSig = /enel/i.test(allText) ? 'ENEL RJ' : 'LIGHT SESA';
+
+  const grp = allText.match(/Grupo\s+A([1-4])/i);
+  const isVerde = /A[1-4]\s*-?\s*Verde/i.test(allText);
+  const isAzul = /A[1-4]\s*-?\s*Azul/i.test(allText);
+  const isACL = /CCEE/i.test(allText) || /livre/i.test(allText);
+  result.classificacao = [grp ? `A${grp[1]}` : null, isVerde ? 'VERDE' : isAzul ? 'AZUL' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+    .filter(Boolean).join(' — ') || undefined;
+
+  const leit = allText.match(/\d{2}\/(\d{2})\/(\d{4})[\s|]+(\d{2})\/(\d{2})\/(\d{4})/);
+  if (leit) result.refMes = `${leit[4]}/${leit[5]}`;
+
+  // Metric rows
+  let cFP: Record<string, number> = {}, cP: Record<string, number> = {}, dFP: Record<string, number> = {}, dP: Record<string, number> = {};
+  for (const line of lines) {
+    const t = line.text;
+    if (!/[A-Z]{3}\/\d{2}/.test(t)) continue;
+    if (/Consumo\s+Fora\s+Ponta/i.test(t)) cFP = lightParsePairs(t);
+    else if (/Consumo\s+Ponta/i.test(t) && !/Reativ/i.test(t)) cP = lightParsePairs(t);
+    else if (/Demanda\s+Fora\s+Ponta/i.test(t) && !/Reativ/i.test(t)) dFP = lightParsePairs(t);
+    else if (/Demanda\s+Ponta/i.test(t) && !/Reativ/i.test(t)) dP = lightParsePairs(t);
+  }
+  const months = new Set([...Object.keys(cFP), ...Object.keys(cP), ...Object.keys(dFP), ...Object.keys(dP)]);
+  for (const iso of months) {
+    result.history.push({
+      monthIso: iso,
+      monthLabel: `${iso.slice(5)}/${iso.slice(2, 4)}`,
+      consumoForaPonta: cFP[iso] || 0,
+      consumoPonta: cP[iso] || 0,
+      demandaForaPonta: dFP[iso] || 0,
+      demandaPonta: dP[iso] || 0,
+      consumoReservado: 0,
+    });
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+
+  if (result.history.length > 0) {
+    result.demandaContratadaFP = Math.max(...result.history.map(h => Math.max(h.demandaForaPonta || 0, h.demandaPonta || 0))) || undefined;
+  } else {
+    result.errors.push('Histórico de consumo não reconhecido na fatura Light/Enel RJ.');
+  }
+  result.ok = result.errors.length === 0;
+  return result;
+}

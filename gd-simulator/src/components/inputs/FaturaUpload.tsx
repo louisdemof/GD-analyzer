@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import type { ConsumptionUnit } from '../../engine/types';
-import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, parseEquatorialFatura, type ParsedFatura } from '../../engine/faturaParser';
+import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, type ParsedFatura } from '../../engine/faturaParser';
 
 interface Props {
   ucs: ConsumptionUnit[];
@@ -40,6 +40,9 @@ export function FaturaUpload({ ucs, onApply }: Props) {
       }
       if (result.notThisDistributor) {
         result = await parseEquatorialFatura(file); // try Equatorial
+      }
+      if (result.notThisDistributor) {
+        result = await parseLightFatura(file); // try Light / Enel RJ
       }
       if (result.notThisDistributor) {
         result = await parseEnergisaFatura(file); // fall back to Energisa

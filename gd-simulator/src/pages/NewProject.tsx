@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
-import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, parseEquatorialFatura, type ParsedFatura } from '../engine/faturaParser';
+import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, type ParsedFatura } from '../engine/faturaParser';
 import { buildProjectFromFaturas } from '../engine/projectFromFaturas';
 import type { Distributor } from '../engine/types';
 
@@ -105,6 +105,7 @@ export function NewProject() {
         let parsed = await parseCopelFatura(file, pw);
         if (parsed.notThisDistributor) parsed = await parseCemigFatura(file);
         if (parsed.notThisDistributor) parsed = await parseEquatorialFatura(file);
+        if (parsed.notThisDistributor) parsed = await parseLightFatura(file);
         if (parsed.notThisDistributor) parsed = await parseEnergisaFatura(file);
         results.push({
           fileName: file.name,
@@ -458,6 +459,8 @@ export function NewProject() {
                 return sig === 'COPEL-DIS' ? 'COPEL Distribuição (PR)'
                   : sig === 'CEMIG-D' ? 'CEMIG Distribuição (MG)'
                   : sig?.startsWith('EQUATORIAL') ? `Equatorial (${sig.split(' ')[1]})`
+                  : sig === 'LIGHT SESA' ? 'Light (RJ)'
+                  : sig === 'ENEL RJ' ? 'Enel Distribuição Rio (RJ)'
                   : 'Energisa Mato Grosso do Sul';
               })()
             }</strong>
