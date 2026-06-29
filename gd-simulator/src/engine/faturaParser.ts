@@ -647,7 +647,22 @@ export async function parseLightFatura(file: File, password?: string): Promise<P
     result.errors.push('Não parece ser uma fatura Light/Enel RJ.');
     return result;
   }
-  result.distributorSig = /enel/i.test(allText) ? 'ENEL RJ' : 'LIGHT SESA';
+  // Light and Enel RJ are DISTINCT distributors (different tariffs). Identify by the emitter
+  // CNPJ root in the 44-digit access key (cUF[2] + AAMM[4] + CNPJ[14]): chars 6–13.
+  // Light SESA = 60444437 · Enel Distribuição Rio = 33050071.
+  const chave = allText.match(/\d{44}/);
+  const cnpjRoot = chave ? chave[0].slice(6, 14) : '';
+  result.distributorSig =
+    cnpjRoot === '60444437' ? 'LIGHT SESA'
+    : cnpjRoot === '33050071' ? 'ENEL RJ'
+    : /enel/i.test(allText) ? 'ENEL RJ'
+    : /light/i.test(allText) ? 'LIGHT SESA'
+    : undefined;
+  if (!result.distributorSig) {
+    result.notThisDistributor = true;
+    result.errors.push('Distribuidora do Rio não identificada (CNPJ desconhecido).');
+    return result;
+  }
 
   const grp = allText.match(/Grupo\s+A([1-4])/i);
   const isVerde = /A[1-4]\s*-?\s*Verde/i.test(allText);
