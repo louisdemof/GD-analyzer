@@ -219,6 +219,12 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
 
   const ucs: ConsumptionUnit[] = dedup.map((p, idx) => buildUCFromFatura(p, `uc-${idx}`));
 
+  // Mercado: the bill's classification flags Livre/ACL. Pre-configure the ACL baseline with
+  // incentivada I50 by default (most A4 Verde Livre clients are incentivada) — the energy
+  // price (TE) comes from the supplier contract, not the distribution bill, so it stays a
+  // placeholder for the user to set.
+  const isACL = dedup.some(p => /Cliente Livre|\(ACL\)/i.test(p.classificacao || ''));
+
   const now = new Date().toISOString();
   const project: Project = {
     id: generateId(),
@@ -226,6 +232,15 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
     distributor,
     plant: { ...defaultPlant(), distributor: distributor.id },
     ucs,
+    marketType: isACL ? 'ACL' : 'CATIVO',
+    aclBaseline: isACL ? {
+      energyPriceSemImp: 0.300,
+      energyIndexation: 'FIXO',
+      tusdDiscountConsumo: 0,
+      tusdDiscountConsumoPT: 0,
+      tusdDiscountDemanda: 0,
+      incentivadaLevel: 0.5,
+    } : undefined,
     scenarios: {
       icmsExempt: true,
       competitorDiscount: 0,
@@ -238,6 +253,10 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
     createdAt: now,
     updatedAt: now,
   };
+
+  if (isACL) {
+    warnings.push('Importado como ACL (Mercado Livre) com fonte incentivada I50 (50%) por padrão — confirme o nível (I50/I80/I100) e informe o preço da energia (TE, R$/MWh) do contrato.');
+  }
 
   return { project, warnings };
 }
