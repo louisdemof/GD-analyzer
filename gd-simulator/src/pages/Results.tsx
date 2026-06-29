@@ -5,7 +5,7 @@ import { useSimulationStore } from '../store/simulationStore';
 import { KPICards } from '../components/results/KPICards';
 import { CostWaterfall } from '../components/results/CostWaterfall';
 import { MonthlyChart } from '../components/results/MonthlyChart';
-import { lastPpaEndIndex } from '../engine/timeline';
+import { ppaEndIndices } from '../engine/timeline';
 import { BankDynamics } from '../components/results/BankDynamics';
 import { RateioTable } from '../components/results/RateioTable';
 import { ScenarioPanel } from '../components/results/ScenarioPanel';
@@ -328,7 +328,7 @@ export function Results() {
       <div className="bg-white rounded-xl border border-slate-200 p-6">
         {tab === 'resumo' && <CostWaterfall months={result.months} ucs={project.ucs} />}
         {tab === 'detalhe-impostos' && <TaxBreakdownPanel project={project} result={result} />}
-        {tab === 'mensal' && <MonthlyChart months={result.months} ppaEndMonthIndex={lastPpaEndIndex(project)} />}
+        {tab === 'mensal' && <MonthlyChart months={result.months} ppaEndMonthIndices={ppaEndIndices(project)} />}
         {tab === 'banco' && (
           <BankDynamics
             result={result}

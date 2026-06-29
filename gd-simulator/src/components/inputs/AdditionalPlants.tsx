@@ -147,7 +147,7 @@ export function AdditionalPlants({ primary, additionalPlants: plants, onChange, 
                   </button>
                 </div>
 
-                <div className="grid grid-cols-5 gap-2 text-xs">
+                <div className="grid grid-cols-6 gap-2 text-xs">
                   <div>
                     <label className="block text-[10px] text-slate-500 mb-0.5">Nome</label>
                     <input
@@ -196,6 +196,17 @@ export function AdditionalPlants({ primary, additionalPlants: plants, onChange, 
                       value={p.contractMonths}
                       onChange={e => setField(n, 'contractMonths', Math.max(1, parseInt(e.target.value, 10) || 1))}
                       className="w-full px-2 py-1 border border-slate-300 rounded text-xs bg-white font-mono text-right"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">Início (entra em op.)</label>
+                    <input
+                      type="month"
+                      value={p.contractStartMonth || primary.contractStartMonth}
+                      min={primary.contractStartMonth || undefined}
+                      onChange={e => setField(n, 'contractStartMonth', e.target.value)}
+                      className="w-full px-2 py-1 border border-slate-300 rounded text-xs bg-white"
+                      title="Mês de entrada em operação. Igual à usina principal = entra junto; posterior = entra depois (offset)."
                     />
                   </div>
                 </div>

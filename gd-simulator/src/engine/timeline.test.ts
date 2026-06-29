@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { timelineWarnings, lastPpaEndIndex } from './timeline';
+import { timelineWarnings, lastPpaEndIndex, ppaEndIndices } from './timeline';
+import { computeSimulationMonths } from './simulation';
 import type { Project, Plant } from './types';
 
 function plant(over: Partial<Plant> = {}): Plant {
@@ -36,9 +37,9 @@ describe('timelineWarnings', () => {
     expect(w.some(x => /truncad/.test(x.message))).toBe(true);
   });
 
-  it('warns when an additional plant has a different start date (no offset support)', () => {
-    const w = timelineWarnings(proj({ additionalPlants: [plant({ contractStartMonth: '2027-01' })] }), '2026-01');
-    expect(w.some(x => /início diferente/.test(x.message))).toBe(true);
+  it('does NOT warn for a late-starting additional plant (offset is now supported)', () => {
+    const w = timelineWarnings(proj({ additionalPlants: [plant({ contractStartMonth: '2027-06' })] }), '2026-01');
+    expect(w.some(x => /início diferente|não.*suportad/i.test(x.message))).toBe(false);
   });
 
   it('flags an atypical (non-multiple-of-6) PPA term', () => {
@@ -47,10 +48,24 @@ describe('timelineWarnings', () => {
   });
 });
 
-describe('lastPpaEndIndex', () => {
-  it('is the longest plant PPA (capped at horizon), 0-based', () => {
+describe('per-plant commissioning offset (gap 1)', () => {
+  it('a late additional plant extends the auto horizon', () => {
+    // main 2026-06 ×24, extra starts 2027-06 (12 mo later) ×24 → horizon = 12+24 = 36
+    const p = proj({ additionalPlants: [plant({ contractStartMonth: '2027-06', contractMonths: 24 })] });
+    expect(computeSimulationMonths(p)).toBe(36);
+  });
+  it('an on-time portfolio keeps the original horizon (offset 0)', () => {
+    const p = proj({ additionalPlants: [plant({ contractMonths: 24 })] });
+    expect(computeSimulationMonths(p)).toBe(24);
+  });
+});
+
+describe('ppaEndIndices (gap 4 markers)', () => {
+  it('returns one distinct end per staggered duration', () => {
+    const p = proj({ plant: plant({ contractMonths: 18 }), additionalPlants: [plant({ contractMonths: 24 })], simulationMonths: 24 });
+    expect(ppaEndIndices(p)).toEqual([17, 23]);
+  });
+  it('lastPpaEndIndex is the final generating month', () => {
     expect(lastPpaEndIndex(proj({ plant: plant({ contractMonths: 24 }) }))).toBe(23);
-    // additional plant longer than main → uses the longer one
-    expect(lastPpaEndIndex(proj({ plant: plant({ contractMonths: 18 }), additionalPlants: [plant({ contractMonths: 24 })], simulationMonths: 24 }))).toBe(23);
   });
 });

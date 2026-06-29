@@ -4,7 +4,7 @@ import type { MonthlyResult } from '../../engine/types';
 
 interface Props {
   months: MonthlyResult[];
-  ppaEndMonthIndex?: number;
+  ppaEndMonthIndices?: number[];
 }
 
 type Granularity = 'mensal' | 'trimestral' | 'semestral' | 'anual';
@@ -75,18 +75,23 @@ function aggregateByGranularity(months: MonthlyResult[], granularity: Granularit
   return buckets;
 }
 
-export function MonthlyChart({ months, ppaEndMonthIndex }: Props) {
+export function MonthlyChart({ months, ppaEndMonthIndices }: Props) {
   const [granularity, setGranularity] = useState<Granularity>(defaultGranularity(months.length));
   const data = useMemo(() => aggregateByGranularity(months, granularity), [months, granularity]);
 
   const isLong = months.length > 24;
-  // x value (bucket label) where the PPA ends — null if not applicable
-  const ppaEndLabel = useMemo(() => {
-    if (ppaEndMonthIndex == null || ppaEndMonthIndex < 0 || ppaEndMonthIndex >= months.length - 1) return null;
+  // Distinct bucket labels where a plant's PPA ends (one per staggered duration).
+  const ppaEndLabels = useMemo(() => {
     const size = BUCKET_SIZE[granularity];
-    const bucketIndex = Math.floor((ppaEndMonthIndex + 1) / size);
-    return data[Math.min(bucketIndex, data.length - 1)]?.label ?? null;
-  }, [ppaEndMonthIndex, months.length, granularity, data]);
+    const labels = new Set<string>();
+    for (const idx of ppaEndMonthIndices ?? []) {
+      if (idx == null || idx < 0 || idx >= months.length - 1) continue;
+      const bucketIndex = Math.floor((idx + 1) / size);
+      const l = data[Math.min(bucketIndex, data.length - 1)]?.label;
+      if (l) labels.add(l);
+    }
+    return [...labels];
+  }, [ppaEndMonthIndices, months.length, granularity, data]);
   // Adapt label rendering based on number of buckets (independent of granularity)
   const bucketCount = data.length;
   const rotateLabels = bucketCount > 16;
@@ -201,10 +206,11 @@ export function MonthlyChart({ months, ppaEndMonthIndex }: Props) {
 
             <ReferenceLine yAxisId="eco" y={0} stroke="#999" strokeDasharray="4 4" />
 
-            {ppaEndLabel && (
+            {ppaEndLabels.map(lbl => (
               <ReferenceLine
+                key={lbl}
                 yAxisId="cost"
-                x={ppaEndLabel}
+                x={lbl}
                 stroke="#dc2626"
                 strokeDasharray="6 4"
                 strokeWidth={2}
@@ -216,13 +222,13 @@ export function MonthlyChart({ months, ppaEndMonthIndex }: Props) {
                   fontWeight: 'bold',
                 }}
               />
-            )}
+            ))}
           </ComposedChart>
         </ResponsiveContainer>
         <p className="text-[10px] text-slate-400 mt-1">
           SEM Helexia (navy) = custo total sem geração distribuída | COM Helexia = PPA (teal) + Rede residual (cinza)
           {granularity !== 'mensal' && ' | Custos somados por período; economia acumulada é o valor ao final do período'}
-          {ppaEndLabel && ' | Linha vermelha = fim do PPA (após este ponto, sem injeção da usina; banco drena se houver crédito)'}
+          {ppaEndLabels.length > 0 && ' | Linha(s) vermelha(s) = fim do PPA de cada usina (após esse ponto, sem injeção da usina; banco drena se houver crédito)'}
         </p>
       </div>
 
@@ -273,9 +279,10 @@ export function MonthlyChart({ months, ppaEndMonthIndex }: Props) {
               maxBarSize={granularity === 'mensal' ? 16 : 36}
               radius={[2, 2, 0, 0]}
             />
-            {ppaEndLabel && (
+            {ppaEndLabels.map(lbl => (
               <ReferenceLine
-                x={ppaEndLabel}
+                key={lbl}
+                x={lbl}
                 stroke="#dc2626"
                 strokeDasharray="6 4"
                 strokeWidth={2}
@@ -287,7 +294,7 @@ export function MonthlyChart({ months, ppaEndMonthIndex }: Props) {
                   fontWeight: 'bold',
                 }}
               />
-            )}
+            ))}
           </ComposedChart>
         </ResponsiveContainer>
         <p className="text-[10px] text-slate-400 mt-1">

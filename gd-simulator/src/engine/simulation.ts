@@ -22,16 +22,35 @@ export function getAllPlants(project: Project): Plant[] {
   return [project.plant, ...(project.additionalPlants ?? [])];
 }
 
+function ymIndex(ym?: string): number | null {
+  if (!ym || !/^\d{4}-(0[1-9]|1[0-2])$/.test(ym)) return null;
+  const [y, m] = ym.split('-').map(Number);
+  return y * 12 + (m - 1);
+}
+
+/**
+ * Commissioning offset (months) of a plant relative to the project anchor (main
+ * plant's contractStartMonth). A plant that starts later is placed that many months
+ * into the timeline; earlier/invalid dates clamp to 0. Lets additional usinas come
+ * online mid-contract instead of all being pinned to month 0.
+ */
+export function plantStartOffset(anchorYM: string, plantYM?: string): number {
+  const a = ymIndex(anchorYM), p = ymIndex(plantYM);
+  if (a == null || p == null) return 0;
+  return Math.max(0, p - a);
+}
+
 /**
  * Simulation horizon (months). An explicit simulationMonths override wins;
- * otherwise it's the max contractMonths across the main plant and all
- * additional plants (so a longer additional usina extends the horizon).
+ * otherwise it's the max of (commissioning offset + contractMonths) across all
+ * plants, so a longer — or later-starting — usina extends the horizon.
  */
 export function computeSimulationMonths(project: Project): number {
   if (project.simulationMonths && project.simulationMonths > 0) return project.simulationMonths;
-  const main = project.plant.contractMonths || 24;
-  const extra = (project.additionalPlants ?? []).map(p => p.contractMonths ?? 0);
-  return Math.max(main, ...extra);
+  const anchor = project.plant.contractStartMonth;
+  return Math.max(
+    ...getAllPlants(project).map(p => plantStartOffset(anchor, p.contractStartMonth) + (p.contractMonths || 24)),
+  );
 }
 
 /**
@@ -45,12 +64,18 @@ function buildPlantGenerationSeries(
   performanceFactor: number,
   genDegradation: number,
   useActual: boolean,
+  anchorYM: string,
 ): number[][] {
   return plants.map(plant => {
+    const offset = plantStartOffset(anchorYM, plant.contractStartMonth);
     const raw = plantBaseGeneration(plant, useActual).map(v => v * performanceFactor);
-    const ext = extendGeneration(raw, Math.min(plant.contractMonths || totalMonths, totalMonths), genDegradation);
-    const series = [...ext];
-    while (series.length < totalMonths) series.push(0);
+    // Active months are capped by the horizon remaining after the offset. Degradation
+    // counts from the plant's own commissioning (the extended series is local), then
+    // the whole series is shifted right by `offset` and zero-filled before/after.
+    const active = Math.min(plant.contractMonths || totalMonths, Math.max(0, totalMonths - offset));
+    const ext = extendGeneration(raw, active, genDegradation);
+    const series = new Array(totalMonths).fill(0);
+    for (let i = 0; i < ext.length; i++) series[offset + i] = ext[i];
     return series;
   });
 }
@@ -178,7 +203,7 @@ export function runSimulation(project: Project): SimulationResult {
   const allPlants = getAllPlants(project);
   const plantGenSeries = buildPlantGenerationSeries(
     allPlants, contractMonths, performanceFactor, genDegradation,
-    !!project.scenarios.useActualGeneration,
+    !!project.scenarios.useActualGeneration, project.plant.contractStartMonth,
   );
   const generation: number[] = new Array(contractMonths).fill(0)
     .map((_, m) => plantGenSeries.reduce((sum, s) => sum + (s[m] ?? 0), 0));

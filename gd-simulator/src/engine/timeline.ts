@@ -1,9 +1,9 @@
 import type { Project } from './types';
-import { getAllPlants, computeSimulationMonths } from './simulation';
+import { getAllPlants, computeSimulationMonths, plantStartOffset } from './simulation';
 
 // Non-blocking sanity checks on a project's timeline (PPA start date, PPA duration,
 // simulation horizon, multi-plant alignment). These never stop a simulation — dates
-// only drive labels — they surface footguns the engine would otherwise swallow.
+// only drive labels + per-plant offsets — they surface footguns the engine swallows.
 
 export interface TimelineWarning {
   level: 'error' | 'warning';
@@ -16,6 +16,14 @@ function ymToIndex(ym: string): number | null {
   if (!VALID_YM.test(ym)) return null;
   const [y, m] = ym.split('-').map(Number);
   return y * 12 + (m - 1);
+}
+
+/** End month index (0-based) of each plant's PPA = offset + contractMonths − 1. */
+function plantEndIndices(project: Project): number[] {
+  const anchor = project.plant?.contractStartMonth ?? '';
+  return getAllPlants(project).map(
+    p => plantStartOffset(anchor, p.contractStartMonth) + (p.contractMonths || 24) - 1,
+  );
 }
 
 /**
@@ -33,23 +41,13 @@ export function timelineWarnings(project: Project, todayYM?: string): TimelineWa
   }
 
   const plants = getAllPlants(project);
-  const maxPPA = Math.max(0, ...plants.map(p => p.contractMonths || 0));
+  const maxEnd = Math.max(0, ...plantEndIndices(project)) + 1; // months of the longest-running plant
 
-  // Gap 3 — explicit horizon shorter than the longest PPA silently truncates that plant
-  if (project.simulationMonths && project.simulationMonths > 0 && project.simulationMonths < maxPPA) {
+  // Gap 3 — explicit horizon shorter than the longest (offset + PPA) silently truncates that plant
+  if (project.simulationMonths && project.simulationMonths > 0 && project.simulationMonths < maxEnd) {
     out.push({
       level: 'warning',
-      message: `Horizonte de simulação (${project.simulationMonths} meses) é menor que o PPA mais longo (${maxPPA} meses) — a geração e o PPA dessa usina são truncados. Aumente o horizonte ou reduza o prazo.`,
-    });
-  }
-
-  // Gap 1 — additional plants with a different start date are NOT offset (engine pins all to month 0)
-  const extras = project.additionalPlants ?? [];
-  const staggered = extras.filter(p => p.contractStartMonth && start && p.contractStartMonth !== start);
-  if (staggered.length > 0) {
-    out.push({
-      level: 'warning',
-      message: `${staggered.length} usina(s) adicional(is) têm data de início diferente da principal. O modelo assume que todas entram em operação em ${start}; um início posterior não é representado (só é possível encerrar antes do horizonte).`,
+      message: `Horizonte de simulação (${project.simulationMonths} meses) é menor que a usina mais longa (${maxEnd} meses, incluindo atraso de entrada) — sua geração e PPA são truncados. Aumente o horizonte ou reduza o prazo.`,
     });
   }
 
@@ -63,10 +61,20 @@ export function timelineWarnings(project: Project, todayYM?: string): TimelineWa
   return out;
 }
 
-/** Last month index (0-based) at which any plant is still generating — for chart markers. */
-export function lastPpaEndIndex(project: Project): number {
-  const plants = getAllPlants(project);
-  const maxPPA = Math.max(0, ...plants.map(p => p.contractMonths || 0));
+/**
+ * Distinct PPA-end month indices (0-based), capped at the horizon, for chart markers.
+ * With staggered durations this returns one per distinct end (e.g. [17, 23]).
+ */
+export function ppaEndIndices(project: Project): number[] {
   const horizon = computeSimulationMonths(project);
-  return Math.min(maxPPA, horizon) - 1;
+  const ends = plantEndIndices(project)
+    .map(i => Math.min(i, horizon - 1))
+    .filter(i => i >= 0);
+  return [...new Set(ends)].sort((a, b) => a - b);
+}
+
+/** Backwards-compatible single marker: the last month any plant is still generating. */
+export function lastPpaEndIndex(project: Project): number {
+  const ends = ppaEndIndices(project);
+  return ends.length ? ends[ends.length - 1] : computeSimulationMonths(project) - 1;
 }

@@ -8,6 +8,7 @@ import {
   build24MonthProfile,
 } from '../../data/helexiaPlants';
 import type { HelexiaPlant } from '../../data/helexiaPlants';
+import { plantStartOffset } from '../../engine/simulation';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Props {
@@ -50,6 +51,13 @@ export function PlantForm({
   const update = (field: keyof Plant, value: unknown) => {
     onChange({ ...plant, [field]: value });
   };
+
+  // Minimum valid horizon = the longest-running plant (its commissioning offset + PPA).
+  // The simulation horizon can't be set below this without truncating a usina.
+  const minHorizon = Math.max(
+    plant.contractMonths || 24,
+    ...additionalPlants.map(p => plantStartOffset(plant.contractStartMonth, p.contractStartMonth) + (p.contractMonths || 24)),
+  );
 
   // Debounce degradation/loss changes (400ms)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -333,29 +341,31 @@ export function PlantForm({
         <div className="flex items-center gap-2">
           <input
             type="number"
-            min={1}
+            min={minHorizon}
             max={360}
-            value={simulationMonths ?? (plant.contractMonths || 24)}
+            value={simulationMonths ?? minHorizon}
             onChange={e => {
               const v = parseInt(e.target.value, 10);
-              onProjectFieldChange?.({ simulationMonths: (isNaN(v) || v <= 0) ? undefined : v });
+              // Guardrail: can't be set below the longest plant's (offset + PPA) — that
+              // would silently truncate a usina. Below-min snaps up to minHorizon.
+              onProjectFieldChange?.({ simulationMonths: (isNaN(v) || v <= 0) ? undefined : Math.max(v, minHorizon) });
             }}
             className="w-32 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono text-right"
           />
-          {simulationMonths != null && simulationMonths !== (plant.contractMonths || 24) && (
+          {simulationMonths != null && simulationMonths !== minHorizon && (
             <button
               type="button"
               onClick={() => onProjectFieldChange?.({ simulationMonths: undefined })}
               className="text-xs text-blue-700 underline hover:no-underline"
             >
-              Resetar (= prazo PPA)
+              Resetar (= {minHorizon}m, usina mais longa)
             </button>
           )}
         </div>
         <p className="text-[10px] text-slate-500 mt-1">
-          {(simulationMonths ?? 0) > (plant.contractMonths || 24)
-            ? `+${(simulationMonths ?? 0) - (plant.contractMonths || 24)} meses pós-PPA (bank drain visível)`
-            : 'Igual ao prazo PPA (sem cauda pós-contrato)'}
+          {(simulationMonths ?? minHorizon) > minHorizon
+            ? `+${(simulationMonths ?? minHorizon) - minHorizon} meses pós-PPA (bank drain visível). Mínimo: ${minHorizon}m (usina mais longa).`
+            : `Igual à usina mais longa (${minHorizon}m). Aumente para ver o drain do banco pós-PPA.`}
         </p>
       </div>
 
