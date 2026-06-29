@@ -45,7 +45,12 @@ export function Dashboard() {
     cloudIncomingShares().then(list => setSharedIds(new Set(list.map(s => s.projectId)))).catch(() => {});
   }, [cloudEnabled, projects.length]);
   const isShared = (id: string) => sharedIds.has(id);
-  const sharedCount = projects.filter(p => isShared(p.id)).length;
+
+  // Soft delete: trashed projects (deletedAt set) are hidden from every normal view
+  // and live only in the Lixeira scope.
+  const active = projects.filter(p => !p.deletedAt);
+  const trashedProjects = projects.filter(p => !!p.deletedAt);
+  const sharedCount = active.filter(p => isShared(p.id)).length;
   const sharingActive = sharedCount > 0;
 
   // Is the project in one of MY folders? (shared projects carry the owner's folderId,
@@ -53,15 +58,17 @@ export function Dashboard() {
   const inMyFolder = (p: typeof projects[number]) => folders.some(f => f.id === p.folderId);
 
   // scope → folder → search → status, then sort.
-  // 'Todos' = everything I can see (owned + shared). Folders/'Sem pasta' = my own org.
+  // 'Todos' = everything active I can see (owned + shared). Folders/'Sem pasta' = my own org.
   const filteredProjects = (() => {
-    let list = selectedFolder === 'shared'
-      ? projects.filter(p => isShared(p.id))
+    let list = selectedFolder === 'trash'
+      ? trashedProjects
+      : selectedFolder === 'shared'
+      ? active.filter(p => isShared(p.id))
       : selectedFolder === null
-        ? projects
+        ? active
         : selectedFolder === 'none'
-          ? projects.filter(p => !inMyFolder(p) && !isShared(p.id))
-          : projects.filter(p => p.folderId === selectedFolder);
+          ? active.filter(p => !inMyFolder(p) && !isShared(p.id))
+          : active.filter(p => p.folderId === selectedFolder);
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(p =>
       (p.clientName || '').toLowerCase().includes(q) ||
@@ -110,9 +117,20 @@ export function Dashboard() {
     URL.revokeObjectURL(url);
   };
 
+  // Soft delete → moves to Lixeira (reversible).
   const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
-    if (confirm(`Excluir o projeto "${name}"? Esta ação não pode ser desfeita.`)) {
+    if (confirm(`Mover "${name}" para a lixeira? Você poderá restaurar depois.`)) {
+      updateProject(id, { deletedAt: new Date().toISOString() });
+    }
+  };
+  const handleRestore = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    updateProject(id, { deletedAt: null });
+  };
+  const handlePurge = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
+    if (confirm(`Excluir DEFINITIVAMENTE "${name}"? Esta ação não pode ser desfeita.`)) {
       deleteProject(id);
     }
   };
@@ -358,7 +376,7 @@ export function Dashboard() {
               onClick={() => setSelectedFolder(null)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === null ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
             >
-              Todos os Projetos ({projects.length})
+              Todos os Projetos ({active.length})
             </button>
             <button
               onClick={() => setSelectedFolder('none')}
@@ -367,7 +385,7 @@ export function Dashboard() {
               onDrop={e => dropProject(e, null)}
               className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'none' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'} ${dragOverFolder === 'none' ? 'ring-2 ring-teal-400 bg-teal-50' : ''}`}
             >
-              Sem pasta ({projects.filter(p => !inMyFolder(p) && !isShared(p.id)).length})
+              Sem pasta ({active.filter(p => !inMyFolder(p) && !isShared(p.id)).length})
             </button>
             {sharingActive && sharedCount > 0 && (
               <button
@@ -375,6 +393,14 @@ export function Dashboard() {
                 className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'shared' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
               >
                 🔗 Compartilhados comigo ({sharedCount})
+              </button>
+            )}
+            {trashedProjects.length > 0 && (
+              <button
+                onClick={() => setSelectedFolder('trash')}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm ${selectedFolder === 'trash' ? 'bg-slate-200 font-medium' : 'hover:bg-slate-100'}`}
+              >
+                🗑️ Lixeira ({trashedProjects.length})
               </button>
             )}
 
@@ -486,7 +512,7 @@ export function Dashboard() {
               Todos
             </button>
             {STATUS_ORDER.map(st => {
-              const count = projects.filter(p => statusOf(p.status) === st).length;
+              const count = active.filter(p => statusOf(p.status) === st).length;
               if (count === 0 && statusFilter !== st) return null;
               return (
                 <button
@@ -516,6 +542,23 @@ export function Dashboard() {
                   <button onClick={() => { setSearch(''); setStatusFilter(null); }} className="text-sm text-teal-600 mt-2 hover:underline">Limpar filtros</button>
                 </>
               )}
+            </div>
+          ) : selectedFolder === 'trash' ? (
+            <div className="space-y-2">
+              {filteredProjects.map(p => (
+                <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 border border-slate-200 rounded-xl bg-slate-50">
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-700 truncate">{p.clientName || 'Sem nome'}</p>
+                    <p className="text-[11px] text-slate-400">
+                      Na lixeira{p.deletedAt ? ` desde ${new Date(p.deletedAt).toLocaleDateString('pt-BR')}` : ''} · {p.distributor.name || '—'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={(e) => handleRestore(e, p.id)} className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 hover:bg-white">Restaurar</button>
+                    <button onClick={(e) => handlePurge(e, p.id, p.clientName || 'Sem nome')} className="px-3 py-1.5 text-xs rounded-lg border border-red-300 text-red-600 hover:bg-red-50">Excluir definitivamente</button>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : view === 'table' ? (
             renderTable(filteredProjects)

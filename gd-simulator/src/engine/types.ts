@@ -188,6 +188,8 @@ export interface Project {
   folderId?: string;
   // Deal pipeline status (defaults to 'rascunho' when absent)
   status?: ProjectStatus;
+  // Soft delete: ISO timestamp when moved to the trash (absent/null = active).
+  deletedAt?: string | null;
   // Growth & degradation for multi-year contracts
   growthRate?: number;              // annual consumption growth, e.g. 0.025 (2.5%)
   generationDegradation?: number;   // annual gen degradation, e.g. 0.005 (0.5%)
