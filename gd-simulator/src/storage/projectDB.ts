@@ -1,6 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Project } from '../engine/types';
 import { cloudUpsertProject, cloudDeleteProject, cloudUpsertFolder, cloudDeleteFolder } from './cloudSync';
+import { isCloudEnabled } from '../lib/supabase';
+import { setSyncStatus } from '../lib/syncStatus';
 
 const DB_NAME = 'gd-analyzer';
 const DB_VERSION = 2;
@@ -39,7 +41,13 @@ function getDB() {
 export async function saveProjectToDB(project: Project): Promise<void> {
   const db = await getDB();
   await db.put(PROJECTS_STORE, { ...project, savedAt: new Date().toISOString() });
-  cloudUpsertProject(project).catch(() => {}); // mirror to cloud (no-op if offline/local-only)
+  // Mirror to cloud + surface a save-state indicator (local-only → nothing to report).
+  if (!isCloudEnabled) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) { setSyncStatus('offline'); return; }
+  setSyncStatus('saving');
+  cloudUpsertProject(project)
+    .then(({ error }) => setSyncStatus(error ? 'error' : 'saved'))
+    .catch(() => setSyncStatus('error'));
 }
 
 export async function loadAllProjectsFromDB(): Promise<Project[]> {

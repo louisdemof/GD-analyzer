@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../store/projectStore';
 import { useAuth } from '../auth/AuthContext';
-import { cloudMyRole, cloudProjectOwnerEmail, type MyRole } from '../storage/cloudSync';
+import { cloudMyRole, cloudProjectOwnerEmail, cloudProjectUpdatedAt, type MyRole } from '../storage/cloudSync';
 import { ShareDialog } from '../components/ShareDialog';
 import { AuditPanel } from '../components/AuditPanel';
 import { useSimulationStore } from '../store/simulationStore';
@@ -26,7 +26,7 @@ type Tab = 'distributor' | 'plant' | 'ucs' | 'demanda' | 'fatura';
 export function ProjectEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { projects, updateProject, updateDistributor, updatePlant, addUC, updateUC, removeUC, updateRateio } = useProjectStore();
+  const { projects, updateProject, updateDistributor, updatePlant, addUC, updateUC, removeUC, updateRateio, syncFromCloud } = useProjectStore();
   const { runForProject } = useSimulationStore();
   const project = projects.find(p => p.id === id);
   const [tab, setTab] = useState<Tab>('distributor');
@@ -48,6 +48,22 @@ export function ProjectEditor() {
     cloudProjectOwnerEmail(id).then(setOwnerEmail).catch(() => {});
   }, [cloudEnabled, id]);
   const isViewer = myRole === 'viewer';
+
+  // Concurrent-edit guard: poll the cloud's logical timestamp; if it's newer than the
+  // copy we hold, someone else saved a change → warn (avoid silently working on a stale base).
+  const [conflict, setConflict] = useState(false);
+  const localUpdatedAt = project?.updatedAt;
+  useEffect(() => {
+    if (!cloudEnabled || !id || !localUpdatedAt) return;
+    let alive = true;
+    const check = async () => {
+      const cloudTs = await cloudProjectUpdatedAt(id);
+      if (alive && cloudTs && cloudTs > localUpdatedAt) setConflict(true);
+    };
+    const iv = setInterval(check, 20000);
+    check();
+    return () => { alive = false; clearInterval(iv); };
+  }, [cloudEnabled, id, localUpdatedAt]);
 
   // Carrega o logo do cliente (PNG/JPEG) como data URL para exibir no PDF.
   const handleLogoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,7 +383,18 @@ export function ProjectEditor() {
       )}
       {isViewer && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          👁️ Acesso somente leitura — você pode visualizar este projeto, mas alterações não serão salvas. Peça a um admin para mudar sua permissão.
+          👁️ Acesso somente leitura — você pode visualizar este projeto, mas não editá-lo. Peça a um admin para mudar sua permissão.
+        </div>
+      )}
+      {conflict && (
+        <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-800 flex items-center justify-between gap-3">
+          <span>⚠️ Este projeto foi alterado por outra pessoa. Recarregue para ver a versão mais recente (evite sobrescrever o trabalho dela).</span>
+          <button
+            onClick={async () => { await syncFromCloud(); setConflict(false); }}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-medium hover:bg-orange-700"
+          >
+            Recarregar
+          </button>
         </div>
       )}
 
@@ -388,6 +415,7 @@ export function ProjectEditor() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
+       <fieldset disabled={isViewer} className="contents">
         {tab === 'distributor' && (
           <div className="space-y-6">
             {/* Mercado do cliente — define o baseline (cenário SEM) */}
@@ -590,6 +618,7 @@ export function ProjectEditor() {
         )}
 
         {tab === 'fatura' && <FaturaEspelho project={project} />}
+       </fieldset>
       </div>
     </div>
   );

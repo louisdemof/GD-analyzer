@@ -13,9 +13,19 @@ async function authed(): Promise<boolean> {
 }
 
 // ─── Projects ─────────────────────────────────────────────
-export async function cloudUpsertProject(project: Project): Promise<void> {
-  if (!(await authed()) || !supabase) return;
-  await supabase.from('projects').upsert({ id: project.id, data: project }, { onConflict: 'id' });
+export async function cloudUpsertProject(project: Project): Promise<{ error: string | null }> {
+  if (!(await authed()) || !supabase) return { error: null };
+  const { error } = await supabase.from('projects').upsert({ id: project.id, data: project }, { onConflict: 'id' });
+  return { error: error?.message ?? null };
+}
+
+// Logical last-edited timestamp the app controls (data.updatedAt), for conflict detection.
+// If the cloud value is newer than the copy we hold, someone else edited the project.
+export async function cloudProjectUpdatedAt(id: string): Promise<string | null> {
+  if (!(await authed()) || !supabase) return null;
+  const { data, error } = await supabase.from('projects').select('updatedAt:data->>updatedAt').eq('id', id).single();
+  if (error || !data) return null;
+  return (data as { updatedAt?: string }).updatedAt ?? null;
 }
 
 export async function cloudDeleteProject(id: string): Promise<void> {

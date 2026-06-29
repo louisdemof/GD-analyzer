@@ -3,6 +3,20 @@ import { useProjectStore } from '../../store/projectStore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NotificationBell } from '../NotificationBell';
 import { Button } from '../ui/Button';
+import { useSyncStatus } from '../../lib/syncStatus';
+
+function SyncPill() {
+  const status = useSyncStatus();
+  if (status === 'idle') return null;
+  const map = {
+    saving:  { t: 'Salvando…', c: 'text-slate-400' },
+    saved:   { t: '✓ Salvo', c: 'text-emerald-600' },
+    error:   { t: '⚠ Erro ao salvar', c: 'text-red-600' },
+    offline: { t: '○ Offline', c: 'text-amber-600' },
+  } as const;
+  const s = map[status];
+  return <span className={`text-xs ${s.c}`} title="Estado de sincronização com a nuvem">{s.t}</span>;
+}
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -94,6 +108,7 @@ export function TopBar() {
         )}
       </div>
       <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
+        <SyncPill />
         <NotificationBell />
         {activeProject && (
           <Button variant="primary" size="sm" onClick={handleDuplicate} title="Criar uma cópia desta simulação">
