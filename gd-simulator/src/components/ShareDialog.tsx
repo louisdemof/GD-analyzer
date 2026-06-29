@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   cloudListShares, cloudShareProject, cloudUnshareProject, cloudSetShareRole, cloudSearchUsers,
-  cloudProjectOwnerEmail, cloudMyRole, type UserSuggestion, type ProjectShare, type ShareRole, type MyRole,
+  cloudProjectOwnerEmail, cloudMyRole, cloudLogEvent, type UserSuggestion, type ProjectShare, type ShareRole, type MyRole,
 } from '../storage/cloudSync';
 import { Button } from './ui/Button';
 
@@ -50,7 +50,7 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
     setBusy(true); setError(null);
     const { error } = await cloudShareProject(projectId, v, r);
     if (error) setError(friendly(error));
-    else { setEmail(''); setSuggestions([]); setShowSug(false); await reload(); }
+    else { cloudLogEvent(projectId, 'share', `${v} como ${r}`).catch(() => {}); setEmail(''); setSuggestions([]); setShowSug(false); await reload(); }
     setBusy(false);
   }
   async function add(e: React.FormEvent) { e.preventDefault(); await shareEmail(email, role); }
@@ -58,14 +58,16 @@ export function ShareDialog({ projectId, projectName, onClose }: Props) {
   async function changeRole(addr: string, r: ShareRole) {
     setBusy(true); setError(null);
     const { error } = await cloudSetShareRole(projectId, addr, r);
-    if (error) setError(friendly(error)); else await reload();
+    if (error) setError(friendly(error));
+    else { cloudLogEvent(projectId, 'role_change', `${addr} → ${r}`).catch(() => {}); await reload(); }
     setBusy(false);
   }
 
   async function remove(addr: string) {
     setBusy(true); setError(null);
     const { error } = await cloudUnshareProject(projectId, addr);
-    if (error) setError(friendly(error)); else await reload();
+    if (error) setError(friendly(error));
+    else { cloudLogEvent(projectId, 'unshare', addr).catch(() => {}); await reload(); }
     setBusy(false);
   }
 

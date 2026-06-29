@@ -5,7 +5,7 @@ import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
 import { useProjectStore } from '../store/projectStore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { cloudIncomingShares } from '../storage/cloudSync';
+import { cloudIncomingShares, cloudLogEvent } from '../storage/cloudSync';
 import { ShareDialog } from '../components/ShareDialog';
 
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
@@ -122,15 +122,18 @@ export function Dashboard() {
     e.stopPropagation();
     if (confirm(`Mover "${name}" para a lixeira? Você poderá restaurar depois.`)) {
       updateProject(id, { deletedAt: new Date().toISOString() });
+      cloudLogEvent(id, 'trash').catch(() => {});
     }
   };
   const handleRestore = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     updateProject(id, { deletedAt: null });
+    cloudLogEvent(id, 'restore').catch(() => {});
   };
   const handlePurge = (e: React.MouseEvent, id: string, name: string) => {
     e.stopPropagation();
     if (confirm(`Excluir DEFINITIVAMENTE "${name}"? Esta ação não pode ser desfeita.`)) {
+      cloudLogEvent(id, 'delete').catch(() => {}); // log before the row is gone
       deleteProject(id);
     }
   };

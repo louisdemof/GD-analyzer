@@ -89,6 +89,27 @@ export async function cloudMyRole(projectId: string): Promise<MyRole> {
   return (data as MyRole) ?? null;
 }
 
+// ─── Audit trail ──────────────────────────────────────────
+export type AuditAction = 'create' | 'trash' | 'restore' | 'delete' | 'share' | 'role_change' | 'unshare';
+export interface AuditEntry { id: number; actorEmail: string; action: AuditAction; detail: string | null; createdAt: string }
+
+export async function cloudLogEvent(projectId: string, action: AuditAction, detail?: string): Promise<void> {
+  if (!(await authed()) || !supabase) return;
+  const { data: u } = await supabase.auth.getUser();
+  const email = u.user?.email;
+  if (!email) return;
+  await supabase.from('audit_log').insert({ project_id: projectId, actor_email: email, action, detail: detail ?? null });
+}
+
+export async function cloudListAudit(projectId: string, limit = 50): Promise<AuditEntry[]> {
+  if (!(await authed()) || !supabase) return [];
+  const { data, error } = await supabase.from('audit_log')
+    .select('id, actor_email, action, detail, created_at')
+    .eq('project_id', projectId).order('created_at', { ascending: false }).limit(limit);
+  if (error || !data) return [];
+  return data.map(r => ({ id: r.id as number, actorEmail: r.actor_email as string, action: r.action as AuditAction, detail: r.detail as string | null, createdAt: r.created_at as string }));
+}
+
 // Email of the project's creator (owner), for "creator" display.
 export async function cloudProjectOwnerEmail(projectId: string): Promise<string | null> {
   if (!(await authed()) || !supabase) return null;
