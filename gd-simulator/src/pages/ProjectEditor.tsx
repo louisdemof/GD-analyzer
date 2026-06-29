@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../store/projectStore';
 import { useAuth } from '../auth/AuthContext';
 import { cloudMyRole, cloudProjectOwnerEmail, type MyRole } from '../storage/cloudSync';
+import { ShareDialog } from '../components/ShareDialog';
 import { useSimulationStore } from '../store/simulationStore';
 import { DistributorForm } from '../components/inputs/DistributorForm';
 import { PlantForm } from '../components/inputs/PlantForm';
@@ -38,6 +39,7 @@ export function ProjectEditor() {
   const { cloudEnabled } = useAuth();
   const [myRole, setMyRole] = useState<MyRole>(null);
   const [ownerEmail, setOwnerEmail] = useState<string | null>(null);
+  const [showShare, setShowShare] = useState(false);
   useEffect(() => {
     if (!cloudEnabled || !id) return;
     cloudMyRole(id).then(setMyRole).catch(() => {});
@@ -337,7 +339,18 @@ export function ProjectEditor() {
               </span>
             </span>
           )}
+          {(myRole === 'owner' || myRole === 'admin') && (
+            <button
+              onClick={() => setShowShare(true)}
+              className="ml-auto px-2.5 py-1 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-xs"
+            >
+              ⚙️ Gerenciar acesso & admins
+            </button>
+          )}
         </div>
+      )}
+      {showShare && project && (
+        <ShareDialog projectId={project.id} projectName={project.clientName || 'Projeto'} onClose={() => setShowShare(false)} />
       )}
       {isViewer && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
