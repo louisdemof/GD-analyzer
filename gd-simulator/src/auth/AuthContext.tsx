@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, isCloudEnabled } from '../lib/supabase';
+import { cloudLogLogin } from '../storage/cloudSync';
 
 interface AuthState {
   cloudEnabled: boolean;
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn: AuthState['signIn'] = async (email, password) => {
     if (!supabase) return { error: 'Cloud não configurado' };
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (!error) cloudLogLogin().catch(() => {});
     return { error: error?.message ?? null };
   };
 

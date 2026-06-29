@@ -90,7 +90,10 @@ export async function cloudMyRole(projectId: string): Promise<MyRole> {
 }
 
 // ─── Audit trail ──────────────────────────────────────────
-export type AuditAction = 'create' | 'trash' | 'restore' | 'delete' | 'share' | 'role_change' | 'unshare';
+export type AuditAction = 'create' | 'trash' | 'restore' | 'delete' | 'share' | 'role_change' | 'unshare' | 'login';
+// Login events aren't tied to a project — they use this sentinel project_id (only
+// super-admins can read them, since my_role_on() returns 'admin' for any id for them).
+export const LOGIN_PROJECT_ID = '__login__';
 export interface AuditEntry { id: number; actorEmail: string; action: AuditAction; detail: string | null; createdAt: string }
 
 export async function cloudLogEvent(projectId: string, action: AuditAction, detail?: string): Promise<void> {
@@ -124,6 +127,27 @@ export async function cloudListUsers(): Promise<DirectoryUser[]> {
   const { data, error } = await supabase.from('profiles').select('id, email, full_name').order('email');
   if (error || !data) return [];
   return data.map(r => ({ id: r.id as string, email: r.email as string, full_name: (r.full_name as string) ?? null }));
+}
+
+// Log a sign-in event (called on explicit password login). Fire-and-forget.
+export async function cloudLogLogin(): Promise<void> {
+  if (!supabase) return;
+  const { data: u } = await supabase.auth.getUser();
+  const email = u.user?.email;
+  if (!email) return;
+  await supabase.from('audit_log').insert({ project_id: LOGIN_PROJECT_ID, actor_email: email, action: 'login', detail: null });
+}
+
+// Per-user stats for the admin panel (name, email, last login, # projects). Super-admins only.
+export interface AdminUserStat { id: string; email: string; full_name: string | null; lastSignInAt: string | null; projectCount: number }
+export async function cloudAdminUserStats(): Promise<AdminUserStat[]> {
+  if (!(await authed()) || !supabase) return [];
+  const { data, error } = await supabase.rpc('admin_user_stats');
+  if (error || !data) return [];
+  return (data as Record<string, unknown>[]).map(r => ({
+    id: r.id as string, email: r.email as string, full_name: (r.full_name as string) ?? null,
+    lastSignInAt: (r.last_sign_in_at as string) ?? null, projectCount: Number(r.project_count) || 0,
+  }));
 }
 
 export async function cloudListAudit(projectId: string, limit = 50): Promise<AuditEntry[]> {

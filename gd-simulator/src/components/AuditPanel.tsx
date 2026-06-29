@@ -9,6 +9,7 @@ const ACTION: Record<AuditAction, { label: string; icon: string }> = {
   share:       { label: 'compartilhou', icon: '🔗' },
   role_change: { label: 'alterou permissão', icon: '🛡️' },
   unshare:     { label: 'removeu acesso', icon: '🚫' },
+  login:       { label: 'entrou no sistema', icon: '🔑' },
 };
 
 export function AuditPanel({ projectId, projectName, onClose }: { projectId: string; projectName: string; onClose: () => void }) {

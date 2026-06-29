@@ -3,15 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { useAuth } from '../auth/AuthContext';
 import {
-  cloudIsSuperAdmin, cloudRecentActivity, cloudListUsers,
-  type ActivityEntry, type DirectoryUser, type AuditAction,
+  cloudIsSuperAdmin, cloudRecentActivity, cloudAdminUserStats, LOGIN_PROJECT_ID,
+  type ActivityEntry, type AdminUserStat, type AuditAction,
 } from '../storage/cloudSync';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
 
 const ACTION: Record<AuditAction, string> = {
   create: 'criou', trash: 'moveu p/ lixeira', restore: 'restaurou',
-  delete: 'excluiu definitivamente', share: 'compartilhou', role_change: 'alterou permissão', unshare: 'removeu acesso',
+  delete: 'excluiu definitivamente', share: 'compartilhou', role_change: 'alterou permissão',
+  unshare: 'removeu acesso', login: 'entrou no sistema',
 };
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return 'nunca';
+  const diff = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(diff / 86400000), h = Math.floor(diff / 3600000), m = Math.floor(diff / 60000);
+  if (d > 0) return `há ${d}d`;
+  if (h > 0) return `há ${h}h`;
+  if (m > 0) return `há ${m}min`;
+  return 'agora';
+}
 
 function Tile({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -29,7 +40,7 @@ export function AdminPanel() {
   const { projects } = useProjectStore();
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
-  const [users, setUsers] = useState<DirectoryUser[]>([]);
+  const [users, setUsers] = useState<AdminUserStat[]>([]);
 
   useEffect(() => {
     if (!cloudEnabled) { setAllowed(false); return; }
@@ -37,7 +48,7 @@ export function AdminPanel() {
       setAllowed(ok);
       if (ok) {
         cloudRecentActivity(150).then(setActivity).catch(() => {});
-        cloudListUsers().then(setUsers).catch(() => {});
+        cloudAdminUserStats().then(setUsers).catch(() => {});
       }
     }).catch(() => setAllowed(false));
   }, [cloudEnabled]);
@@ -102,7 +113,9 @@ export function AdminPanel() {
                 <div className="min-w-0 flex-1">
                   <p className="text-slate-700">
                     <strong className="font-medium">{who(e.actorEmail)}</strong> {ACTION[e.action] ?? e.action}
-                    {' '}<span className="text-slate-500">{projNameById.get(e.projectId) || '(projeto removido)'}</span>
+                    {e.projectId !== LOGIN_PROJECT_ID && (
+                      <>{' '}<span className="text-slate-500">{projNameById.get(e.projectId) || '(projeto removido)'}</span></>
+                    )}
                     {e.detail ? <span className="text-slate-400"> · {e.detail}</span> : null}
                   </p>
                 </div>
@@ -122,6 +135,9 @@ export function AdminPanel() {
               <div key={u.id} className="px-3 py-2 text-sm">
                 <p className="text-slate-700 truncate">{u.full_name || <span className="text-slate-400 italic">sem nome</span>}</p>
                 <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                <p className="text-[11px] text-slate-400">
+                  Último acesso: <span className="text-slate-500">{timeAgo(u.lastSignInAt)}</span> · {u.projectCount} projeto{u.projectCount === 1 ? '' : 's'}
+                </p>
               </div>
             ))}
           </div>
