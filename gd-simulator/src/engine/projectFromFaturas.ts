@@ -224,6 +224,13 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
   // price (TE) comes from the supplier contract, not the distribution bill, so it stays a
   // placeholder for the user to set.
   const isACL = dedup.some(p => /Cliente Livre|\(ACL\)/i.test(p.classificacao || ''));
+  // Incentivada level: use the stated discount % from the bill when present (CEMIG/Light),
+  // rounded to the nearest standard level; otherwise default to I50.
+  const statedPct = dedup.map(p => p.incentivadaLevelPct).find(v => v != null);
+  const beneficio = dedup.map(p => p.incentivadaBeneficio).find(v => v != null);
+  const level = statedPct != null
+    ? [0.5, 0.8, 1.0].reduce((best, l) => Math.abs(l - statedPct!) < Math.abs(best - statedPct!) ? l : best, 0.5)
+    : 0.5;
 
   const now = new Date().toISOString();
   const project: Project = {
@@ -239,7 +246,7 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
       tusdDiscountConsumo: 0,
       tusdDiscountConsumoPT: 0,
       tusdDiscountDemanda: 0,
-      incentivadaLevel: 0.5,
+      incentivadaLevel: level,
     } : undefined,
     scenarios: {
       icmsExempt: true,
@@ -255,7 +262,12 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
   };
 
   if (isACL) {
-    warnings.push('Importado como ACL (Mercado Livre) com fonte incentivada I50 (50%) por padrão — confirme o nível (I50/I80/I100) e informe o preço da energia (TE, R$/MWh) do contrato.');
+    const lvlLabel = `I${Math.round(level * 100)}`;
+    const src = statedPct != null
+      ? `nível ${lvlLabel} detectado da fatura (desconto declarado ${(statedPct * 100).toFixed(1)}%)`
+      : `nível ${lvlLabel} por padrão — confirme (I50/I80/I100)`;
+    const ben = beneficio != null ? ` Benefício informado na fatura: R$ ${beneficio.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} (use para conferir).` : '';
+    warnings.push(`Importado como ACL (Mercado Livre), ${src}. Informe o preço da energia (TE, R$/MWh) do contrato.${ben}`);
   }
 
   return { project, warnings };

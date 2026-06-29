@@ -35,6 +35,10 @@ export interface ParsedFatura {
   needsPassword?: boolean;     // PDF is encrypted and the supplied password was wrong/missing
   notThisDistributor?: boolean; // content didn't match this parser → caller can try another
   distributorSig?: string;     // detected distributor (e.g. 'COPEL-DIS', 'EMS') for project build
+  // Energia incentivada signals (ACL): the source discount % when the bill states it
+  // (CEMIG/Light print "desconto de X%"), and the monetary benefit for reconciliation.
+  incentivadaLevelPct?: number; // 0–1, e.g. 0.4987 → maps to I50
+  incentivadaBeneficio?: number; // R$ (líquido) — "Benefício Tarifário" for cross-checking
   // Identification
   ucMatricula?: string;        // raw e.g. "0001935906-2026-03-3"
   ucNumero?: string;           // canonical e.g. "1935906-6"
@@ -470,6 +474,8 @@ export async function parseCemigFatura(file: File, password?: string): Promise<P
     return result;
   }
   result.distributorSig = 'CEMIG-D';
+  const cemigDisc = allText.match(/desconto de\s*([\d.,]+)\s*%/i);
+  if (cemigDisc) result.incentivadaLevelPct = brNum(cemigDisc[1]) / 100;
 
   // Tariff group + modalidade / mercado
   const grp = allText.match(/\bA([1-4])\s+Verde/i) || allText.match(/Subgrupo:?\s*\|?\s*A([1-4])/i);
@@ -664,6 +670,9 @@ export async function parseLightFatura(file: File, password?: string): Promise<P
     return result;
   }
 
+  const lightDisc = allText.match(/Percentual de Desconto[^%\d]*([\d.,]+)\s*%/i);
+  if (lightDisc) result.incentivadaLevelPct = brNum(lightDisc[1]) / 100;
+
   const grp = allText.match(/Grupo\s+A([1-4])/i);
   const isVerde = /A[1-4]\s*-?\s*Verde/i.test(allText);
   const isAzul = /A[1-4]\s*-?\s*Azul/i.test(allText);
@@ -736,6 +745,8 @@ export async function parseEnelFatura(file: File, password?: string): Promise<Pa
   result.distributorSig = /CEAR[ÁA]|FORTALEZA/i.test(allText) ? 'ENEL CE'
     : /S[ÃA]O\s+PAULO/i.test(allText) ? 'ENEL SP'
     : 'ENEL RJ';
+  const enelBen = allText.match(/Benef[íi]cio\s+Tarif[áa]rio\s+L[íi]quido[\s|]*([\d.,]+)/i);
+  if (enelBen) result.incentivadaBeneficio = brNum(enelBen[1]);
 
   const grp = allText.match(/\bA([1-4])\s*HOR[OÁA]?/i) || allText.match(/\bA([1-4])\b/);
   const isVerde = /VERDE/i.test(allText);
