@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import type { ConsumptionUnit } from '../../engine/types';
-import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, type ParsedFatura } from '../../engine/faturaParser';
+import { parseAnyFatura, type ParsedFatura } from '../../engine/faturaParser';
 
 interface Props {
   ucs: ConsumptionUnit[];
@@ -26,26 +26,15 @@ export function FaturaUpload({ ucs, onApply }: Props) {
     setError(null);
     setParsing(true);
     try {
-      // COPEL bills are encrypted — the password is often the numeric code in the
-      // filename (e.g. "CWBII_0206.pdf" → "0206"). Try COPEL first; fall back to Energisa.
+      // Auto-detect distributor (COPEL/CEMIG/Equatorial/Light/Enel/Energisa). COPEL & Enel
+      // bills are encrypted — the COPEL password is often the numeric code in the filename
+      // (e.g. "CWBII_0206.pdf" → "0206"); otherwise prompt.
       const pwMatch = file.name.match(/_(\d{3,8})(?=\.pdf$|$)/i);
-      let result = await parseCopelFatura(file, pwMatch?.[1]);
+      let result = await parseAnyFatura(file, pwMatch?.[1]);
       if (result.needsPassword) {
-        const pw = window.prompt('Fatura COPEL protegida por senha. Informe a senha (ex.: código no nome do arquivo):');
+        const pw = window.prompt('Fatura protegida por senha (COPEL/Enel). Informe a senha:');
         if (!pw) { setParsing(false); setError('Senha necessária para abrir o PDF.'); return; }
-        result = await parseCopelFatura(file, pw);
-      }
-      if (result.notThisDistributor) {
-        result = await parseCemigFatura(file); // try CEMIG
-      }
-      if (result.notThisDistributor) {
-        result = await parseEquatorialFatura(file); // try Equatorial
-      }
-      if (result.notThisDistributor) {
-        result = await parseLightFatura(file); // try Light / Enel RJ
-      }
-      if (result.notThisDistributor) {
-        result = await parseEnergisaFatura(file); // fall back to Energisa
+        result = await parseAnyFatura(file, pw);
       }
       setParsing(false);
       if (!result.ok) {

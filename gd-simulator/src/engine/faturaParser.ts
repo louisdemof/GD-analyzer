@@ -706,3 +706,93 @@ export async function parseLightFatura(file: File, password?: string): Promise<P
   result.ok = result.errors.length === 0;
   return result;
 }
+
+// ── Enel (RJ/CE/SP) — DANF3E with "HISTÓRICO DO FATURAMENTO" table ────────────
+// Often password-protected. Table: MÊS/ANO | Demanda(Ponta,FP) | Consumo(Ponta,FP) | Nº dias.
+export async function parseEnelFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch (e) {
+    const msg = (e as { name?: string; message?: string });
+    if (/password/i.test(msg?.name || '') || /password/i.test(msg?.message || '')) {
+      result.needsPassword = true;
+      result.errors.push('PDF protegido por senha.');
+      return result;
+    }
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+
+  const allText = lines.map(l => l.text).join('\n');
+  if (!/HIST[ÓO]RICO\s+DO\s+FATURAMENTO/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura Enel.');
+    return result;
+  }
+  // State → sig (from the address). RJ default for this template.
+  result.distributorSig = /CEAR[ÁA]|FORTALEZA/i.test(allText) ? 'ENEL CE'
+    : /S[ÃA]O\s+PAULO/i.test(allText) ? 'ENEL SP'
+    : 'ENEL RJ';
+
+  const grp = allText.match(/\bA([1-4])\s*HOR[OÁA]?/i) || allText.match(/\bA([1-4])\b/);
+  const isVerde = /VERDE/i.test(allText);
+  const isAzul = /AZUL/i.test(allText);
+  const isACL = /LIVRE/i.test(allText);
+  result.classificacao = [grp ? `A${grp[1]}` : null, isVerde ? 'VERDE' : isAzul ? 'AZUL' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+    .filter(Boolean).join(' — ') || undefined;
+
+  // Demanda contratada FP
+  const dem = allText.match(/DEMANDA\s+FORA\s+PONTA\s*-?\s*KW[\s|]*([\d.,]+)/i);
+  if (dem) result.demandaContratadaFP = brNum(dem[1]);
+
+  // History rows: "MMM / YYYY  demP demFP conP conFP nDias" (first 4 numbers).
+  const rowRe = /^[\s|]*(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s*\/\s*(\d{4})\b/i;
+  const numRe = /^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+(,\d+)?$/;
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const m = line.text.match(rowRe);
+    if (!m) continue;
+    const mon = PT_MONTHS3.indexOf(m[1].toUpperCase());
+    const iso = `${m[2]}-${String(mon + 1).padStart(2, '0')}`;
+    if (seen.has(iso)) continue;
+    const nums = line.text.replace(rowRe, '').split(/[|\s]+/).map(t => t.trim()).filter(t => numRe.test(t)).map(brNum);
+    if (nums.length < 4) continue;
+    seen.add(iso);
+    result.history.push({
+      monthIso: iso,
+      monthLabel: `${String(mon + 1).padStart(2, '0')}/${m[2].slice(2)}`,
+      demandaPonta: nums[0],
+      demandaForaPonta: nums[1],
+      consumoPonta: nums[2],
+      consumoForaPonta: nums[3],
+      consumoReservado: 0,
+    });
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+  if (result.history.length > 0) result.refMes = result.history[result.history.length - 1].monthLabel.replace(/(\d{2})\/(\d{2})/, '$1/20$2');
+  if (result.demandaContratadaFP == null && result.history.length > 0) {
+    result.demandaContratadaFP = Math.max(...result.history.map(h => h.demandaForaPonta || 0)) || undefined;
+  }
+  if (result.history.length === 0) {
+    result.errors.push('Histórico do faturamento não reconhecido na fatura Enel.');
+  }
+  result.ok = result.errors.length === 0;
+  return result;
+}
+
+// ── Unified dispatcher ───────────────────────────────────────────────────────
+// Tries every distributor parser with the same password (so encrypted bills — COPEL,
+// Enel — work once a password is supplied). Returns the first match, or `needsPassword`
+// so the caller can prompt and retry. Energisa is the (unencrypted) last resort.
+export async function parseAnyFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, parseEnelFatura];
+  for (const p of parsers) {
+    const r = await p(file, password);
+    if (r.needsPassword) return r;        // encrypted — caller must supply the password
+    if (!r.notThisDistributor) return r;  // matched this distributor
+  }
+  return parseEnergisaFatura(file);
+}
