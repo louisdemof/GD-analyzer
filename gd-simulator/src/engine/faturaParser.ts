@@ -526,3 +526,89 @@ export async function parseCemigFatura(file: File, password?: string): Promise<P
   result.ok = result.errors.length === 0;
   return result;
 }
+
+// ── Equatorial (PA/PI/MA/GO/AL) — DANF3E ─────────────────────────────────────
+// "Histórico dos últimos meses" (page 2): bare PT months (descending) with columns
+// Demanda(Ponta,FP,reativo) · Consumo(Ponta,FP,reativo) · HR(consumo,reativo). Years are
+// inferred from the "Leitura Atual" date (most-recent row = billing month).
+const EQ_STATE_SIG: [RegExp, string][] = [
+  [/Par[áa]/i, 'EQUATORIAL PA'], [/Piau[íi]/i, 'EQUATORIAL PI'], [/Maranh[ãa]o/i, 'EQUATORIAL MA'],
+  [/Goi[áa]s/i, 'EQUATORIAL GO'], [/Alagoas/i, 'EQUATORIAL AL'],
+];
+const PT_MONTHS3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
+export async function parseEquatorialFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch {
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+
+  const allText = lines.map(l => l.text).join('\n');
+  if (!/equatorial/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura Equatorial.');
+    return result;
+  }
+  result.distributorSig = (EQ_STATE_SIG.find(([re]) => re.test(allText)) || [, 'EQUATORIAL PA'])[1] as string;
+
+  // Tariff group + modalidade. "Tipo de Tarifa: A4_LVAZ" → A4, Livre, Azul.
+  const code = allText.match(/Tipo\s+de\s+Tarifa[\s:|]+A(\d)_?(\w+)/i);
+  const grpStr = code ? `A${code[1]}` : (allText.match(/\bA([1-4])\b/) ? `A${RegExp.$1}` : undefined);
+  const codeStr = code?.[2]?.toUpperCase() || '';
+  const isAzul = /AZ/.test(codeStr) || /azul/i.test(allText);
+  const isVerde = /V[DE]/.test(codeStr) || /verde/i.test(allText);
+  const isACL = /\bLV/.test(codeStr) || /livre/i.test(allText);
+  result.classificacao = [grpStr, isAzul ? 'AZUL' : isVerde ? 'VERDE' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+    .filter(Boolean).join(' — ') || undefined;
+
+  // Anchor month = "Leitura Atual" date (2nd dd/mm/yyyy in the leitura block; dates may be
+  // pipe-separated in extraction).
+  const leit = allText.match(/\d{2}\/(\d{2})\/(\d{4})[\s|]+(\d{2})\/(\d{2})\/(\d{4})/);
+  const anchor = leit ? Number(leit[5]) * 12 + (Number(leit[4]) - 1) : null;
+  if (leit) result.refMes = `${leit[4]}/${leit[5]}`;
+
+  // Demanda contratada
+  const demP = allText.match(/Demanda\s+Contratada\s+Ponta[\s(kW):|]*([\d.,]+)/i);
+  const demFP = allText.match(/Demanda\s+Contratada\s+Fora\s+Ponta[\s(kW):|]*([\d.,]+)/i);
+  if (demFP) result.demandaContratadaFP = brNum(demFP[1]);
+  else if (demP) result.demandaContratadaFP = brNum(demP[1]);
+
+  // History rows: bare month + ≥6 numbers. Years assigned by descending position.
+  const monthRe = new RegExp(`^(${PT_MONTHS3.join('|')})$`, 'i');
+  const numRe = /^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+(,\d+)?$/;
+  let i = 0;
+  for (const line of lines) {
+    const toks = line.text.split(/[|\s]+/).map(t => t.trim()).filter(Boolean);
+    const mi = toks.findIndex(t => monthRe.test(t));
+    if (mi < 0) continue;
+    const nums = toks.slice(mi + 1).filter(t => numRe.test(t)).map(brNum);
+    if (nums.length < 6) continue; // skip chart-axis month labels (no numbers)
+    const abs = anchor != null ? anchor - i : null;
+    const iso = abs != null ? `${Math.floor(abs / 12)}-${String((abs % 12) + 1).padStart(2, '0')}` : `row-${i}`;
+    result.history.push({
+      monthLabel: abs != null ? `${String((abs % 12) + 1).padStart(2, '0')}/${String(Math.floor(abs / 12)).slice(2)}` : toks[mi],
+      monthIso: iso,
+      demandaPonta: nums[0],
+      demandaForaPonta: nums[1],
+      consumoPonta: nums[3],
+      consumoForaPonta: nums[4],
+      consumoReservado: nums[6] || 0,
+    });
+    i++;
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+
+  if (result.demandaContratadaFP == null && result.history.length > 0) {
+    result.demandaContratadaFP = Math.max(...result.history.map(h => h.demandaForaPonta || 0)) || undefined;
+  }
+  if (result.history.length === 0) {
+    result.errors.push('Histórico de consumo não reconhecido na fatura Equatorial.');
+  }
+  result.ok = result.errors.length === 0;
+  return result;
+}

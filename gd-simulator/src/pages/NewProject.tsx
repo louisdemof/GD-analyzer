@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
-import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, type ParsedFatura } from '../engine/faturaParser';
+import { parseEnergisaFatura, parseCopelFatura, parseCemigFatura, parseEquatorialFatura, type ParsedFatura } from '../engine/faturaParser';
 import { buildProjectFromFaturas } from '../engine/projectFromFaturas';
 import type { Distributor } from '../engine/types';
 
@@ -104,6 +104,7 @@ export function NewProject() {
         const pw = file.name.match(/_(\d{3,8})(?=\.pdf$|$)/i)?.[1];
         let parsed = await parseCopelFatura(file, pw);
         if (parsed.notThisDistributor) parsed = await parseCemigFatura(file);
+        if (parsed.notThisDistributor) parsed = await parseEquatorialFatura(file);
         if (parsed.notThisDistributor) parsed = await parseEnergisaFatura(file);
         results.push({
           fileName: file.name,
@@ -456,6 +457,7 @@ export function NewProject() {
                 const sig = successItems[0]?.parsed?.distributorSig;
                 return sig === 'COPEL-DIS' ? 'COPEL Distribuição (PR)'
                   : sig === 'CEMIG-D' ? 'CEMIG Distribuição (MG)'
+                  : sig?.startsWith('EQUATORIAL') ? `Equatorial (${sig.split(' ')[1]})`
                   : 'Energisa Mato Grosso do Sul';
               })()
             }</strong>
