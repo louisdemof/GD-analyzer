@@ -799,11 +799,68 @@ export async function parseEnelFatura(file: File, password?: string): Promise<Pa
 // Enel — work once a password is supplied). Returns the first match, or `needsPassword`
 // so the caller can prompt and retry. Energisa is the (unencrypted) last resort.
 export async function parseAnyFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, parseEnelFatura];
+  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, parseEnelFatura, parseEnelGrupoBFatura];
   for (const p of parsers) {
     const r = await p(file, password);
     if (r.needsPassword) return r;        // encrypted — caller must supply the password
     if (!r.notThisDistributor) return r;  // matched this distributor
   }
   return parseEnergisaFatura(file);
+}
+
+// ── ENEL CE / Coelce — Grupo B (baixa tensão, consumo único, sem demanda) ────
+// History "MÊS/ANO | CONSUMO | DIAS" with the consumo sometimes on the next line, and
+// numbers in dot-decimal ("2488.00" = 2488) — different from the Brazilian A-group bills.
+const numFlex = (s: string) => /^\d+\.\d{1,2}$/.test(s) ? parseFloat(s) : brNum(s);
+
+export async function parseEnelGrupoBFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch {
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+  const allText = lines.map(l => l.text).join('\n');
+  const isCE = /Companhia\s+Energ[ée]tica\s+do\s+Cear[áa]/i.test(allText) || /COELCE/i.test(allText)
+    || (/enel/i.test(allText) && /CEAR[ÁA]|FORTALEZA/i.test(allText));
+  const grpB = /\bB[123]\b/.test(allText);
+  if (!isCE || !grpB || /HIST[ÓO]RICO\s+DO\s+FATURAMENTO/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura Enel CE Grupo B.');
+    return result;
+  }
+  result.distributorSig = 'ENEL CE';
+  const cls = allText.match(/\bB[123]\b[^\n|]{0,30}/i);
+  result.classificacao = (cls ? cls[0].trim() : 'B3') + ' — Grupo B';
+  const ref = allText.match(/(\d{2})\/(\d{4})/);
+  if (ref) result.refMes = `${ref[1]}/${ref[2]}`;
+
+  const monthRe = new RegExp(`\\b(${PT_MONTHS3.join('|')})\\s*/?\\s*(\\d{2})\\b`, 'i');
+  const numTok = /^\d{2,7}(\.\d{1,2})?$/;
+  const seen = new Set<string>();
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].text.match(monthRe);
+    if (!m) continue;
+    const mon = PT_MONTHS3.indexOf(m[1].toUpperCase());
+    const iso = `20${m[2]}-${String(mon + 1).padStart(2, '0')}`;
+    if (seen.has(iso)) continue;
+    let cons: number | null = null;
+    for (let j = i; j < Math.min(i + 3, lines.length) && cons == null; j++) {
+      const after = j === i ? lines[j].text.replace(monthRe, '') : lines[j].text;
+      const nums = after.split(/[|\s]+/).map(t => t.trim()).filter(t => numTok.test(t)).map(numFlex).filter(n => n >= 60 && n < 100000);
+      if (nums.length) cons = Math.round(nums[0]);
+    }
+    if (cons == null) continue;
+    seen.add(iso);
+    result.history.push({
+      monthIso: iso, monthLabel: `${String(mon + 1).padStart(2, '0')}/${m[2]}`,
+      consumoForaPonta: cons, consumoPonta: 0, consumoReservado: 0, demandaPonta: 0, demandaForaPonta: 0,
+    });
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+  if (result.history.length === 0) result.errors.push('Histórico de consumo (Grupo B) não reconhecido.');
+  result.ok = result.errors.length === 0;
+  return result;
 }
