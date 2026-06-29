@@ -465,6 +465,7 @@ export function NewProject() {
                   : sig?.startsWith('EQUATORIAL') ? `Equatorial (${sig.split(' ')[1]})`
                   : sig === 'LIGHT SESA' ? 'Light (RJ)'
                   : sig?.startsWith('ENEL') ? `Enel (${sig.split(' ')[1]})`
+                  : sig === 'EDP SP' ? 'EDP São Paulo'
                   : 'Energisa Mato Grosso do Sul';
               })()
             }</strong>

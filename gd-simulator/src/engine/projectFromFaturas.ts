@@ -105,7 +105,6 @@ function buildDistributorFromFatura(p: ParsedFatura): Distributor {
 function buildUCFromFatura(p: ParsedFatura, fallbackId: string): ConsumptionUnit {
   const cls = p.classificacao || '';
   const { group, isGrupoA } = deriveTariffGroup(cls);
-  const isRural = /\bRURAL\b|IRRIG|AQUICULT/i.test(cls);
 
   // Use the LAST 12 months of history (most recent), in chronological order
   const sorted = [...p.history].sort((a, b) => a.monthIso.localeCompare(b.monthIso));
@@ -139,7 +138,7 @@ function buildUCFromFatura(p: ParsedFatura, fallbackId: string): ConsumptionUnit
     isGrupoA,
     consumptionFP: fp24,
     consumptionPT: pt24,
-    ...(isRural && rsv.some(v => v > 0) ? { consumptionReservado: rsv24 } : {}),
+    ...(rsv.some(v => v > 0) ? { consumptionReservado: rsv24 } : {}),
     openingBank: 0,
     ...(isGrupoA && p.demandaContratadaFP ? {
       demandaContratadaFP: p.demandaContratadaFP,

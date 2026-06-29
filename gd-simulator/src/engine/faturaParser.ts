@@ -799,7 +799,7 @@ export async function parseEnelFatura(file: File, password?: string): Promise<Pa
 // Enel — work once a password is supplied). Returns the first match, or `needsPassword`
 // so the caller can prompt and retry. Energisa is the (unencrypted) last resort.
 export async function parseAnyFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, parseEnelFatura, parseEnelGrupoBFatura];
+  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, parseEnelFatura, parseEnelGrupoBFatura, parseEdpSpFatura];
   for (const p of parsers) {
     const r = await p(file, password);
     if (r.needsPassword) return r;        // encrypted — caller must supply the password
@@ -861,6 +861,63 @@ export async function parseEnelGrupoBFatura(file: File, password?: string): Prom
   }
   result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
   if (result.history.length === 0) result.errors.push('Histórico de consumo (Grupo B) não reconhecido.');
+  result.ok = result.errors.length === 0;
+  return result;
+}
+
+// ── EDP São Paulo (Suzano etc.) — DANF3E ─────────────────────────────────────
+// History columns by position: Mes/Ano | Consumo Ponta | Fora Ponta | Reservado | Demanda
+// | ... | Total. Numbers are dot-decimal (15140.6). Often incentivada (Res.77/04 = ACL).
+export async function parseEdpSpFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch {
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+  const allText = lines.map(l => l.text).join('\n');
+  if (!/EDP\s*SP|EDP\s+S[ÃA]O\s+PAULO|EDP SP DISTRIB/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura EDP SP.');
+    return result;
+  }
+  result.distributorSig = 'EDP SP';
+  const isACL = /RES\.?\s*77|incentiv|\bLivre\b/i.test(allText);
+  const grp = allText.match(/\bA([1-4])\b/);
+  const isVerde = /VERDE/i.test(allText), isAzul = /AZUL/i.test(allText);
+  result.classificacao = [grp ? `A${grp[1]}` : null, isVerde ? 'VERDE' : isAzul ? 'AZUL' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+    .filter(Boolean).join(' — ') || undefined;
+  const ref = allText.match(/(\d{2})\/(\d{4})/);
+  if (ref) result.refMes = `${ref[1]}/${ref[2]}`;
+
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const toks = line.text.split(/\s*\|\s*/).map(t => t.trim()).filter(Boolean);
+    const mi = toks.findIndex(t => /^\d{2}\/\d{2}$/.test(t)); // MM/YY (not dd/mm/yyyy)
+    if (mi < 0) continue;
+    const [mm, yy] = toks[mi].split('/');
+    const iso = `20${yy}-${mm}`;
+    if (seen.has(iso)) continue;
+    const nums = toks.slice(mi + 1).filter(t => /^\d[\d.,]*$/.test(t)).map(numFlex);
+    if (nums.length < 4) continue;
+    seen.add(iso);
+    result.history.push({
+      monthIso: iso, monthLabel: `${mm}/${yy}`,
+      consumoPonta: Math.round(nums[0]),
+      consumoForaPonta: Math.round(nums[1]),
+      consumoReservado: Math.round(nums[2]),
+      demandaForaPonta: nums[3],
+      demandaPonta: 0,
+    });
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+  if (result.history.length > 0) {
+    result.demandaContratadaFP = Math.max(...result.history.map(h => h.demandaForaPonta || 0)) || undefined;
+  } else {
+    result.errors.push('Histórico de faturamento não reconhecido na fatura EDP SP.');
+  }
   result.ok = result.errors.length === 0;
   return result;
 }
