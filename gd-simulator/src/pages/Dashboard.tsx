@@ -367,6 +367,7 @@ export function Dashboard() {
             Importar Projeto
           </button>
           <input ref={fileInputRef} type="file" accept=".json,.gdproject.json" className="hidden" onChange={handleImport} />
+          <Button variant="secondary" onClick={() => navigate('/compare')}>⚖ Comparar</Button>
           <Button variant="primary" onClick={() => navigate('/new')}>+ Novo Projeto</Button>
         </div>
       </div>

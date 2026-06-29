@@ -8,6 +8,7 @@ import { NewProject } from './pages/NewProject';
 import { ProjectEditor } from './pages/ProjectEditor';
 import { Results } from './pages/Results';
 import { AdminPanel } from './pages/AdminPanel';
+import { Compare } from './pages/Compare';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LoginScreen } from './auth/LoginScreen';
@@ -51,6 +52,7 @@ function App() {
                   </ErrorBoundary>
                 } />
                 <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/compare" element={<Compare />} />
               </Routes>
             </main>
           </div>
