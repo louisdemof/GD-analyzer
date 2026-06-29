@@ -17,7 +17,7 @@ function formatKWh(value: number): string {
   return value.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' kWh';
 }
 
-type InvoiceScope = 'total' | 'yearly' | 'monthly';
+type InvoiceScope = 'total' | 'annual' | 'yearly' | 'monthly';
 type InvoiceMode = 'agregado' | 'por-uc';
 
 export function KPICards({ summary, months, project, result }: Props) {
@@ -56,10 +56,14 @@ export function KPICards({ summary, months, project, result }: Props) {
       if (invoiceScope === 'monthly') return Array.from({ length: total }, (_, i) => i); // we'll average
       return Array.from({ length: total }, (_, i) => i);
     })();
+    const years = Math.max(1e-9, (contractMonths || 12) / 12);
     const scopeMonths = invoiceScope === 'monthly' ? 1
       : invoiceScope === 'yearly' ? Math.min(12, contractMonths)
+      : invoiceScope === 'annual' ? 12
       : contractMonths;
-    const divisor = invoiceScope === 'monthly' ? Math.max(1, result.months.length) : 1;
+    const divisor = invoiceScope === 'monthly' ? Math.max(1, result.months.length)
+      : invoiceScope === 'annual' ? years
+      : 1;
 
     const monthSliceUC = (arr: { costRede: number; icmsAdditional: number }[] | undefined): { rede: number; icms: number } => {
       if (!arr) return { rede: 0, icms: 0 };
@@ -159,6 +163,23 @@ export function KPICards({ summary, months, project, result }: Props) {
         energiaResidual: Math.max(0, sumRede - dem),
       };
     }
+    if (invoiceScope === 'annual') {
+      const years = Math.max(1e-9, (contractMonths || 12) / 12);
+      return {
+        scopeLabel: 'Média anual',
+        sem: summary.baselineSEM / years,
+        energia: (summary.baselineSEM - demandaTotal) / years,
+        demanda: demandaTotal / years,
+        tusdFp: totalTusdFp / years, tusdPt: totalTusdPt / years,
+        teFp: totalTeFp / years, tePt: totalTePt / years, demandaAcl: totalDem / years,
+        rede: comRede / years,
+        ppa: summary.totalPPACost / years,
+        icmsAdd: 0,
+        comTotal: comTotal / years,
+        economia: summary.economiaLiquida / years,
+        energiaResidual: Math.max(0, (comRede - demandaTotal) / years),
+      };
+    }
     if (invoiceScope === 'monthly') {
       const m = contractMonths || 1;
       return {
@@ -201,11 +222,15 @@ export function KPICards({ summary, months, project, result }: Props) {
     }
   }
 
+  const years = (contractMonths || 12) / 12;
+  const annualEconomia = years >= 1 ? summary.economiaLiquida / years : summary.economiaLiquida;
+
   const cards = [
     {
-      label: 'Economia Liquida',
+      label: `Economia Líquida — ${durationLabel}`,
       value: formatBRL(summary.economiaLiquida),
-      sub: `${(summary.economiaPct * 100).toFixed(1)}% de reducao` + (paybackLabel ? ` | ${paybackLabel}` : ''),
+      sub: `${(summary.economiaPct * 100).toFixed(1)}% de redução · ≈ ${formatBRL(annualEconomia)}/ano`
+        + (paybackLabel ? ` | ${paybackLabel}` : ''),
       color: 'bg-teal-50 border-teal-200 text-teal-700',
     },
     {
@@ -213,7 +238,7 @@ export function KPICards({ summary, months, project, result }: Props) {
       value: formatBRL(summary.baselineSEM),
       sub: demandaTotal > 0
         ? `Energia ${formatBRL(semEnergia)} + Demanda ${formatBRL(demandaTotal)}`
-        : 'Baseline sem geracao distribuida',
+        : 'Baseline sem geração distribuída',
       color: 'bg-slate-50 border-slate-200 text-slate-700',
     },
     {
@@ -278,6 +303,7 @@ export function KPICards({ summary, months, project, result }: Props) {
                   <span className="text-slate-500">Período:</span>
                   {([
                     { k: 'total', label: `Total (${durationLabel})` },
+                    { k: 'annual', label: 'Média anual' },
                     { k: 'yearly', label: 'Ano 1' },
                     { k: 'monthly', label: 'Mensal médio' },
                   ] as const).map(opt => (
