@@ -436,3 +436,93 @@ export async function parseCopelFatura(file: File, password?: string): Promise<P
   result.ok = result.errors.length === 0;
   return result;
 }
+
+// ── CEMIG (Minas Gerais) — DANF3E / Nota Fiscal de Energia Elétrica ──────────
+// History table "Histórico de Consumo": Mês/Ano | Demanda(HP,HFP) | Energia(HP,HFP,HR),
+// months as PT abbreviations (MAI/25) and Brazilian number format (181.947 = 181947).
+const CEMIG_MONTHS: Record<string, string> = {
+  JAN: '01', FEV: '02', MAR: '03', ABR: '04', MAI: '05', JUN: '06',
+  JUL: '07', AGO: '08', SET: '09', OUT: '10', NOV: '11', DEZ: '12',
+};
+const brNum = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
+
+export async function parseCemigFatura(file: File, password?: string): Promise<ParsedFatura> {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch (e) {
+    const msg = (e as { name?: string; message?: string });
+    if (/password/i.test(msg?.name || '') || /password/i.test(msg?.message || '')) {
+      result.needsPassword = true;
+      result.errors.push('PDF protegido por senha.');
+      return result;
+    }
+    result.errors.push('Falha ao ler o PDF.');
+    return result;
+  }
+
+  const allText = lines.map(l => l.text).join('\n');
+  if (!/cemig/i.test(allText)) {
+    result.notThisDistributor = true;
+    result.errors.push('Não parece ser uma fatura CEMIG.');
+    return result;
+  }
+  result.distributorSig = 'CEMIG-D';
+
+  // Tariff group + modalidade / mercado
+  const grp = allText.match(/\bA([1-4])\s+Verde/i) || allText.match(/Subgrupo:?\s*\|?\s*A([1-4])/i);
+  const grpStr = grp ? `A${grp[1]}` : undefined;
+  const isVerde = /A[1-4]\s+Verde/i.test(allText) || /Tarifa\s+Verde/i.test(allText);
+  const isAzul = /A[1-4]\s+Azul/i.test(allText) || /Tarifa\s+Azul/i.test(allText);
+  const isACL = /TUSD\s+Livre/i.test(allText) || /\bLivre\b/i.test(allText);
+  result.classificacao = [grpStr, isVerde ? 'VERDE' : isAzul ? 'AZUL' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+    .filter(Boolean).join(' — ') || undefined;
+
+  // Reference month
+  const refM = allText.match(/M[êe]s\/Ano:?\s*\|?\s*(\d{2})\/(\d{4})/i);
+  if (refM) result.refMes = `${refM[1]}/${refM[2]}`;
+
+  // Demanda contratada (Grandezas Contratadas) — words may be pipe-separated in extraction.
+  const dem = allText.match(/Demanda[\s|]+Fora[\s|]+Ponta[\s|]+([\d.,]+)/i);
+  if (dem) result.demandaContratadaFP = brNum(dem[1]);
+
+  // History rows: "MAI/25  <demHP> <demHFP> <enHP> <enHFP> <enHR>" (first 5 numbers).
+  const monthRe = /^(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/(\d{2})$/i;
+  const numRe = /^\d{1,3}(\.\d{3})*(,\d+)?$|^\d+$/;
+  const seen = new Set<string>();
+  for (const line of lines) {
+    const toks = line.text.split(/[|\s]+/).map(t => t.trim()).filter(Boolean);
+    const mi = toks.findIndex(t => monthRe.test(t));
+    if (mi < 0) continue;
+    const m = toks[mi].match(monthRe)!;
+    const mon = CEMIG_MONTHS[m[1].toUpperCase()];
+    const iso = `20${m[2]}-${mon}`;
+    if (seen.has(iso)) continue;
+    const nums = toks.slice(mi + 1).filter(t => numRe.test(t)).map(brNum);
+    if (nums.length < 5) continue;
+    seen.add(iso);
+    result.history.push({
+      monthLabel: `${mon}/${m[2]}`,
+      monthIso: iso,
+      demandaPonta: nums[0],
+      demandaForaPonta: nums[1],
+      consumoPonta: nums[2],
+      consumoForaPonta: nums[3],
+      consumoReservado: nums[4] || 0,
+    });
+  }
+  result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
+
+  // Fallback for demanda contratada: peak billed FP demand from history.
+  if (result.demandaContratadaFP == null && result.history.length > 0) {
+    result.demandaContratadaFP = Math.max(...result.history.map(h => h.demandaForaPonta || 0)) || undefined;
+  }
+
+  if (result.history.length === 0) {
+    result.errors.push('Histórico de consumo não reconhecido na fatura CEMIG.');
+  }
+  result.ok = result.errors.length === 0;
+  return result;
+}
