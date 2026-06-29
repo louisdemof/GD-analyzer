@@ -44,6 +44,24 @@ export function computePisCofinsPerKWh(
 }
 
 /**
+ * Energia incentivada TUSD discounts, derived per UC modalidade (Verde/Azul) from the
+ * distributor's TUSD tariffs — per Lei 9.427/96 art.26 §1º + ANEEL "Cálculo do Desconto
+ * Aplicado à TUSD/TUST". All values are fractions of the sem-impostos TUSD base.
+ *   Verde: fora-ponta energy NOT discounted (it's the floor); ponta gets the discount on the
+ *          (Ponta − FP) premium → efetivo = level × (1 − TUSD_FP/TUSD_PT); demanda = level.
+ *   Azul:  energy (ponta & FP) NOT discounted; demanda (ponta & FP) = level.
+ * The FP/PT ratio is invariant to the tax gross-up, so all-in TUSD tariffs are fine here.
+ */
+export function incentivadaDiscounts(
+  level: number, isAzul: boolean, tusdFP: number, tusdPT: number,
+): { consumoFP: number; consumoPT: number; demanda: number } {
+  if (!level || level <= 0) return { consumoFP: 0, consumoPT: 0, demanda: 0 };
+  if (isAzul) return { consumoFP: 0, consumoPT: 0, demanda: level };
+  const consumoPT = tusdPT > 0 ? level * (1 - tusdFP / tusdPT) : 0;
+  return { consumoFP: 0, consumoPT, demanda: level };
+}
+
+/**
  * Compute all derived tariff fields for a distributor.
  * Returns a new Distributor with FA, T_B3, T_AFP, T_APT and the TUSD-only
  * variants (T_AFP_TUSD, T_APT_TUSD, T_B3_TUSD) populated. The TUSD-only

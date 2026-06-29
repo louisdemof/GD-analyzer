@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeAllInTariff, computeFA, computeICMSPerKWh, computePisCofinsPerKWh, computeDerivedTariffs,
+  incentivadaDiscounts,
 } from './tariff';
 import type { Distributor } from './types';
 
@@ -43,6 +44,26 @@ describe('per-kWh tax leaks', () => {
   it('PIS/COFINS leak uses the combined rate', () => {
     const r = 0.0153 + 0.0703;
     expect(computePisCofinsPerKWh(2, 0.0153, 0.0703)).toBeCloseTo(2 * r / (1 + r), 6);
+  });
+});
+
+describe('incentivadaDiscounts (energia incentivada, per modalidade)', () => {
+  // ENEL RJ TUSD-only (sem-impostos ratio is what matters): FP 0.2236, PT 2.0573
+  it('Verde: FP = 0, demanda = nível, PT = nível × (1 − FP/PT)', () => {
+    const d = incentivadaDiscounts(0.5, false, 0.2236, 2.0573);
+    expect(d.consumoFP).toBe(0);
+    expect(d.demanda).toBe(0.5);
+    expect(d.consumoPT).toBeCloseTo(0.5 * (1 - 0.2236 / 2.0573), 4); // ≈ 0.446
+  });
+  it('Azul: energia (FP & PT) = 0, demanda = nível', () => {
+    const d = incentivadaDiscounts(0.5, true, 0.2236, 2.0573);
+    expect(d).toEqual({ consumoFP: 0, consumoPT: 0, demanda: 0.5 });
+  });
+  it('I80 scales the level', () => {
+    expect(incentivadaDiscounts(0.8, false, 0.2236, 2.0573).demanda).toBe(0.8);
+  });
+  it('no level → all zero', () => {
+    expect(incentivadaDiscounts(0, false, 0.2236, 2.0573)).toEqual({ consumoFP: 0, consumoPT: 0, demanda: 0 });
   });
 });
 

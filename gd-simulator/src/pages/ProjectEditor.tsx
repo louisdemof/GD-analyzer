@@ -455,12 +455,14 @@ export function ProjectEditor() {
                 const tePC = (acl.energyPisCofins ?? true) ? (acl.energyPisCofinsPct ?? 0.0925) : 0;
                 const teICMS = (acl.energyIcms ?? true) ? project.distributor.taxes.ICMS : 0;
                 const teAllIn = (acl.energyPriceSemImp ?? 0) * 1000 / ((1 - tePC) * (1 - teICMS));
+                const incLevel = acl.incentivadaLevel ?? 0;
+                const incOn = incLevel > 0; // discounts derived per UC → manual fields locked
                 const fields: { label: string; get: () => number; set: (n: number) => void; step?: string; disabled?: boolean }[] = [
                   { label: 'Energia TE (R$/MWh, s/ imp.)', get: () => Math.round((acl.energyPriceSemImp ?? 0) * 1000), set: n => set({ energyPriceSemImp: n / 1000 }) },
                   { label: 'Reajuste energia (%/ano)', get: () => Math.round((acl.energyEscalationPct ?? 0) * 1000) / 10, set: n => set({ energyEscalationPct: n / 100 }), step: '0.1', disabled: teLocked },
-                  { label: 'Desc. TUSD consumo FP (%)', get: () => Math.round((acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumo: n / 100 }), step: '0.1' },
-                  { label: 'Desc. TUSD consumo PT (%)', get: () => Math.round((acl.tusdDiscountConsumoPT ?? acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumoPT: n / 100 }), step: '0.1' },
-                  { label: 'Desc. TUSD demanda (%)', get: () => Math.round((acl.tusdDiscountDemanda ?? 0) * 1000) / 10, set: n => set({ tusdDiscountDemanda: n / 100 }), step: '0.1' },
+                  { label: 'Desc. TUSD consumo FP (%)', get: () => Math.round((acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumo: n / 100 }), step: '0.1', disabled: incOn },
+                  { label: 'Desc. TUSD consumo PT (%)', get: () => Math.round((acl.tusdDiscountConsumoPT ?? acl.tusdDiscountConsumo ?? 0) * 1000) / 10, set: n => set({ tusdDiscountConsumoPT: n / 100 }), step: '0.1', disabled: incOn },
+                  { label: 'Desc. TUSD demanda (%)', get: () => Math.round((acl.tusdDiscountDemanda ?? 0) * 1000) / 10, set: n => set({ tusdDiscountDemanda: n / 100 }), step: '0.1', disabled: incOn },
                 ];
                 return (
                   <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
@@ -477,6 +479,24 @@ export function ProjectEditor() {
                           ? 'Preço da energia fixo pelo contrato ACL — sem reajuste (típico). Destrave para simular energia subindo.'
                           : 'Energia reajusta pelo % ao lado. Trave para fixar o preço pelo prazo do contrato.'}
                       </span>
+                    </div>
+                    <div className="col-span-2 md:col-span-3 flex items-center gap-2 flex-wrap">
+                      <label className="text-xs font-medium text-slate-600">Energia incentivada (fonte):</label>
+                      <select
+                        value={incLevel}
+                        onChange={e => set({ incentivadaLevel: parseFloat(e.target.value) })}
+                        className="text-sm border border-slate-300 rounded px-2 py-1 bg-white"
+                      >
+                        <option value={0}>Nenhuma (descontos manuais)</option>
+                        <option value={0.5}>I50 — 50%</option>
+                        <option value={0.8}>I80 — 80%</option>
+                        <option value={1}>I100 — 100%</option>
+                      </select>
+                      {incOn && (
+                        <span className="text-[11px] text-emerald-700">
+                          ✓ Descontos derivados por UC (Verde: FP 0% · PT = nível×(1−TUSD_FP/TUSD_PT) · demanda = nível; Azul: energia 0% · demanda = nível) a partir das tarifas ANEEL. Campos abaixo bloqueados.
+                        </span>
+                      )}
                     </div>
                     {fields.map(f => (
                       <div key={f.label}>

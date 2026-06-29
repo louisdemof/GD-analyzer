@@ -1,5 +1,5 @@
 import type { ACLBaseline, ConsumptionUnit, Distributor, Project, RateioAllocation, UCMonthlyDetail } from './types';
-import { computeAllInTariff, computeICMSPerKWh, computePisCofinsPerKWh } from './tariff';
+import { computeAllInTariff, computeICMSPerKWh, computePisCofinsPerKWh, incentivadaDiscounts } from './tariff';
 
 interface BankSimParams {
   uc: ConsumptionUnit;
@@ -113,10 +113,19 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   // ACL baseline only rewrites the SEM scenario (the client's current free-market bill).
   // COM is always GD no mercado cativo, so leave it on the captive tariffs.
   const aclOn = isSEM && !!aclBaseline;
+  // Energia incentivada: when a level is set, derive the TUSD discounts per UC modalidade
+  // (Verde/Azul) from the distributor's tariffs (national rule), overriding the manual fields.
+  const incLevel = aclBaseline?.incentivadaLevel ?? 0;
+  const useIncentivada = aclOn && incLevel > 0 && uc.isGrupoA;
+  const incDisc = useIncentivada
+    ? incentivadaDiscounts(incLevel, /AZUL/i.test(uc.tariffGroup), T_AFP_TUSD_base, T_APT_TUSD_base)
+    : null;
   const aclDiscCons = (m: number) =>
-    aclBaseline?.tusdDiscountSchedule?.consumo?.[m] ?? aclBaseline?.tusdDiscountConsumo ?? 0;
+    incDisc ? incDisc.consumoFP
+    : aclBaseline?.tusdDiscountSchedule?.consumo?.[m] ?? aclBaseline?.tusdDiscountConsumo ?? 0;
   const aclDiscDem = (m: number) =>
-    aclBaseline?.tusdDiscountSchedule?.demanda?.[m] ?? aclBaseline?.tusdDiscountDemanda ?? 0;
+    incDisc ? incDisc.demanda
+    : aclBaseline?.tusdDiscountSchedule?.demanda?.[m] ?? aclBaseline?.tusdDiscountDemanda ?? 0;
   // Gross-up da TUSD (alíquotas efetivas da distribuidora). Usado também para extrair a
   // base "sem impostos" da TUSD a partir da tarifa all-in (T_x_TUSD).
   const tusdGrossUp = 1 / ((1 - pisRate - cofinsRate) * (1 - icmsRate));
@@ -165,8 +174,8 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     // Captive tariffs (T_AFP etc.) are kept for COM and for the tax-leak formulas; only the
     // SEM *billing* tariffs below switch to the ACL build-up. RSV approximated by FP-equiv ratio.
     const dCons = aclOn ? aclDiscCons(m) : 0;
-    // Ponta pode ter desconto de TUSD diferente do fora-ponta (COPEL incentivada).
-    const dConsPT = aclOn ? (aclBaseline?.tusdDiscountConsumoPT ?? dCons) : 0;
+    // Ponta pode ter desconto de TUSD diferente do fora-ponta (incentivada Verde / COPEL).
+    const dConsPT = aclOn ? (incDisc ? incDisc.consumoPT : (aclBaseline?.tusdDiscountConsumoPT ?? dCons)) : 0;
     const teAcl = aclOn ? aclEnergyAllIn(yearIdx) : 0;
     // TUSD com benefício (desconto na base, impostos sobre a cheia) + energia ACL (já com impostos).
     const T_AFP_eff = aclOn ? tusdAposBeneficio(T_AFP_TUSD, dCons) + teAcl : T_AFP;

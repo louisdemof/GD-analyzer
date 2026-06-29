@@ -135,6 +135,10 @@ export interface ACLBaseline {
   // Ausente ⇒ usa tusdDiscountConsumo para ambos os postos.
   tusdDiscountConsumoPT?: number;
   tusdDiscountDemanda: number;      // ex.: 0.49
+  // Fonte incentivada: nível de redução (0.5 / 0.8 / 1.0). Quando definido (>0), os descontos
+  // de TUSD são DERIVADOS por UC a partir da modalidade (Verde/Azul) + tarifas ANEEL, ignorando
+  // os campos manuais acima. Ausente/0 ⇒ usa os descontos manuais (tusdDiscount*).
+  incentivadaLevel?: number;
   // Erosão opcional do desconto ao longo do horizonte (mês → fator 0..1). Se ausente, mantém flat.
   tusdDiscountSchedule?: { consumo: number[]; demanda: number[] };
   // A energia ACL carrega PIS/COFINS + ICMS no build-up do SEM? (PR: sim)
