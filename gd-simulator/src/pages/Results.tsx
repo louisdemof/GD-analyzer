@@ -18,6 +18,7 @@ import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
 import { generatePDF, downloadPDF } from '../engine/pdf';
+import { generateProposalPDF, downloadProposalPDF } from '../engine/proposalPdf';
 import { exportResultsExcel } from '../engine/excel';
 import { exportConsumptionExcel } from '../engine/consumptionExcel';
 
@@ -38,6 +39,7 @@ export function Results() {
   const workerRef = useRef<Worker | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isExportingProposal, setIsExportingProposal] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Cleanup worker and timeout on unmount
@@ -274,6 +276,24 @@ export function Results() {
             style={{ backgroundColor: '#004B70' }}
           >
             {isExportingPDF ? 'Gerando PDF...' : 'Exportar PDF'}
+          </button>
+          <button
+            onClick={async () => {
+              setIsExportingProposal(true);
+              try {
+                const blob = await generateProposalPDF(project, result);
+                downloadProposalPDF(blob, project.clientName);
+              } catch (e) {
+                setToast('Erro ao gerar proposta: ' + (e instanceof Error ? e.message : 'desconhecido'));
+                setTimeout(() => setToast(null), 5000);
+              }
+              setIsExportingProposal(false);
+            }}
+            disabled={isExportingProposal}
+            className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-60"
+            style={{ backgroundColor: '#2F927B' }}
+          >
+            {isExportingProposal ? 'Gerando...' : '📄 Proposta Comercial'}
           </button>
           <button
             onClick={() => {
