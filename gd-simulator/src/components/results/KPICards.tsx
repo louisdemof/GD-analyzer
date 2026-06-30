@@ -412,9 +412,9 @@ export function KPICards({ summary, months, project, result }: Props) {
                       <span>Total COM Helexia</span>
                       <span className="font-mono">{formatBRL(scopeData.comTotal)}</span>
                     </div>
-                    <div className="mt-2 flex justify-between text-teal-700 font-semibold text-sm">
-                      <span>Economia líquida</span>
-                      <span className="font-mono">−{formatBRL(scopeData.economia)}</span>
+                    <div className={`mt-2 flex justify-between font-semibold text-sm ${scopeData.economia >= 0 ? 'text-teal-700' : 'text-rose-600'}`}>
+                      <span>{scopeData.economia >= 0 ? 'Economia líquida' : 'Custo adicional vs SEM'}</span>
+                      <span className="font-mono">{scopeData.economia >= 0 ? `−${formatBRL(scopeData.economia)}` : `+${formatBRL(Math.abs(scopeData.economia))}`}</span>
                     </div>
                   </div>
                 </div>
