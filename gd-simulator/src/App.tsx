@@ -9,6 +9,7 @@ import { ProjectEditor } from './pages/ProjectEditor';
 import { Results } from './pages/Results';
 import { AdminPanel } from './pages/AdminPanel';
 import { Compare } from './pages/Compare';
+import { Help } from './pages/Help';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LoginScreen } from './auth/LoginScreen';
@@ -53,6 +54,7 @@ function App() {
                 } />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/compare" element={<Compare />} />
+                <Route path="/ajuda" element={<Help />} />
               </Routes>
             </main>
           </div>

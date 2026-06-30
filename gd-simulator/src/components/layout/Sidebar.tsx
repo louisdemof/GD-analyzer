@@ -54,6 +54,15 @@ export function Sidebar() {
           </button>
         )}
 
+        <button
+          onClick={() => navigate('/ajuda')}
+          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+            location.pathname === '/ajuda' ? 'bg-white/20' : 'hover:bg-white/10'
+          }`}
+        >
+          ❔ Como funciona
+        </button>
+
         {recents.length > 0 && (
           <>
             <div className="pt-3 pb-1">
