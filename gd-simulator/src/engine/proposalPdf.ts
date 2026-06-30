@@ -244,7 +244,7 @@ function Page2(project: Project, result: SimulationResult, meta: ProposalMeta, d
     React.createElement(View, { style: s.about },
       React.createElement(Text, { style: s.aboutTitle }, 'Helexia · grupo Voltalia · grupo AMF'),
       React.createElement(Text, { style: s.aboutText }, HELEXIA_ABOUT),
-      React.createElement(Image, { src: `${import.meta.env.BASE_URL}grupo_brands.png`, style: { width: 440, alignSelf: 'center', marginTop: 10, marginBottom: 3 } }),
+      React.createElement(Image, { src: `${import.meta.env.BASE_URL}grupo_brands.png`, style: { width: 480, alignSelf: 'center', marginTop: 10, marginBottom: 3 } }),
       React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8', textAlign: 'center' } }, 'Marcas do grupo AMF presentes no Brasil'),
     ),
     React.createElement(Text, { style: s.disclaimer },
