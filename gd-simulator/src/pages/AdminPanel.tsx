@@ -4,7 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useAuth } from '../auth/AuthContext';
 import {
   cloudIsSuperAdmin, cloudRecentActivity, cloudAdminUserStats, LOGIN_PROJECT_ID,
-  cloudAdminCreateUser, cloudAdminUpdateUser, cloudAdminInviteUser,
+  cloudAdminCreateUser, cloudAdminUpdateUser, cloudAdminInviteUser, cloudSuperAdminEmails,
   type ActivityEntry, type AdminUserStat, type AuditAction,
 } from '../storage/cloudSync';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
@@ -14,6 +14,9 @@ const ACTION: Record<AuditAction, string> = {
   create: 'criou', trash: 'moveu p/ lixeira', restore: 'restaurou',
   delete: 'excluiu definitivamente', share: 'compartilhou', role_change: 'alterou permissão',
   unshare: 'removeu acesso', login: 'entrou no sistema',
+};
+const ACTION_ICON: Record<AuditAction, string> = {
+  create: '✨', trash: '🗑️', restore: '♻️', delete: '❌', share: '🔗', role_change: '🔑', unshare: '🚫', login: '➡️',
 };
 
 function timeAgo(iso: string | null): string {
@@ -59,6 +62,8 @@ export function AdminPanel() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editVals, setEditVals] = useState({ full_name: '', password: '' });
+  const [superEmails, setSuperEmails] = useState<Set<string>>(new Set());
+  const [userSearch, setUserSearch] = useState('');
 
   const reloadUsers = () => cloudAdminUserStats().then(setUsers).catch(() => {});
 
@@ -69,9 +74,15 @@ export function AdminPanel() {
       if (ok) {
         cloudRecentActivity(150).then(setActivity).catch(() => {});
         reloadUsers();
+        cloudSuperAdminEmails().then(es => setSuperEmails(new Set(es))).catch(() => {});
       }
     }).catch(() => setAllowed(false));
   }, [cloudEnabled]);
+
+  const filteredUsers = users.filter(u => {
+    const q = userSearch.trim().toLowerCase();
+    return !q || u.email.toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q);
+  });
 
   const flash = (ok: boolean, text: string) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 5000); };
 
@@ -153,35 +164,43 @@ export function AdminPanel() {
         })}
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Activity feed */}
-        <div className="md:col-span-2">
+      {msg && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg shadow-lg text-sm text-white ${msg.ok ? 'bg-emerald-600' : 'bg-rose-600'}`}>{msg.text}</div>
+      )}
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Activity feed (right, narrow) */}
+        <div className="lg:col-span-1 order-2">
           <h2 className="text-sm font-semibold text-slate-700 mb-2">Atividade recente</h2>
-          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-[60vh] overflow-auto">
+          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-[70vh] overflow-auto">
             {activity.length === 0 ? (
               <p className="text-sm text-slate-400 p-4">Nenhuma atividade ainda.</p>
             ) : activity.map(e => (
-              <div key={e.id} className="flex gap-3 px-4 py-2.5 text-sm">
+              <div key={e.id} className="flex gap-2.5 px-3 py-2 text-sm">
+                <span className="shrink-0 text-base leading-none mt-0.5" title={e.action}>{ACTION_ICON[e.action] ?? '•'}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-slate-700">
+                  <p className="text-slate-700 text-[13px] leading-snug">
                     <strong className="font-medium">{who(e.actorEmail)}</strong> {ACTION[e.action] ?? e.action}
                     {e.projectId !== LOGIN_PROJECT_ID && (
                       <>{' '}<span className="text-slate-500">{projNameById.get(e.projectId) || '(projeto removido)'}</span></>
                     )}
                     {e.detail ? <span className="text-slate-400"> · {e.detail}</span> : null}
                   </p>
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(e.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-                <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                  {new Date(e.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Users */}
-        <div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-2">Usuários ({users.length})</h2>
+        {/* Users (left, primary) */}
+        <div className="lg:col-span-2 order-1">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-slate-700">Usuários ({users.length})</h2>
+            <input value={userSearch} onChange={e => setUserSearch(e.target.value)} placeholder="Buscar usuário…" className="px-2 py-1 border border-slate-300 rounded text-xs w-48" />
+          </div>
 
           {/* Create user */}
           <div className="border border-slate-200 rounded-xl p-3 mb-3 bg-slate-50">
@@ -201,10 +220,8 @@ export function AdminPanel() {
               <p className="text-[10px] text-slate-400">Criar com senha: conta pronta na hora (você passa a senha). Convidar: o usuário recebe um e-mail para definir a própria senha (requer SMTP configurado no Supabase).</p>
             </div>
           </div>
-          {msg && <p className={`text-xs mb-2 ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
-
           <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-[55vh] overflow-auto">
-            {users.map(u => (
+            {filteredUsers.map(u => (
               <div key={u.id} className="px-3 py-2 text-sm">
                 {editId === u.id ? (
                   <div className="space-y-2">
@@ -221,7 +238,11 @@ export function AdminPanel() {
                       {avatarInitials(u.full_name, u.email)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-slate-700 truncate">{u.full_name || <span className="text-slate-400 italic">sem nome</span>}</p>
+                      <p className="text-slate-700 truncate flex items-center gap-1.5">
+                        {u.full_name || <span className="text-slate-400 italic">sem nome</span>}
+                        {superEmails.has(u.email.toLowerCase()) && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-navy-100 text-white shrink-0" style={{ backgroundColor: '#004B70' }}>super-admin</span>}
+                        {!u.lastSignInAt && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 shrink-0">nunca acessou</span>}
+                      </p>
                       <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
                       <p className="text-[11px] text-slate-400">
                         Último acesso: <span className="text-slate-500">{timeAgo(u.lastSignInAt)}</span> · {u.projectCount} projeto{u.projectCount === 1 ? '' : 's'}

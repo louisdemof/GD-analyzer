@@ -152,6 +152,13 @@ export async function cloudAdminInviteUser(email: string, fullName: string, redi
   return invokeAdminUsers({ action: 'invite', email, full_name: fullName, redirectTo });
 }
 
+export async function cloudSuperAdminEmails(): Promise<string[]> {
+  if (!(await authed()) || !supabase) return [];
+  const { data, error } = await supabase.rpc('super_admin_emails');
+  if (error || !data) return [];
+  return (data as string[]).map(e => e.toLowerCase());
+}
+
 // Heartbeat: stamp the current user's activity (so the admin panel shows real last-seen).
 export async function cloudTouchLastSeen(): Promise<void> {
   if (!supabase) return;

@@ -55,6 +55,11 @@ export function Dashboard() {
   const active = projects.filter(p => !p.deletedAt);
   const trashedProjects = projects.filter(p => !!p.deletedAt);
   const sharedCount = active.filter(p => isShared(p.id)).length;
+  // Portfolio KPIs
+  const kpiClientes = new Set(active.map(p => (p.clientName || '').trim().toLowerCase()).filter(Boolean)).size;
+  const kpiMWp = (active.reduce((s, p) => s + (p.plant?.capacityKWac || 0) + (p.additionalPlants || []).reduce((a, x) => a + (x.capacityKWac || 0), 0), 0) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  const kpiNeg = active.filter(p => ['negociacao', 'proposta'].includes(statusOf(p.status))).length;
+  const kpiGanho = active.filter(p => statusOf(p.status) === 'ganho').length;
   const sharingActive = sharedCount > 0;
 
   // Is the project in one of MY folders? (shared projects carry the owner's folderId,
@@ -164,7 +169,8 @@ export function Dashboard() {
         onDragStart={e => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; }}
         onClick={() => { setCurrentProject(p.id); navigate(`/project/${p.id}`); }}
         title={shared ? 'Compartilhado com você — arraste para organizar nas suas pastas' : 'Arraste para uma pasta à esquerda'}
-        className="p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-sm transition-all group"
+        className="p-4 pl-5 border border-slate-200 rounded-xl cursor-pointer hover:border-teal-300 hover:shadow-md transition-all group relative overflow-hidden"
+        style={{ borderLeft: `3px solid ${STATUS_META[statusOf(p.status)].dot}` }}
       >
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
@@ -209,10 +215,12 @@ export function Dashboard() {
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-3 mt-3 text-xs text-slate-400">
-          <span>{p.ucs.length} UCs</span>
+        <div className="flex items-center gap-2 mt-3 text-xs text-slate-400 flex-wrap">
+          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{p.distributor.name || '—'}</span>
+          <span>{p.ucs.length} UC{p.ucs.length === 1 ? '' : 's'}</span>
+          <span>·</span>
           <span>{p.plant.contractMonths || 24}m</span>
-          <span>{p.distributor.name || '—'}</span>
+          {p.marketType === 'ACL' && <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-medium">ACL</span>}
         </div>
         <div className="flex items-center justify-between mt-2">
           <p className="text-[10px] text-slate-300">
@@ -375,8 +383,39 @@ export function Dashboard() {
           </button>
           <input ref={fileInputRef} type="file" accept=".json,.gdproject.json" className="hidden" onChange={handleImport} />
           <Button variant="secondary" onClick={() => navigate('/compare')}>⚖ Comparar</Button>
-          <Button variant="primary" onClick={() => navigate('/new')}>+ Novo Projeto</Button>
+          <Button variant="primary" onClick={() => navigate('/new')} className="text-base px-5 py-2.5 shadow-sm">+ Novo Projeto</Button>
         </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        {([
+          { label: 'Clientes', value: kpiClientes, icon: '🏢', accent: '#004B70' },
+          { label: 'Potência total', value: `${kpiMWp} MWp`, icon: '⚡', accent: '#2F927B' },
+          { label: 'Em negociação', value: kpiNeg, icon: '🤝', accent: '#f59e0b' },
+          { label: 'Ganhos', value: kpiGanho, icon: '✅', accent: '#10b981' },
+        ]).map(k => (
+          <div key={k.label} className="relative rounded-xl border border-slate-200 bg-white p-3 overflow-hidden shadow-sm">
+            <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: k.accent }} />
+            <div className="flex items-center justify-between"><p className="text-xs text-slate-500">{k.label}</p><span className="opacity-70">{k.icon}</span></div>
+            <p className="text-xl font-bold text-slate-800 mt-0.5">{k.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick status filters */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <button onClick={() => setStatusFilter(null)} className={`px-3 py-1 rounded-full text-xs font-medium border ${statusFilter === null ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>Todos</button>
+        {STATUS_ORDER.map(st => {
+          const n = active.filter(p => statusOf(p.status) === st).length;
+          return (
+            <button key={st} onClick={() => setStatusFilter(statusFilter === st ? null : st)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1.5 ${statusFilter === st ? 'ring-2 ring-offset-1 ring-slate-400 border-transparent ' + STATUS_META[st].chip : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATUS_META[st].dot }} />
+              {STATUS_META[st].label} ({n})
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex gap-6">
@@ -540,12 +579,16 @@ export function Dashboard() {
             <div className="text-center py-16 px-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
               {projects.length === 0 ? (
                 <>
-                  <div className="text-4xl mb-3">⚡</div>
-                  <h3 className="text-base font-semibold text-slate-700">Nenhum projeto ainda</h3>
-                  <p className="text-sm text-slate-500 mt-1 mb-5 max-w-sm mx-auto">
-                    Crie um projeto do zero ou importe faturas (Energisa MS / COPEL) para preencher tudo automaticamente.
+                  <div className="text-5xl mb-3">⚡</div>
+                  <h3 className="text-lg font-semibold text-slate-700">Comece pela primeira fatura</h3>
+                  <p className="text-sm text-slate-500 mt-1 mb-5 max-w-md mx-auto">
+                    Importe as faturas do cliente (Energisa, COPEL, CEMIG, Equatorial, Light, Enel, EDP SP) e o app preenche
+                    distribuidora, tarifas, UCs e consumo automaticamente — ou crie um projeto do zero.
                   </p>
-                  <Button variant="primary" onClick={() => navigate('/new')}>+ Criar primeiro projeto</Button>
+                  <div className="flex gap-2 justify-center">
+                    <Button variant="primary" onClick={() => navigate('/new')} className="px-5 py-2.5">+ Criar / importar projeto</Button>
+                    <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>Importar .json</Button>
+                  </div>
                 </>
               ) : (
                 <>

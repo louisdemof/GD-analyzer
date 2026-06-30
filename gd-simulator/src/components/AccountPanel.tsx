@@ -33,7 +33,7 @@ export function AccountPanel({ onClose }: { onClose: () => void }) {
   async function changePw(e: React.FormEvent) {
     e.preventDefault();
     setErr(null); setMsg(null);
-    if (pw.length < 6) { setErr('A senha deve ter ao menos 6 caracteres.'); return; }
+    if (pw.length < 8) { setErr('A senha deve ter ao menos 8 caracteres.'); return; }
     if (pw !== pw2) { setErr('As senhas não coincidem.'); return; }
     setBusy(true);
     const { error } = await updatePassword(pw);
