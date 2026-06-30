@@ -153,7 +153,7 @@ function Page1(project: Project, result: SimulationResult, meta: ProposalMeta, d
     React.createElement(Text, { style: s.p },
       `Via ${tipoGd}, o cliente é conectado à usina solar ${usinaCod}${usinaNome}, sem instalar nada na sua planta. Com um contrato de fornecimento (PPA), passa a ter um custo fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh. Os créditos da usina compensam o consumo e os benefícios fiscais da GD reduzem ainda mais o valor líquido da fatura.`),
     React.createElement(Text, { style: { ...s.p, color: GREY } },
-      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração comprovada (P50) · ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês).`),
+      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês).`),
   );
 }
 
@@ -233,10 +233,10 @@ function Page2(project: Project, result: SimulationResult, meta: ProposalMeta, d
       React.createElement(Text, { style: s.aboutTitle }, 'Helexia · grupo Voltalia · grupo AMF'),
       React.createElement(Text, { style: s.aboutText }, HELEXIA_ABOUT),
       React.createElement(Image, { src: `${import.meta.env.BASE_URL}grupo_brands.png`, style: { width: 300, marginTop: 8, marginBottom: 2 } }),
-      React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8' } }, 'Empresas do grupo AMF'),
+      React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8' } }, 'Marcas do grupo AMF presentes no Brasil'),
     ),
     React.createElement(Text, { style: s.disclaimer },
-      `Estudo elaborado com base nas faturas e no perfil de consumo do cliente na data da análise. Os valores são uma projeção e não constituem oferta vinculante até a assinatura do contrato. Baseado em geração P50 e na tarifa ${project.distributor.name} homologada (${resolucao}); valores reais podem variar conforme condições climáticas, alterações tarifárias e disponibilidade da usina.`),
+      `Estudo preparado a partir das faturas e do perfil de consumo informados pelo cliente. As projeções consideram a geração solar estimada da usina (cenário médio esperado) e a tarifa vigente da ${project.distributor.name} (${resolucao}). Os valores são estimativos e não constituem proposta vinculante — as condições definitivas serão formalizadas em contrato. Resultados reais podem variar conforme o clima, reajustes tarifários e a disponibilidade da usina.`),
   );
 }
 
