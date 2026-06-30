@@ -16,6 +16,8 @@ const fmtMWh = (kwh: number) => (kwh / 1000).toLocaleString('pt-BR', { maximumFr
 const fmtPct = (v: number) => (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
 
 export interface ProposalMeta {
+  cliente?: string;        // override do nome exibido (default: nome do projeto limpo)
+  local?: string;          // cidade no cabeçalho (default: Rio de Janeiro)
   segmento?: string;       // ex.: "Comercial / Industrial"
   tipoGd?: string;         // ex.: "Autoconsumo Remoto (GD1)"
   usinaCodigo?: string;    // ex.: "HCO01"
@@ -63,6 +65,23 @@ const s = StyleSheet.create({
 
 function fmtModalidade(g: string): string {
   return g.replace(/_/g, ' ').replace(/\bVERDE\b/i, 'Verde').replace(/\bAZUL\b/i, 'Azul');
+}
+
+// Strip internal suffixes (— Copia / (cópia)) so the client sees a clean name.
+function cleanName(name?: string): string {
+  return (name || 'Cliente')
+    .replace(/\s*[—–-]\s*c[oó]pia\b.*$/i, '')
+    .replace(/\s*\(c[oó]pia[^)]*\)/ig, '')
+    .trim() || 'Cliente';
+}
+// "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.592, DE 23 DE JUNHO DE 2026" → "REH 3.592/2026".
+function shortResolution(r?: string): string {
+  if (!r) return 'resolução vigente';
+  if (r.length < 30) return r;
+  const num = r.match(/n[ºo°]\s*([\d.]+)/i)?.[1];
+  const years = r.match(/\b(\d{4})\b/g);
+  const year = years ? years[years.length - 1] : undefined;
+  return num && year ? `REH ${num}/${year}` : r;
 }
 
 function buildData(project: Project, result: SimulationResult) {
@@ -227,25 +246,40 @@ function MonthlyChart(d: ReturnType<typeof buildData>) {
   );
 }
 
-function Page1(project: Project, result: SimulationResult, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
+function usinaBits(meta: ProposalMeta, d: ReturnType<typeof buildData>) {
+  const multi = d.plants.length > 1;
+  const cod = meta.usinaCodigo ? `[${meta.usinaCodigo}] ` : '';
+  const name = d.plants[0]?.name ?? 'Usina Helexia';
+  return {
+    bandLabel: multi ? `${d.plants.length} usinas` : `Usina ${cod}${name}`,
+    phrase: multi ? `as usinas solares da Helexia (carteira de ${d.plants.length} usinas)` : `a usina solar ${cod}${name}`,
+  };
+}
+
+function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
   const { sm, n } = d;
+  const cliente = meta.cliente ?? cleanName(project.clientName);
   const segmento = meta.segmento ?? 'Comercial / Industrial';
   const tipoGd = meta.tipoGd ?? 'Autoconsumo Remoto (GD1)';
   const mercado = project.marketType === 'ACL' ? 'Mercado Livre (ACL)' : 'Mercado Cativo';
-  const usinaNome = d.plants.length > 1 ? `${d.plants.length} usinas` : (d.plants[0]?.name ?? 'Usina Helexia');
-  const usinaCod = meta.usinaCodigo ? `[${meta.usinaCodigo}] ` : '';
+  const local = meta.local ?? 'Rio de Janeiro';
+  const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const u = usinaBits(meta, d);
+  const coverage = d.consTot > 0 ? (sm.totalGeneration / (d.consTot * n)) * 100 : 0;
+  const ecoPos = sm.economiaLiquida >= 0;
 
   return React.createElement(Page, { size: 'A4', style: s.page },
-    React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
+    React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
       React.createElement(Image, { src: `${import.meta.env.BASE_URL}Helexia_main_logo_screen_L.png`, style: { width: 120 } }),
       project.clientLogo
         ? React.createElement(Image, { src: project.clientLogo, style: { width: 90, height: 36, objectFit: 'contain' } })
-        : React.createElement(Text, { style: { fontSize: 11, fontWeight: 'bold', color: NAVY } }, project.clientName),
+        : React.createElement(Text, { style: { fontSize: 11, fontWeight: 'bold', color: NAVY } }, cliente),
     ),
+    React.createElement(Text, { style: { fontSize: 7, color: GREY, textAlign: 'right', marginBottom: 6 } }, `${local}, ${dataStr} · proposta válida por 15 dias`),
     React.createElement(View, { style: s.band },
-      React.createElement(Text, { style: s.bandTitle }, `Proposta de Economia em Energia · ${project.clientName}`),
+      React.createElement(Text, { style: s.bandTitle }, `Proposta de Economia em Energia · ${cliente}`),
       React.createElement(Text, { style: s.bandSub }, `${segmento} · Grupo A ${d.modalidade} · ${mercado} · ${project.distributor.state} (${project.distributor.name})`),
-      React.createElement(Text, { style: s.bandSub }, `${tipoGd} · Usina ${usinaCod}${usinaNome} · Contrato ${n} meses`),
+      React.createElement(Text, { style: s.bandSub }, `${tipoGd} · ${u.bandLabel} · Contrato ${n} meses`),
     ),
     // Hero band
     React.createElement(View, { style: s.heroRow },
@@ -256,7 +290,7 @@ function Page1(project: Project, result: SimulationResult, meta: ProposalMeta, d
         { label: 'Desconto médio', value: fmtPct(sm.economiaPct), sub: `R$ ${Math.round(sm.economiaLiquida / n).toLocaleString('pt-BR')}/mês` },
       ].map((k, i) => React.createElement(View, { key: i, style: s.heroCard },
         React.createElement(Text, { style: s.heroLabel }, k.label),
-        React.createElement(Text, { style: { ...s.heroValue, color: i === 2 || i === 3 ? TEAL : NAVY } }, k.value),
+        React.createElement(Text, { style: { ...s.heroValue, color: (i === 2 || i === 3) ? (ecoPos ? TEAL : '#dc2626') : NAVY } }, k.value),
         React.createElement(Text, { style: s.heroSub }, k.sub),
       ))
     ),
@@ -284,42 +318,41 @@ function Page1(project: Project, result: SimulationResult, meta: ProposalMeta, d
     d.pontaTarifa > 0 && React.createElement(Text, { style: { ...s.p, marginBottom: 2 } },
       `O consumo em ponta (tarifa evitada ~R$ ${Math.round(d.pontaTarifa).toLocaleString('pt-BR')}/MWh) é o que mais encarece a fatura — é onde a GD gera mais economia.`),
     MonthlyChart(d),
+    // A solução (moved here to balance the layout)
+    React.createElement(Text, { style: { ...s.h2, marginTop: 8 } }, 'A solução Helexia — Autoconsumo Remoto'),
+    React.createElement(Text, { style: s.p },
+      `A Helexia constrói, é proprietária e opera ${u.phrase} — o cliente não investe, não instala nada na sua planta e não cuida da manutenção. No modelo de Autoconsumo Remoto (Lei 14.300/2022), a energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades consumidoras do cliente. O cliente paga apenas pela energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — abaixo da tarifa e sem bandeiras.`),
+    React.createElement(Text, { style: s.p },
+      `Estrutura contratual: Contrato de Locação da Usina + O&M — a operação e a manutenção ficam por conta da Helexia. Remuneração em modelo take-or-pay sobre a energia injetada. O rateio dos créditos entre as unidades é notificado à distribuidora (NDU). Créditos garantidos pela Lei 14.300/2022.`),
+    React.createElement(Text, { style: { ...s.p, color: GREY } },
+      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês), cobrindo ~${coverage.toFixed(0)}% do consumo.`),
   );
 }
 
-function Page2(project: Project, result: SimulationResult, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
+function Page2(project: Project, _result: SimulationResult, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
   const { sm, n } = d;
-  const tipoGd = meta.tipoGd ?? 'Autoconsumo Remoto (GD1)';
-  const usinaNome = d.plants.length > 1 ? `${d.plants.length} usinas` : (d.plants[0]?.name ?? 'Usina Helexia');
-  const usinaCod = meta.usinaCodigo ? `[${meta.usinaCodigo}] ` : '';
   const ecoPos = sm.economiaLiquida >= 0;
+  const contato = meta.contato ?? 'comercial.brasil@helexia.eu';
+  const resolucao = shortResolution(project.distributor.resolution);
+  const bancoShare = sm.valorTotal > 0 ? sm.bancoResidualValue / sm.valorTotal : 0;
+  const bancoMaterial = bancoShare >= 0.05;
 
   return React.createElement(Page, { size: 'A4', style: s.page },
-    React.createElement(Text, { style: s.h2 }, 'A solução Helexia — Autoconsumo Remoto'),
-    React.createElement(Text, { style: s.p },
-      `A Helexia constrói, é proprietária e opera a usina solar ${usinaCod}${usinaNome} — o cliente não investe, não instala nada na sua planta e não cuida da manutenção. No modelo de Autoconsumo Remoto (Lei 14.300/2022), a energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades consumidoras do cliente. O cliente paga apenas pela energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — abaixo da tarifa e sem bandeiras.`),
-    React.createElement(Text, { style: s.p },
-      `Estrutura contratual: Contrato de Locação da Usina + O&M — a operação e a manutenção ficam por conta da Helexia. Remuneração em modelo take-or-pay sobre a energia injetada. O rateio dos créditos entre as unidades é definido e notificado à distribuidora (NDU). Os créditos são garantidos pela Lei 14.300/2022.`),
-    React.createElement(Text, { style: { ...s.p, color: GREY } },
-      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês).`),
-    React.createElement(Text, { style: { ...s.h2, marginTop: 8 } }, 'Comparativo detalhado — SEM vs COM Helexia'),
+    React.createElement(Text, { style: s.h2 }, 'Comparativo detalhado — SEM vs COM Helexia'),
     DetailedInvoices(project, d),
     ecoPos
-      ? React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: '#15803d', marginTop: 8 } },
-          `Break-even desde o 1º mês · economia acumulada de ${fmtBRL(sm.economiaLiquida)} em ${n} meses.`)
-      : React.createElement(Text, { style: { fontSize: 8, color: '#dc2626', marginTop: 8 } },
+      ? React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: '#15803d', marginTop: 6 } },
+          `Economia acumulada de ${fmtBRL(sm.economiaLiquida)} em ${n} meses (média do contrato).`)
+      : React.createElement(Text, { style: { fontSize: 8, color: '#dc2626', marginTop: 6 } },
           `Neste cenário o custo COM supera o SEM em ${fmtBRL(Math.abs(sm.economiaLiquida))} — revise PPA, tarifa-base ou rateio.`),
-    React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginTop: 6 } }, 'Banco de créditos — um ativo que continua seu'),
-    React.createElement(Text, { style: { ...s.p, marginTop: 2 } },
-      `A energia injetada e não consumida vira crédito no Sistema de Compensação (SCEE), válido por até 60 meses a partir da geração (Lei 14.300/2022). Os créditos abatem o consumo dos meses seguintes ou de outras unidades do cliente (autoconsumo remoto). Ao final do contrato, o saldo de ${fmtMWh(sm.bancoResidualKWh)} ≈ ${fmtBRL(sm.bancoResidualValue)} (valorizado ao PPA) ainda pertence ao cliente — ao serem utilizados, esses créditos abatem a tarifa cheia, valendo ainda mais.`),
-  );
-}
-
-function Page3(project: Project, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
-  const contato = meta.contato ?? 'comercial.brasil@helexia.eu';
-  const resolucao = project.distributor.resolution || 'resolução vigente';
-  void d;
-  return React.createElement(Page, { size: 'A4', style: s.page },
+    // Banco — emphasis scales with materiality
+    bancoMaterial
+      ? React.createElement(View, null,
+          React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginTop: 6 } }, 'Banco de créditos — um ativo que continua seu'),
+          React.createElement(Text, { style: { ...s.p, marginTop: 2 } },
+            `A energia injetada e não consumida vira crédito no Sistema de Compensação (SCEE), válido por até 60 meses a partir da geração (Lei 14.300/2022). Os créditos abatem o consumo dos meses seguintes ou de outras unidades do cliente. Ao final do contrato, o saldo de ${fmtMWh(sm.bancoResidualKWh)}, equivalente a ${fmtBRL(sm.bancoResidualValue)} ao PPA, ainda pertence ao cliente — ao serem utilizados, abatem a tarifa cheia, valendo ainda mais.`))
+      : React.createElement(Text, { style: { ...s.p, marginTop: 6 } },
+          `Banco de créditos residual ao fim do contrato: ${fmtMWh(sm.bancoResidualKWh)} (${fmtBRL(sm.bancoResidualValue)} ao PPA), válidos por até 60 meses (Lei 14.300/2022) — crédito que continua do cliente.`),
     React.createElement(Text, { style: s.quote },
       '"Com o modelo da Helexia, o cliente paga menos pela energia fora e dentro da ponta, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'),
     React.createElement(Text, { style: s.cta }, 'Próximos passos'),
@@ -340,7 +373,7 @@ function Page3(project: Project, meta: ProposalMeta, d: ReturnType<typeof buildD
     React.createElement(View, { style: s.about },
       React.createElement(Text, { style: s.aboutTitle }, 'Helexia · grupo Voltalia · grupo AMF'),
       React.createElement(Text, { style: s.aboutText }, HELEXIA_ABOUT),
-      React.createElement(Image, { src: `${import.meta.env.BASE_URL}grupo_brands.png`, style: { width: 480, alignSelf: 'center', marginTop: 10, marginBottom: 3 } }),
+      React.createElement(Image, { src: `${import.meta.env.BASE_URL}grupo_brands.png`, style: { width: 480, alignSelf: 'center', marginTop: 8, marginBottom: 3 } }),
       React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8', textAlign: 'center' } }, 'Marcas do grupo AMF presentes no Brasil'),
     ),
     React.createElement(Text, { style: s.disclaimer },
@@ -353,7 +386,6 @@ export async function generateProposalPDF(project: Project, result: SimulationRe
   const doc = React.createElement(Document, null,
     Page1(project, result, meta, d),
     Page2(project, result, meta, d),
-    Page3(project, meta, d),
   );
   return pdf(doc).toBlob();
 }
@@ -362,7 +394,7 @@ export function downloadProposalPDF(blob: Blob, clientName: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `Proposta_Helexia_${(clientName || 'Cliente').replace(/[^a-z0-9]+/gi, '_')}.pdf`;
+  a.download = `Proposta_Helexia_${cleanName(clientName).replace(/[^a-z0-9]+/gi, '_')}.pdf`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
