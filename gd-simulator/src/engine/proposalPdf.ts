@@ -86,29 +86,27 @@ function buildData(project: Project, result: SimulationResult) {
   const ppaMWh = (plants[0]?.ppaRateRsBRLkWh ?? 0) * 1000;
   const pontaTarifa = (project.distributor.T_APT ?? 0) * 1000;
 
-  // Detailed SEM/COM invoice for Ano 1 — mirrors KPICards exactly so the proposal matches
-  // the app's "Detalhe Impostos" view (ACL: energia ACL + TUSD/demanda; COM: residual + PPA).
+  // Detailed SEM/COM invoice — MONTHLY AVERAGE over the whole contract (clients read their
+  // monthly bill, not annual). Mirrors KPICards' decomposition so it matches "Detalhe Impostos".
   const isACL = project.marketType === 'ACL';
   const distName = project.distributor.name?.trim() || 'Distribuidora';
-  const y1arr = result.months.slice(0, Math.min(12, result.months.length));
-  const mY1 = y1arr.length || 12;
-  const sy = (f: (m: typeof y1arr[number]) => number) => y1arr.reduce((a, m) => a + (f(m) || 0), 0);
+  const allSum = (f: (m: typeof result.months[number]) => number) => result.months.reduce((a, m) => a + (f(m) || 0), 0);
   const T_DEM = computeDerivedTariffs(project.distributor).T_A_DEMANDA ?? 0;
   const monthlyDemandaR = project.ucs.filter(u => u.isGrupoA && u.id !== 'bat')
     .reduce((s, u) => s + (u.demandaFaturadaFP ?? 0), 0) * T_DEM;
-  const y1 = {
-    teFp: sy(m => m.sem.teFpCost), tePt: sy(m => m.sem.tePtCost),
-    tusdFp: sy(m => m.sem.tusdFpCost), tusdPt: sy(m => m.sem.tusdPtCost),
-    demandaAcl: sy(m => m.sem.demandaCost),
-    semTotal: sy(m => m.sem.totalCost),
-    rede: sy(m => m.com.redeCost),
-    ppa: sy(m => m.ppaCost),
-    icmsAdd: sy(m => m.com.icmsAdditional),
-    economia: sy(m => m.economia),
-    demCom: monthlyDemandaR * mY1,
+  const mavg = {
+    teFp: allSum(m => m.sem.teFpCost) / n, tePt: allSum(m => m.sem.tePtCost) / n,
+    tusdFp: allSum(m => m.sem.tusdFpCost) / n, tusdPt: allSum(m => m.sem.tusdPtCost) / n,
+    demandaAcl: allSum(m => m.sem.demandaCost) / n,
+    semTotal: sm.baselineSEM / n,
+    rede: allSum(m => m.com.redeCost) / n,
+    ppa: sm.totalPPACost / n,
+    icmsAdd: allSum(m => m.com.icmsAdditional) / n,
+    economia: sm.economiaLiquida / n,
+    demCom: monthlyDemandaR,
   };
-  const energiaResidual = Math.max(0, y1.rede - y1.demCom);
-  const comTotalY1 = y1.rede + y1.ppa + y1.icmsAdd;
+  const energiaResidual = Math.max(0, mavg.rede - mavg.demCom);
+  const comTotalAvg = mavg.rede + mavg.ppa + mavg.icmsAdd;
 
   // 12-month series for the chart: client consumption (FP/PT) + plant generation (kWh).
   const n12 = Math.min(12, result.months.length);
@@ -126,7 +124,7 @@ function buildData(project: Project, result: SimulationResult) {
     sm, n, plants, ppaTotal, rede, pcAdd, fp, pt, consTot, modalidade, ppaMWh, pontaTarifa,
     custoCom: sm.baselineSEM - sm.economiaLiquida,
     capacidade: plants.reduce((a, p) => a + (p.capacityKWac ?? 0), 0),
-    isACL, distName, y1, energiaResidual, comTotalY1,
+    isACL, distName, mavg, energiaResidual, comTotalAvg,
     labels, gen, cFP, cPT, maxBar, n12,
   };
 }
@@ -145,65 +143,74 @@ const invSec = (t: string) => React.createElement(Text, { style: { fontSize: 6.5
 const invDiv = () => React.createElement(View, { style: { borderTopWidth: 0.5, borderTopColor: '#cbd5e1', marginVertical: 2 } });
 
 function DetailedInvoices(project: Project, d: ReturnType<typeof buildData>) {
-  const { y1, isACL, distName } = d;
+  const { mavg, isACL, distName } = d;
   const semCol = React.createElement(View, { style: { ...s.col, flex: 1 } },
-    React.createElement(Text, { style: s.colTitle }, isACL ? 'SEM Helexia — Energia ACL + Distribuidora (Ano 1)' : 'SEM Helexia — Fatura Distribuidora (Ano 1)'),
+    React.createElement(Text, { style: s.colTitle }, isACL ? 'SEM Helexia — Energia ACL + Distribuidora (média/mês)' : 'SEM Helexia — Fatura Distribuidora (média/mês)'),
     ...(isACL ? [
       invSec('Energia ACL'),
-      invRow('Energia ACL (TE)', y1.teFp + y1.tePt, 'Comercializadora'),
+      invRow('Energia ACL (TE)', mavg.teFp + mavg.tePt, 'Comercializadora'),
       invSec(distName),
-      invRow('TUSD Fora Ponta', y1.tusdFp),
-      y1.tusdPt > 0 ? invRow('TUSD Ponta', y1.tusdPt) : null,
-      invRow('Demanda contratada', y1.demandaAcl, 'c/ desconto incentivada'),
+      invRow('TUSD Fora Ponta', mavg.tusdFp),
+      mavg.tusdPt > 0 ? invRow('TUSD Ponta', mavg.tusdPt) : null,
+      invRow('Demanda contratada', mavg.demandaAcl, 'c/ desconto incentivada'),
       invDiv(),
-      invRow(`Subtotal ${distName}`, y1.tusdFp + y1.tusdPt + y1.demandaAcl),
+      invRow(`Subtotal ${distName}`, mavg.tusdFp + mavg.tusdPt + mavg.demandaAcl),
       invDiv(),
-      invRow('Total atual (SEM)', y1.semTotal, undefined, true),
+      invRow('Total atual (SEM)', mavg.semTotal, undefined, true),
     ] : [
       invSec(distName),
-      invRow('TUSD Fora Ponta', y1.tusdFp),
-      y1.tusdPt > 0 ? invRow('TUSD Ponta', y1.tusdPt) : null,
-      invRow('TE Fora Ponta', y1.teFp),
-      y1.tePt > 0 ? invRow('TE Ponta', y1.tePt) : null,
-      invRow('Demanda contratada', y1.demandaAcl, 'Não compensada'),
+      invRow('TUSD Fora Ponta', mavg.tusdFp),
+      mavg.tusdPt > 0 ? invRow('TUSD Ponta', mavg.tusdPt) : null,
+      invRow('TE Fora Ponta', mavg.teFp),
+      mavg.tePt > 0 ? invRow('TE Ponta', mavg.tePt) : null,
+      invRow('Demanda contratada', mavg.demandaAcl, 'Não compensada'),
       invDiv(),
-      invRow(`Total Fatura ${distName}`, y1.semTotal, undefined, true),
+      invRow(`Total Fatura ${distName}`, mavg.semTotal, undefined, true),
     ]).filter(Boolean),
     React.createElement(Text, { style: { fontSize: 5.5, color: '#94a3b8', marginTop: 4 } }, 'Obs: não inclui CIP, reativo excedente, subsídios — valores marginais ignorados na simulação.'),
   );
-  const ecoPos = y1.economia >= 0;
+  const ecoPos = mavg.economia >= 0;
   const ecoColor = ecoPos ? '#15803d' : '#dc2626';
+  const pct = d.sm.economiaPct; // overall reduction over the contract
   const comCol = React.createElement(View, { style: { ...s.col, flex: 1, borderColor: TEAL, backgroundColor: '#ecfdf5' } },
-    React.createElement(Text, { style: s.colTitle }, 'COM Helexia — Distribuidora + Helexia (Ano 1)'),
+    React.createElement(Text, { style: s.colTitle }, 'COM Helexia — Distribuidora + Helexia (média/mês)'),
     invSec(distName),
     invRow('Energia residual', d.energiaResidual, d.energiaResidual === 0 ? 'Totalmente compensada' : undefined),
-    invRow('Demanda contratada', y1.demCom, isACL ? 'Cativo — demanda cheia (≠ SEM)' : 'Idêntica ao SEM'),
+    invRow('Demanda contratada', mavg.demCom, isACL ? 'Cativo — demanda cheia (≠ SEM)' : 'Idêntica ao SEM'),
     invDiv(),
-    invRow(`Subtotal ${distName}`, y1.rede),
+    invRow(`Subtotal ${distName}`, mavg.rede),
     invSec('Helexia'),
-    invRow('PPA (geração × tarifa)', y1.ppa),
+    invRow('PPA (geração × tarifa)', mavg.ppa),
     invDiv(),
-    invRow('Total COM Helexia', d.comTotalY1, undefined, true),
+    invRow('Total COM Helexia', d.comTotalAvg, undefined, true),
     React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 } },
-      React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: ecoColor } }, ecoPos ? 'Economia líquida (Ano 1)' : 'Custo adicional vs SEM (Ano 1)'),
-      React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: ecoColor } }, `${ecoPos ? '' : '−'}${fmtBRL(Math.abs(y1.economia))}`),
+      React.createElement(Text, { style: { fontSize: 8.5, fontWeight: 'bold', color: ecoColor } }, ecoPos ? `Economia média (${fmtPct(pct)})` : `Custo adicional vs SEM (${fmtPct(Math.abs(pct))})`),
+      React.createElement(Text, { style: { fontSize: 8.5, fontWeight: 'bold', color: ecoColor } }, `${ecoPos ? '' : '−'}${fmtBRL(Math.abs(mavg.economia))}/mês`),
     ),
   );
   return React.createElement(View, { style: s.twoCol, wrap: false }, semCol, comCol);
 }
 
 function MonthlyChart(d: ReturnType<typeof buildData>) {
-  const H = 78, plotW = 515;
+  const H = 70, plotW = 515;
   const gw = plotW / Math.max(1, d.n12);
-  const barW = Math.max(4, gw * 0.30);
+  const barW = Math.max(6, gw * 0.32);
+  const mwh = (v: number) => Math.round(v / 1000).toLocaleString('pt-BR'); // MWh label
   return React.createElement(View, { wrap: false, style: { marginTop: 4 } },
-    React.createElement(Text, { style: s.h2 }, 'Consumo mensal (Fora Ponta + Ponta) vs Geração — 12 meses'),
-    React.createElement(View, { style: { flexDirection: 'row', alignItems: 'flex-end', height: H, marginBottom: 2 } },
-      ...Array.from({ length: d.n12 }, (_, m) => React.createElement(View, { key: m, style: { width: gw, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 2 } },
-        React.createElement(View, { style: { width: barW },
-        }, React.createElement(View, { style: { width: barW, height: d.cPT[m] / d.maxBar * H, backgroundColor: '#6692A8' } }),
-          React.createElement(View, { style: { width: barW, height: d.cFP[m] / d.maxBar * H, backgroundColor: NAVY } })),
-        React.createElement(View, { style: { width: barW, height: d.gen[m] / d.maxBar * H, backgroundColor: LIME } }),
+    React.createElement(Text, { style: s.h2 }, 'Consumo mensal (Fora Ponta + Ponta) vs Geração — 12 meses · MWh'),
+    React.createElement(View, { style: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 2 } },
+      ...Array.from({ length: d.n12 }, (_, m) => React.createElement(View, { key: m, style: { width: gw, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 1.5 } },
+        // consumption bar (stacked FP+PT) with value label on top
+        React.createElement(View, { style: { width: barW, alignItems: 'center' } },
+          React.createElement(Text, { style: { fontSize: 4.5, color: NAVY, marginBottom: 1 } }, mwh(d.cFP[m] + d.cPT[m])),
+          React.createElement(View, { style: { width: barW, height: d.cPT[m] / d.maxBar * H, backgroundColor: '#6692A8' } }),
+          React.createElement(View, { style: { width: barW, height: d.cFP[m] / d.maxBar * H, backgroundColor: NAVY } }),
+        ),
+        // generation bar with value label on top
+        React.createElement(View, { style: { width: barW, alignItems: 'center' } },
+          React.createElement(Text, { style: { fontSize: 4.5, color: '#658c00', marginBottom: 1 } }, mwh(d.gen[m])),
+          React.createElement(View, { style: { width: barW, height: d.gen[m] / d.maxBar * H, backgroundColor: LIME } }),
+        ),
       )),
     ),
     React.createElement(View, { style: { flexDirection: 'row' } },
@@ -216,7 +223,7 @@ function MonthlyChart(d: ReturnType<typeof buildData>) {
           React.createElement(Text, { style: { fontSize: 6.5, color: '#475569' } }, lab))),
     ),
     React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8', marginTop: 2 } },
-      `Base das faturas do cliente (consumo) e geração estimada da usina — para conferência da premissa.`),
+      `Valores em MWh · base das faturas do cliente (consumo) e geração estimada da usina — para conferência da premissa.`),
   );
 }
 
