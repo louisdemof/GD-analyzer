@@ -921,3 +921,32 @@ export async function parseEdpSpFatura(file: File, password?: string): Promise<P
   result.ok = result.errors.length === 0;
   return result;
 }
+
+// ── Import reconciliation / health checks ────────────────────────────────────
+// Catches the kinds of mistakes a best-effort parser can make (10×/100× number
+// errors, missing months, zero consumption, missing demand) so the user can verify
+// before trusting the import. Returns human-readable warnings (empty = looks healthy).
+export function faturaHealth(p: ParsedFatura): string[] {
+  const w: string[] = [];
+  const h = p.history ?? [];
+  if (h.length === 0) return ['Nenhum mês de histórico reconhecido — confira a fatura.'];
+  if (h.length < 6) w.push(`Apenas ${h.length} mês(es) de histórico — o ideal são 12. Verifique a leitura da tabela.`);
+
+  const fp = h.map(r => r.consumoForaPonta || 0);
+  const nonzero = fp.filter(v => v > 0).sort((a, b) => a - b);
+  if (nonzero.length === 0) {
+    w.push('Consumo fora-ponta zero em todos os meses — possível erro de leitura.');
+  } else {
+    const median = nonzero[Math.floor(nonzero.length / 2)];
+    // 10×/100× outliers (e.g. dot-vs-comma parsing): any month far from the median.
+    if (fp.some(v => v > median * 5)) w.push('Um mês tem consumo muito acima do padrão (possível erro de escala na leitura) — confira os valores.');
+    if (fp.some(v => v > 0 && v < median / 5)) w.push('Um mês tem consumo muito abaixo do padrão — confira.');
+    if (fp.some(v => v === 0)) w.push('Há mês(es) com consumo fora-ponta zero — confira se é real.');
+  }
+
+  // Grupo A should have a contracted/billed demand.
+  const isGrupoA = /A[1-4]/.test(p.classificacao || '') && !/\bB[123]\b/.test(p.classificacao || '');
+  if (isGrupoA && !p.demandaContratadaFP) w.push('Demanda contratada não detectada (Grupo A) — informe manualmente.');
+
+  return w;
+}

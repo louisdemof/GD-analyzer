@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
-import { parseAnyFatura, type ParsedFatura } from '../engine/faturaParser';
+import { parseAnyFatura, faturaHealth, type ParsedFatura } from '../engine/faturaParser';
 import { buildProjectFromFaturas } from '../engine/projectFromFaturas';
 import type { Distributor } from '../engine/types';
 
@@ -12,6 +12,7 @@ interface ParsedItem {
   ok: boolean;
   parsed?: ParsedFatura;
   error?: string;
+  health?: string[];
 }
 
 export function NewProject() {
@@ -118,6 +119,7 @@ export function NewProject() {
           error: parsed.needsPassword
             ? 'PDF protegido — senha não encontrada no nome do arquivo (ex.: NOME_0206.pdf).'
             : (parsed.errors.join('; ') || undefined),
+          health: parsed.ok ? faturaHealth(parsed) : undefined,
         });
       } catch (e) {
         results.push({
@@ -370,14 +372,28 @@ export function NewProject() {
                   </thead>
                   <tbody>
                     {items.map((it, i) => (
-                      <tr key={i} className="border-t border-slate-100">
-                        <td className="py-1 px-2">
-                          {it.ok ? <span className="text-emerald-600">✓</span> : <span className="text-red-600" title={it.error}>✗</span>}
-                        </td>
-                        <td className="py-1 px-2 font-mono">{it.parsed?.ucNumero || it.parsed?.ucMatricula || '—'}</td>
-                        <td className="py-1 px-2 truncate max-w-xs">{(it.parsed?.classificacao || '').slice(0, 40)}</td>
-                        <td className="py-1 px-2 text-right">{it.parsed?.history.length ?? 0}m</td>
-                      </tr>
+                      <Fragment key={i}>
+                        <tr className="border-t border-slate-100">
+                          <td className="py-1 px-2">
+                            {it.ok
+                              ? (it.health && it.health.length > 0
+                                  ? <span className="text-amber-500" title={it.health.join('\n')}>⚠</span>
+                                  : <span className="text-emerald-600">✓</span>)
+                              : <span className="text-red-600" title={it.error}>✗</span>}
+                          </td>
+                          <td className="py-1 px-2 font-mono">{it.parsed?.ucNumero || it.parsed?.ucMatricula || '—'}</td>
+                          <td className="py-1 px-2 truncate max-w-xs">{(it.parsed?.classificacao || '').slice(0, 40)}</td>
+                          <td className="py-1 px-2 text-right">{it.parsed?.history.length ?? 0}m</td>
+                        </tr>
+                        {it.ok && it.health && it.health.length > 0 && (
+                          <tr>
+                            <td></td>
+                            <td colSpan={3} className="px-2 pb-1 text-[10px] text-amber-700">
+                              {it.health.map((h, j) => <div key={j}>⚠ {h}</div>)}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
