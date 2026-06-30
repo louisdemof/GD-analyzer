@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from './ui/Button';
+import { PasswordInput } from './ui/PasswordInput';
 
 // Personal account panel: who you are, change password, sign out.
 export function AccountPanel({ onClose }: { onClose: () => void }) {
@@ -70,10 +71,10 @@ export function AccountPanel({ onClose }: { onClose: () => void }) {
 
         <form onSubmit={changePw} className="space-y-2 border-t border-slate-100 pt-4 mt-4">
           <p className="text-xs font-medium text-slate-600">Alterar senha</p>
-          <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Nova senha"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" autoComplete="new-password" />
-          <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirmar nova senha"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" autoComplete="new-password" />
+          <PasswordInput value={pw} onChange={setPw} placeholder="Nova senha"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+          <PasswordInput value={pw2} onChange={setPw2} placeholder="Confirmar nova senha"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           {err && <p className="text-xs text-red-600">{err}</p>}
           {msg && <p className="text-xs text-emerald-700">{msg}</p>}
           <Button type="submit" variant="navy" disabled={busy} className="w-full">{busy ? 'Salvando…' : 'Atualizar senha'}</Button>

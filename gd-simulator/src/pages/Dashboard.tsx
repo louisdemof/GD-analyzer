@@ -13,7 +13,11 @@ const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#
 export function Dashboard() {
   const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject, deleteProject } = useProjectStore();
   const navigate = useNavigate();
-  const { cloudEnabled } = useAuth();
+  const { cloudEnabled, user } = useAuth();
+  const firstName = (() => {
+    const n = (user?.user_metadata?.full_name as string) || (user?.email ?? '').split('@')[0];
+    return (n || '').split(/[\s.]+/)[0].replace(/^./, c => c.toUpperCase());
+  })();
   const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
   const [showDemos, setShowDemos] = useState(false);
   // Drag-and-drop: id of the folder currently hovered while dragging a project ('none' = Sem pasta)
@@ -319,8 +323,11 @@ export function Dashboard() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">GD Analyzer</h1>
-          <p className="text-sm text-slate-500 mt-1">Simulador de Geração Distribuída — Helexia Brasil</p>
+          <h1 className="text-2xl font-bold text-slate-800">{firstName ? `Olá, ${firstName} 👋` : 'GD Analyzer'}</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {active.length} projeto{active.length === 1 ? '' : 's'} ativo{active.length === 1 ? '' : 's'}
+            {sharedCount > 0 ? ` · ${sharedCount} compartilhado${sharedCount === 1 ? '' : 's'}` : ''} · Simulador GD — Helexia Brasil
+          </p>
         </div>
         <div className="flex gap-2">
           {/* Demos — tucked into a dropdown to declutter the header */}

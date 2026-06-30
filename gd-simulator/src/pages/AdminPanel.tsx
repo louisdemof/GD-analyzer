@@ -8,6 +8,7 @@ import {
   type ActivityEntry, type AdminUserStat, type AuditAction,
 } from '../storage/cloudSync';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
+import { PasswordInput } from '../components/ui/PasswordInput';
 
 const ACTION: Record<AuditAction, string> = {
   create: 'criou', trash: 'moveu p/ lixeira', restore: 'restaurou',
@@ -25,14 +26,24 @@ function timeAgo(iso: string | null): string {
   return 'agora';
 }
 
-function Tile({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+function Tile({ label, value, sub, icon, accent = '#004B70' }: { label: string; value: string | number; sub?: string; icon?: string; accent?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs text-slate-500">{label}</p>
+    <div className="relative rounded-xl border border-slate-200 bg-white p-4 overflow-hidden shadow-sm">
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: accent }} />
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500">{label}</p>
+        {icon && <span className="text-base opacity-70">{icon}</span>}
+      </div>
       <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
       {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
     </div>
   );
+}
+
+function avatarInitials(name: string | null, email: string): string {
+  const base = (name || email.split('@')[0]).trim();
+  const parts = base.split(/[\s.]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || email.slice(0, 2).toUpperCase();
 }
 
 export function AdminPanel() {
@@ -116,15 +127,18 @@ export function AdminPanel() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-800 mb-1">Painel de Administração</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold text-slate-800">🛡️ Painel de Administração</h1>
+        <button onClick={() => navigate('/')} className="text-sm text-teal-600 hover:underline">← Dashboard</button>
+      </div>
       <p className="text-sm text-slate-500 mb-6">Uso e atividade — todos os projetos e usuários.</p>
 
       {/* Usage tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <Tile label="Usuários" value={users.length} />
-        <Tile label="Projetos ativos" value={active.length} />
-        <Tile label="Na lixeira" value={trashed.length} />
-        <Tile label="Eventos registrados" value={activity.length} sub="últimos 150" />
+        <Tile label="Usuários" value={users.length} icon="👥" accent="#004B70" />
+        <Tile label="Projetos ativos" value={active.length} icon="📁" accent="#2F927B" />
+        <Tile label="Na lixeira" value={trashed.length} icon="🗑️" accent="#b45309" />
+        <Tile label="Eventos registrados" value={activity.length} sub="últimos 150" icon="📋" accent="#64748b" />
       </div>
 
       {/* Pipeline by status */}
@@ -175,7 +189,7 @@ export function AdminPanel() {
             <div className="grid grid-cols-1 gap-2">
               <input value={nu.full_name} onChange={e => setNu(v => ({ ...v, full_name: e.target.value }))} placeholder="Nome completo" className="px-2 py-1.5 border border-slate-300 rounded text-sm" />
               <input value={nu.email} onChange={e => setNu(v => ({ ...v, email: e.target.value }))} placeholder="email@helexia.eu" className="px-2 py-1.5 border border-slate-300 rounded text-sm" />
-              <input value={nu.password} onChange={e => setNu(v => ({ ...v, password: e.target.value }))} placeholder="Senha (só p/ criar direto — vazio ao convidar)" type="text" className="px-2 py-1.5 border border-slate-300 rounded text-sm font-mono" />
+              <PasswordInput value={nu.password} onChange={v => setNu(s => ({ ...s, password: v }))} placeholder="Senha (só p/ criar direto — vazio ao convidar)" className="px-2 py-1.5 border border-slate-300 rounded text-sm font-mono" />
               <div className="flex gap-2">
                 <button onClick={handleCreate} disabled={busy || !nu.email || !nu.password} className="flex-1 px-3 py-1.5 text-sm text-white rounded-lg disabled:opacity-50" style={{ backgroundColor: '#2F927B' }}>
                   {busy ? '…' : 'Criar com senha'}
@@ -195,15 +209,18 @@ export function AdminPanel() {
                 {editId === u.id ? (
                   <div className="space-y-2">
                     <input value={editVals.full_name} onChange={e => setEditVals(v => ({ ...v, full_name: e.target.value }))} placeholder="Nome" className="w-full px-2 py-1 border border-slate-300 rounded text-sm" />
-                    <input value={editVals.password} onChange={e => setEditVals(v => ({ ...v, password: e.target.value }))} placeholder="Nova senha (deixe vazio p/ manter)" className="w-full px-2 py-1 border border-slate-300 rounded text-sm font-mono" />
+                    <PasswordInput value={editVals.password} onChange={v => setEditVals(s => ({ ...s, password: v }))} placeholder="Nova senha (deixe vazio p/ manter)" className="px-2 py-1 border border-slate-300 rounded text-sm font-mono" />
                     <div className="flex gap-2">
                       <button onClick={() => handleSaveEdit(u.id)} disabled={busy} className="px-2 py-1 text-xs text-white rounded disabled:opacity-50" style={{ backgroundColor: '#2F927B' }}>Salvar</button>
                       <button onClick={() => setEditId(null)} className="px-2 py-1 text-xs border border-slate-300 rounded">Cancelar</button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-8 h-8 rounded-full bg-brand-navy text-white flex items-center justify-center text-[11px] font-semibold shrink-0" style={{ backgroundColor: '#004B70' }}>
+                      {avatarInitials(u.full_name, u.email)}
+                    </span>
+                    <div className="min-w-0 flex-1">
                       <p className="text-slate-700 truncate">{u.full_name || <span className="text-slate-400 italic">sem nome</span>}</p>
                       <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
                       <p className="text-[11px] text-slate-400">
