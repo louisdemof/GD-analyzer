@@ -148,6 +148,16 @@ export async function cloudAdminCreateUser(email: string, password: string, full
   return invokeAdminUsers({ action: 'create', email, password, full_name: fullName });
 }
 
+export async function cloudAdminInviteUser(email: string, fullName: string, redirectTo: string): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminUsers({ action: 'invite', email, full_name: fullName, redirectTo });
+}
+
+// Heartbeat: stamp the current user's activity (so the admin panel shows real last-seen).
+export async function cloudTouchLastSeen(): Promise<void> {
+  if (!supabase) return;
+  try { await supabase.rpc('touch_last_seen'); } catch { /* best-effort */ }
+}
+
 export async function cloudAdminUpdateUser(id: string, patch: { fullName?: string; password?: string }): Promise<{ ok: boolean; error?: string }> {
   return invokeAdminUsers({ action: 'update', id, full_name: patch.fullName, password: patch.password });
 }

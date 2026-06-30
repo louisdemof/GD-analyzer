@@ -4,7 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useAuth } from '../auth/AuthContext';
 import {
   cloudIsSuperAdmin, cloudRecentActivity, cloudAdminUserStats, LOGIN_PROJECT_ID,
-  cloudAdminCreateUser, cloudAdminUpdateUser,
+  cloudAdminCreateUser, cloudAdminUpdateUser, cloudAdminInviteUser,
   type ActivityEntry, type AdminUserStat, type AuditAction,
 } from '../storage/cloudSync';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
@@ -70,6 +70,15 @@ export function AdminPanel() {
     setBusy(false);
     if (r.ok) { flash(true, `Usuário ${nu.email} criado.`); setNu({ email: '', full_name: '', password: '' }); reloadUsers(); }
     else flash(false, r.error || 'Falha ao criar usuário.');
+  };
+
+  const handleInvite = async () => {
+    setBusy(true);
+    const redirectTo = new URL('?invite=1', window.location.origin + import.meta.env.BASE_URL).href;
+    const r = await cloudAdminInviteUser(nu.email, nu.full_name, redirectTo);
+    setBusy(false);
+    if (r.ok) { flash(true, `Convite enviado para ${nu.email}.`); setNu({ email: '', full_name: '', password: '' }); reloadUsers(); }
+    else flash(false, r.error || 'Falha ao enviar convite.');
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -166,10 +175,16 @@ export function AdminPanel() {
             <div className="grid grid-cols-1 gap-2">
               <input value={nu.full_name} onChange={e => setNu(v => ({ ...v, full_name: e.target.value }))} placeholder="Nome completo" className="px-2 py-1.5 border border-slate-300 rounded text-sm" />
               <input value={nu.email} onChange={e => setNu(v => ({ ...v, email: e.target.value }))} placeholder="email@helexia.eu" className="px-2 py-1.5 border border-slate-300 rounded text-sm" />
-              <input value={nu.password} onChange={e => setNu(v => ({ ...v, password: e.target.value }))} placeholder="Senha (mín. 8 caracteres)" type="text" className="px-2 py-1.5 border border-slate-300 rounded text-sm font-mono" />
-              <button onClick={handleCreate} disabled={busy || !nu.email || !nu.password} className="px-3 py-1.5 text-sm text-white rounded-lg disabled:opacity-50" style={{ backgroundColor: '#2F927B' }}>
-                {busy ? 'Salvando…' : 'Criar usuário'}
-              </button>
+              <input value={nu.password} onChange={e => setNu(v => ({ ...v, password: e.target.value }))} placeholder="Senha (só p/ criar direto — vazio ao convidar)" type="text" className="px-2 py-1.5 border border-slate-300 rounded text-sm font-mono" />
+              <div className="flex gap-2">
+                <button onClick={handleCreate} disabled={busy || !nu.email || !nu.password} className="flex-1 px-3 py-1.5 text-sm text-white rounded-lg disabled:opacity-50" style={{ backgroundColor: '#2F927B' }}>
+                  {busy ? '…' : 'Criar com senha'}
+                </button>
+                <button onClick={handleInvite} disabled={busy || !nu.email} className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-teal-600 text-teal-700 disabled:opacity-50">
+                  {busy ? '…' : '✉ Convidar por e-mail'}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400">Criar com senha: conta pronta na hora (você passa a senha). Convidar: o usuário recebe um e-mail para definir a própria senha (requer SMTP configurado no Supabase).</p>
             </div>
           </div>
           {msg && <p className={`text-xs mb-2 ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}

@@ -27,6 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) return;
+    // Invited users land with ?invite=1 (and a session from the invite token) → send them
+    // to the set-password screen, same as a password recovery.
+    const invited = typeof window !== 'undefined' &&
+      (new URLSearchParams(window.location.search).get('invite') === '1' || /[?&]invite=1\b/.test(window.location.hash));
+    if (invited) setRecovery(true);
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);

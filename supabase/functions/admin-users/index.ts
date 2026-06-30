@@ -38,11 +38,23 @@ Deno.serve(async (req: Request) => {
   // 2) Act with service_role.
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
-  let payload: { action?: string; id?: string; email?: string; password?: string; full_name?: string };
+  let payload: { action?: string; id?: string; email?: string; password?: string; full_name?: string; redirectTo?: string };
   try { payload = await req.json(); } catch { return json({ error: 'invalid body' }, 400); }
   const { action } = payload;
 
   try {
+    if (action === 'invite') {
+      const email = (payload.email ?? '').trim().toLowerCase();
+      if (!/@helexia\.eu$/.test(email)) return json({ error: 'e-mail deve ser @helexia.eu' }, 400);
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { full_name: payload.full_name ?? '' },
+        redirectTo: payload.redirectTo,
+      });
+      if (error) return json({ error: error.message }, 400);
+      if (data.user) await admin.from('profiles').upsert({ id: data.user.id, email, full_name: payload.full_name ?? null });
+      return json({ ok: true, id: data.user?.id });
+    }
+
     if (action === 'create') {
       const email = (payload.email ?? '').trim().toLowerCase();
       if (!/@helexia\.eu$/.test(email)) return json({ error: 'e-mail deve ser @helexia.eu' }, 400);
