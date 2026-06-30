@@ -4,6 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useAuth } from '../auth/AuthContext';
 import {
   cloudIsSuperAdmin, cloudRecentActivity, cloudAdminUserStats, LOGIN_PROJECT_ID,
+  cloudAdminCreateUser, cloudAdminUpdateUser,
   type ActivityEntry, type AdminUserStat, type AuditAction,
 } from '../storage/cloudSync';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
@@ -41,6 +42,14 @@ export function AdminPanel() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [users, setUsers] = useState<AdminUserStat[]>([]);
+  // User management
+  const [nu, setNu] = useState({ email: '', full_name: '', password: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editVals, setEditVals] = useState({ full_name: '', password: '' });
+
+  const reloadUsers = () => cloudAdminUserStats().then(setUsers).catch(() => {});
 
   useEffect(() => {
     if (!cloudEnabled) { setAllowed(false); return; }
@@ -48,10 +57,30 @@ export function AdminPanel() {
       setAllowed(ok);
       if (ok) {
         cloudRecentActivity(150).then(setActivity).catch(() => {});
-        cloudAdminUserStats().then(setUsers).catch(() => {});
+        reloadUsers();
       }
     }).catch(() => setAllowed(false));
   }, [cloudEnabled]);
+
+  const flash = (ok: boolean, text: string) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 5000); };
+
+  const handleCreate = async () => {
+    setBusy(true);
+    const r = await cloudAdminCreateUser(nu.email, nu.password, nu.full_name);
+    setBusy(false);
+    if (r.ok) { flash(true, `Usuário ${nu.email} criado.`); setNu({ email: '', full_name: '', password: '' }); reloadUsers(); }
+    else flash(false, r.error || 'Falha ao criar usuário.');
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    setBusy(true);
+    const patch: { fullName?: string; password?: string } = { fullName: editVals.full_name };
+    if (editVals.password) patch.password = editVals.password;
+    const r = await cloudAdminUpdateUser(id, patch);
+    setBusy(false);
+    if (r.ok) { flash(true, 'Usuário atualizado.'); setEditId(null); reloadUsers(); }
+    else flash(false, r.error || 'Falha ao atualizar.');
+  };
 
   const nameByEmail = useMemo(() => {
     const m = new Map<string, string>();
@@ -130,14 +159,45 @@ export function AdminPanel() {
         {/* Users */}
         <div>
           <h2 className="text-sm font-semibold text-slate-700 mb-2">Usuários ({users.length})</h2>
-          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-[60vh] overflow-auto">
+
+          {/* Create user */}
+          <div className="border border-slate-200 rounded-xl p-3 mb-3 bg-slate-50">
+            <p className="text-xs font-semibold text-slate-600 mb-2">Criar usuário</p>
+            <div className="grid grid-cols-1 gap-2">
+              <input value={nu.full_name} onChange={e => setNu(v => ({ ...v, full_name: e.target.value }))} placeholder="Nome completo" className="px-2 py-1.5 border border-slate-300 rounded text-sm" />
+              <input value={nu.email} onChange={e => setNu(v => ({ ...v, email: e.target.value }))} placeholder="email@helexia.eu" className="px-2 py-1.5 border border-slate-300 rounded text-sm" />
+              <input value={nu.password} onChange={e => setNu(v => ({ ...v, password: e.target.value }))} placeholder="Senha (mín. 8 caracteres)" type="text" className="px-2 py-1.5 border border-slate-300 rounded text-sm font-mono" />
+              <button onClick={handleCreate} disabled={busy || !nu.email || !nu.password} className="px-3 py-1.5 text-sm text-white rounded-lg disabled:opacity-50" style={{ backgroundColor: '#2F927B' }}>
+                {busy ? 'Salvando…' : 'Criar usuário'}
+              </button>
+            </div>
+          </div>
+          {msg && <p className={`text-xs mb-2 ${msg.ok ? 'text-emerald-600' : 'text-rose-600'}`}>{msg.text}</p>}
+
+          <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-[55vh] overflow-auto">
             {users.map(u => (
               <div key={u.id} className="px-3 py-2 text-sm">
-                <p className="text-slate-700 truncate">{u.full_name || <span className="text-slate-400 italic">sem nome</span>}</p>
-                <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
-                <p className="text-[11px] text-slate-400">
-                  Último acesso: <span className="text-slate-500">{timeAgo(u.lastSignInAt)}</span> · {u.projectCount} projeto{u.projectCount === 1 ? '' : 's'}
-                </p>
+                {editId === u.id ? (
+                  <div className="space-y-2">
+                    <input value={editVals.full_name} onChange={e => setEditVals(v => ({ ...v, full_name: e.target.value }))} placeholder="Nome" className="w-full px-2 py-1 border border-slate-300 rounded text-sm" />
+                    <input value={editVals.password} onChange={e => setEditVals(v => ({ ...v, password: e.target.value }))} placeholder="Nova senha (deixe vazio p/ manter)" className="w-full px-2 py-1 border border-slate-300 rounded text-sm font-mono" />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSaveEdit(u.id)} disabled={busy} className="px-2 py-1 text-xs text-white rounded disabled:opacity-50" style={{ backgroundColor: '#2F927B' }}>Salvar</button>
+                      <button onClick={() => setEditId(null)} className="px-2 py-1 text-xs border border-slate-300 rounded">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-slate-700 truncate">{u.full_name || <span className="text-slate-400 italic">sem nome</span>}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                      <p className="text-[11px] text-slate-400">
+                        Último acesso: <span className="text-slate-500">{timeAgo(u.lastSignInAt)}</span> · {u.projectCount} projeto{u.projectCount === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <button onClick={() => { setEditId(u.id); setEditVals({ full_name: u.full_name || '', password: '' }); }} className="text-xs text-teal-600 hover:underline shrink-0">editar</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

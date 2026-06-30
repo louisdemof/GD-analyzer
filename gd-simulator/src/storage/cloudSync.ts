@@ -131,6 +131,27 @@ export async function cloudIsSuperAdmin(): Promise<boolean> {
   return !error && data === true;
 }
 
+// Admin user management via the `admin-users` Edge Function (service_role, super-admin only).
+async function invokeAdminUsers(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  if (!supabase) return { ok: false, error: 'cloud desativado' };
+  const { data, error } = await supabase.functions.invoke('admin-users', { body });
+  if (error) {
+    // Surface the function's JSON error message when present.
+    const msg = (data as { error?: string } | null)?.error || error.message;
+    return { ok: false, error: msg };
+  }
+  if (data && (data as { error?: string }).error) return { ok: false, error: (data as { error?: string }).error };
+  return { ok: true };
+}
+
+export async function cloudAdminCreateUser(email: string, password: string, fullName: string): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminUsers({ action: 'create', email, password, full_name: fullName });
+}
+
+export async function cloudAdminUpdateUser(id: string, patch: { fullName?: string; password?: string }): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminUsers({ action: 'update', id, full_name: patch.fullName, password: patch.password });
+}
+
 export interface DirectoryUser { id: string; email: string; full_name: string | null }
 export async function cloudListUsers(): Promise<DirectoryUser[]> {
   if (!(await authed()) || !supabase) return [];

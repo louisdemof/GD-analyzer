@@ -21,10 +21,10 @@ export function Sidebar() {
 
   return (
     <aside className="w-64 bg-navy-900 text-white min-h-screen flex flex-col" style={{ backgroundColor: '#004B70' }}>
-      <div className="p-4 border-b border-white/10">
+      <button onClick={() => navigate('/')} className="p-4 border-b border-white/10 text-left hover:bg-white/5 transition-colors" title="Ir para o Dashboard">
         <img src={`${import.meta.env.BASE_URL}Helexia_logo_WHT_web.svg`} alt="Helexia" className="h-12 mb-2" />
         <h1 className="text-lg font-bold tracking-tight">GD Analyzer</h1>
-      </div>
+      </button>
 
       <nav className="flex-1 p-3 space-y-1">
         <button
