@@ -20,8 +20,7 @@ export interface ProposalMeta {
   local?: string;          // cidade no cabeçalho (default: Rio de Janeiro)
   segmento?: string;       // ex.: "Comercial / Industrial"
   tipoGd?: string;         // ex.: "Autoconsumo Remoto (GD1)"
-  usinaCodigo?: string;    // ex.: "HCO01"
-  contato?: string;        // ex.: "comercial.brasil@helexia.eu"
+  contato?: string;        // vendedor — default: e-mail do usuário logado
 }
 
 const HELEXIA_ABOUT =
@@ -247,13 +246,16 @@ function MonthlyChart(d: ReturnType<typeof buildData>) {
   );
 }
 
-function usinaBits(meta: ProposalMeta, d: ReturnType<typeof buildData>) {
+function usinaBits(d: ReturnType<typeof buildData>) {
   const multi = d.plants.length > 1;
-  const cod = meta.usinaCodigo ? `[${meta.usinaCodigo}] ` : '';
-  const name = d.plants[0]?.name ?? 'Usina Helexia';
+  const cap = (p: typeof d.plants[number]) => Math.round(p.capacityKWac ?? 0).toLocaleString('pt-BR');
+  const totalCap = Math.round(d.plants.reduce((a, p) => a + (p.capacityKWac ?? 0), 0)).toLocaleString('pt-BR');
+  const list = d.plants.map(p => `${p.name} (${cap(p)} kWac)`).join(' · ');
   return {
-    bandLabel: multi ? `${d.plants.length} usinas` : `Usina ${cod}${name}`,
-    phrase: multi ? `as usinas solares da Helexia (carteira de ${d.plants.length} usinas)` : `a usina solar ${cod}${name}`,
+    bandLabel: multi ? `${d.plants.length} usinas · ${totalCap} kWac` : list,
+    list,
+    multi,
+    phrase: multi ? 'as usinas solares da Helexia' : `a usina solar ${d.plants[0]?.name ?? 'Helexia'}`,
   };
 }
 
@@ -300,7 +302,7 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
   const mercado = project.marketType === 'ACL' ? 'Mercado Livre (ACL)' : 'Mercado Cativo';
   const local = meta.local ?? 'Rio de Janeiro';
   const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const u = usinaBits(meta, d);
+  const u = usinaBits(d);
   const coverage = d.consTot > 0 ? (sm.totalGeneration / (d.consTot * n)) * 100 : 0;
   const ecoPos = sm.economiaLiquida >= 0;
 
@@ -360,7 +362,7 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
     React.createElement(Text, { style: s.p },
       `A Helexia constrói, é proprietária e opera ${u.phrase} (Contrato de Locação da Usina + O&M) — o cliente não investe, não instala nada e não cuida da manutenção. A energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades; o cliente paga apenas a energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh (take-or-pay). O rateio é notificado à distribuidora (NDU); créditos garantidos pela Lei 14.300/2022.`),
     React.createElement(Text, { style: { ...s.p, color: GREY } },
-      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês), cobrindo ~${coverage.toFixed(0)}% do consumo.`),
+      `${u.multi ? 'Usinas' : 'Usina'}: ${u.list} · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês), cobrindo ~${coverage.toFixed(0)}% do consumo.`),
   );
 }
 

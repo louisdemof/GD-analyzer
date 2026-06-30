@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useProjectStore } from '../store/projectStore';
 import { useSimulationStore } from '../store/simulationStore';
+import { useAuth } from '../auth/AuthContext';
 import { KPICards } from '../components/results/KPICards';
 import { CostWaterfall } from '../components/results/CostWaterfall';
 import { MonthlyChart } from '../components/results/MonthlyChart';
@@ -40,6 +41,7 @@ export function Results() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isExportingProposal, setIsExportingProposal] = useState(false);
+  const { user } = useAuth();
   const [showProposalForm, setShowProposalForm] = useState(false);
   const [proposalMeta, setProposalMeta] = useState<ProposalMeta>({ local: 'Rio de Janeiro' });
   const [isExportingExcel, setIsExportingExcel] = useState(false);
@@ -243,15 +245,14 @@ export function Results() {
             {([
               ['cliente', 'Cliente (título)', project.clientName.split(/\s+[—–·]\s+/)[0]],
               ['segmento', 'Segmento', 'Comercial / Industrial'],
-              ['usinaCodigo', 'Código da usina', 'ex.: HCO01'],
-              ['contato', 'Contato (vendedor)', 'comercial.brasil@helexia.eu'],
+              ['contato', 'Contato (vendedor)', user?.email ?? 'comercial.brasil@helexia.eu'],
               ['local', 'Cidade', 'Rio de Janeiro'],
             ] as [keyof ProposalMeta, string, string][]).map(([key, label, ph]) => (
               <div key={key} className="mb-3">
                 <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
                 <input
                   type="text"
-                  value={(proposalMeta[key] as string) ?? ''}
+                  value={(proposalMeta[key] as string) ?? (key === 'contato' ? (user?.email ?? '') : '')}
                   placeholder={ph}
                   onChange={e => setProposalMeta(m => ({ ...m, [key]: e.target.value || undefined }))}
                   className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -265,7 +266,8 @@ export function Results() {
                   setShowProposalForm(false);
                   setIsExportingProposal(true);
                   try {
-                    const blob = await generateProposalPDF(project, result, proposalMeta);
+                    const meta = { ...proposalMeta, contato: proposalMeta.contato ?? user?.email };
+                    const blob = await generateProposalPDF(project, result, meta);
                     downloadProposalPDF(blob, proposalMeta.cliente || project.clientName);
                   } catch (e) {
                     setToast('Erro ao gerar proposta: ' + (e instanceof Error ? e.message : 'desconhecido'));
