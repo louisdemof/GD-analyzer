@@ -67,12 +67,13 @@ function fmtModalidade(g: string): string {
   return g.replace(/_/g, ' ').replace(/\bVERDE\b/i, 'Verde').replace(/\bAZUL\b/i, 'Azul');
 }
 
-// Strip internal suffixes (— Copia / (cópia)) so the client sees a clean name.
+// Reduce an internal project name to the client name for the proposal title.
+// "SUPERFRIO Paraná — 5 UCs … · PPA R$450 — Copia" → "SUPERFRIO Paraná".
+// Cuts at the first scenario separator (— – ·) and strips any "(cópia)"/"copia".
 function cleanName(name?: string): string {
-  return (name || 'Cliente')
-    .replace(/\s*[—–-]\s*c[oó]pia\b.*$/i, '')
-    .replace(/\s*\(c[oó]pia[^)]*\)/ig, '')
-    .trim() || 'Cliente';
+  let sname = (name || 'Cliente').split(/\s+[—–·]\s+/)[0];
+  sname = sname.replace(/\s*\(c[oó]pia[^)]*\)/ig, '').replace(/\s*c[oó]pia\s*$/i, '').trim();
+  return sname || 'Cliente';
 }
 // "RESOLUÇÃO HOMOLOGATÓRIA Nº 3.592, DE 23 DE JUNHO DE 2026" → "REH 3.592/2026".
 function shortResolution(r?: string): string {
