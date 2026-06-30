@@ -23,8 +23,9 @@ export interface ProposalMeta {
 
 const HELEXIA_ABOUT =
   'Multinacional de energia e descarbonização, no Brasil desde 2019. Um dos 5 maiores players de Geração ' +
-  'Distribuída do país: 260 MW de geração solar, 15 estados, presença em 11 países e R$ 1,5 bi investidos desde 2021. ' +
-  'A Helexia faz parte do grupo Voltalia (Euronext Paris) e, como ele, é controlada pela família Mulliez, um dos ' +
+  'Distribuída do país: mais de 60 usinas em 15 estados no Brasil, mais de 200 MW em operação, presença em ' +
+  '11 países e R$ 1,5 bi investidos desde 2021. ' +
+  'A Helexia faz parte do grupo Voltalia (Euronext Paris) e, como ele, é controlada pelo grupo AMF, um dos ' +
   'maiores grupos empresariais da França — o mesmo grupo por trás de Decathlon, Leroy Merlin, Auchan e Obramax, ' +
   'em cujos telhados a Helexia já opera energia solar.';
 
@@ -125,7 +126,7 @@ function Page1(project: Project, result: SimulationResult, meta: ProposalMeta, d
       ))
     ),
     React.createElement(Text, { style: s.valueLine },
-      `Custo fixo previsível, sem bandeiras — sem investimento e sem obra. Energia 100% renovável.`),
+      `Preço fixo Helexia (PPA): R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — custo previsível, sem bandeiras, sem investimento e sem obra. Energia 100% renovável.`),
     // Valor total (economia + banco)
     React.createElement(View, { style: s.vtBox },
       React.createElement(View, { style: s.lineItem },
@@ -217,8 +218,9 @@ function Page2(project: Project, result: SimulationResult, meta: ProposalMeta, d
     })(),
     React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: '#15803d', marginTop: 8 } },
       `Break-even desde o 1º mês · economia acumulada de ${fmtBRL(sm.economiaLiquida)} em ${n} meses.`),
-    React.createElement(Text, { style: { ...s.p, marginTop: 4 } },
-      `Banco de créditos ao final do contrato: ${fmtMWh(sm.bancoResidualKWh)} ≈ ${fmtBRL(sm.bancoResidualValue)} (valorizado ao PPA). Créditos gerados e não consumidos continuam do cliente, válidos por até 60 meses (Lei 14.300/2022) — um ativo adicional além da economia mensal.`),
+    React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginTop: 6 } }, 'Banco de créditos — um ativo que continua seu'),
+    React.createElement(Text, { style: { ...s.p, marginTop: 2 } },
+      `A energia injetada e não consumida vira crédito no Sistema de Compensação (SCEE), válido por até 60 meses a partir da geração (Lei 14.300/2022). Os créditos abatem o consumo dos meses seguintes ou de outras unidades do cliente (autoconsumo remoto). Ao final do contrato, o saldo de ${fmtMWh(sm.bancoResidualKWh)} ≈ ${fmtBRL(sm.bancoResidualValue)} (valorizado ao PPA) ainda pertence ao cliente — ao serem utilizados, esses créditos abatem a tarifa cheia, valendo ainda mais.`),
     React.createElement(Text, { style: s.quote },
       '"Com o modelo da Helexia, o cliente paga menos pela energia fora e dentro da ponta, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'),
     React.createElement(Text, { style: s.cta }, 'Próximos passos'),
@@ -228,8 +230,10 @@ function Page2(project: Project, result: SimulationResult, meta: ProposalMeta, d
       `Fale com a Helexia para avançar: ${contato}`),
     // Boilerplate
     React.createElement(View, { style: s.about },
-      React.createElement(Text, { style: s.aboutTitle }, 'Helexia · grupo Voltalia · família Mulliez'),
+      React.createElement(Text, { style: s.aboutTitle }, 'Helexia · grupo Voltalia · grupo AMF'),
       React.createElement(Text, { style: s.aboutText }, HELEXIA_ABOUT),
+      React.createElement(Image, { src: `${import.meta.env.BASE_URL}grupo_brands.png`, style: { width: 300, marginTop: 8, marginBottom: 2 } }),
+      React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8' } }, 'Empresas do grupo AMF'),
     ),
     React.createElement(Text, { style: s.disclaimer },
       `Estudo elaborado com base nas faturas e no perfil de consumo do cliente na data da análise. Os valores são uma projeção e não constituem oferta vinculante até a assinatura do contrato. Baseado em geração P50 e na tarifa ${project.distributor.name} homologada (${resolucao}); valores reais podem variar conforme condições climáticas, alterações tarifárias e disponibilidade da usina.`),
