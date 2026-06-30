@@ -13,6 +13,7 @@ import { ScenarioPanel } from '../components/results/ScenarioPanel';
 import { SensitivityAnalysis } from '../components/results/SensitivityAnalysis';
 import { AttributionPanel } from '../components/results/AttributionPanel';
 import { RecebimentoHelexiaPanel } from '../components/results/RecebimentoHelexiaPanel';
+import { GenerationAggregator } from '../components/results/GenerationAggregator';
 import { TaxBreakdownPanel } from '../components/results/TaxBreakdownPanel';
 import { GoalSeekTEPanel } from '../components/results/GoalSeekTEPanel';
 import type { OptimiserProgress } from '../engine/optimiser';
@@ -23,7 +24,7 @@ import { generateProposalPDF, downloadProposalPDF, type ProposalMeta } from '../
 import { exportResultsExcel } from '../engine/excel';
 import { exportConsumptionExcel } from '../engine/consumptionExcel';
 
-type ResultTab = 'resumo' | 'detalhe-impostos' | 'mensal' | 'banco' | 'rateio' | 'recebimento' | 'atribuicao' | 'sensibilidades' | 'sensibilidade-geracao';
+type ResultTab = 'resumo' | 'detalhe-impostos' | 'mensal' | 'geracao' | 'banco' | 'rateio' | 'recebimento' | 'atribuicao' | 'sensibilidades' | 'sensibilidade-geracao';
 
 export function Results() {
   const { id } = useParams<{ id: string }>();
@@ -218,6 +219,7 @@ export function Results() {
     { key: 'resumo', label: 'Resumo Executivo' },
     { key: 'detalhe-impostos', label: 'Detalhe Impostos' },
     { key: 'mensal', label: 'Análise Mensal' },
+    { key: 'geracao', label: 'Geração' },
     { key: 'banco', label: 'Banco de Créditos' },
     { key: 'rateio', label: 'Rateio' },
     { key: 'recebimento', label: 'Recebimento Helexia' },
@@ -392,6 +394,7 @@ export function Results() {
         {tab === 'resumo' && <CostWaterfall months={result.months} ucs={project.ucs} />}
         {tab === 'detalhe-impostos' && <TaxBreakdownPanel project={project} result={result} />}
         {tab === 'mensal' && <MonthlyChart months={result.months} ppaEndMonthIndices={ppaEndIndices(project)} />}
+        {tab === 'geracao' && <GenerationAggregator project={project} result={result} />}
         {tab === 'banco' && (
           <BankDynamics
             result={result}

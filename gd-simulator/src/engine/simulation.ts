@@ -81,6 +81,37 @@ function buildPlantGenerationSeries(
 }
 
 /**
+ * Aggregate generation across all plants selected for the project: per-plant monthly
+ * series (kWh) + the summed total, respecting each plant's window, degradation and
+ * performance haircut. Used by the in-app generation aggregator view.
+ */
+export function aggregatePlantGeneration(project: Project): {
+  perPlant: { name: string; capacityKWac: number; series: number[]; total: number }[];
+  totalSeries: number[];
+  grandTotal: number;
+  totalMonths: number;
+} {
+  const totalMonths = computeSimulationMonths(project);
+  const plants = getAllPlants(project);
+  const series = buildPlantGenerationSeries(
+    plants, totalMonths,
+    project.performanceFactor ?? 1.0,
+    project.generationDegradation ?? 0.005,
+    !!project.scenarios.useActualGeneration,
+    project.plant.contractStartMonth,
+  );
+  const totalSeries = new Array(totalMonths).fill(0);
+  series.forEach(s => s.forEach((v, i) => { totalSeries[i] += v; }));
+  const perPlant = plants.map((p, i) => ({
+    name: p.name || `Usina ${i + 1}`,
+    capacityKWac: p.capacityKWac ?? 0,
+    series: series[i],
+    total: series[i].reduce((a, b) => a + b, 0),
+  }));
+  return { perPlant, totalSeries, grandTotal: totalSeries.reduce((a, b) => a + b, 0), totalMonths };
+}
+
+/**
  * Extend generation profile to contractMonths with degradation.
  * Cycles the seasonal pattern (12 months) and applies annual degradation.
  */
