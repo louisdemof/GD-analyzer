@@ -140,12 +140,35 @@ function buildData(project: Project, result: SimulationResult) {
   }
   const maxBar = Math.max(1, ...cFP.map((v, i) => v + cPT[i]), ...gen);
 
+  // Per-year SEM vs COM cost (lock-in / growing-savings story) + tariff unit price.
+  const consMonth = (m: number) => project.ucs.reduce((acc, uc) => {
+    const fp = uc.consumptionFP ?? [], pt = uc.consumptionPT ?? [];
+    const gf = fp.length ? (fp[m] ?? fp[m % fp.length]) : 0;
+    const gp = pt.length ? (pt[m] ?? pt[m % pt.length]) : 0;
+    return acc + (gf || 0) + (gp || 0);
+  }, 0);
+  const years = Math.max(1, Math.ceil(n / 12));
+  const yearly: { label: string; semC: number; comC: number; acum: number; semUnit: number }[] = [];
+  let acum = 0;
+  for (let y = 0; y < years; y++) {
+    const a = y * 12, b = Math.min(n, (y + 1) * 12);
+    const slice = result.months.slice(a, b);
+    const semC = slice.reduce((s2, m) => s2 + m.sem.totalCost, 0);
+    const eco = slice.reduce((s2, m) => s2 + m.economia, 0);
+    let consY = 0; for (let m = a; m < b; m++) consY += consMonth(m);
+    acum += eco;
+    yearly.push({ label: `Ano ${y + 1}`, semC, comC: semC - eco, acum, semUnit: consY ? semC / consY * 1000 : 0 });
+  }
+  const tariffY1 = yearly[0]?.semUnit ?? 0;
+  const tariffLast = yearly[yearly.length - 1]?.semUnit ?? 0;
+
   return {
     sm, n, plants, ppaTotal, rede, pcAdd, fp, pt, consTot, modalidade, ppaMWh, pontaTarifa,
     custoCom: sm.baselineSEM - sm.economiaLiquida,
     capacidade: plants.reduce((a, p) => a + (p.capacityKWac ?? 0), 0),
     isACL, distName, mavg, energiaResidual, comTotalAvg,
     labels, gen, cFP, cPT, maxBar, n12,
+    yearly, years, tariffY1, tariffLast,
   };
 }
 
@@ -257,6 +280,67 @@ function usinaBits(meta: ProposalMeta, d: ReturnType<typeof buildData>) {
   };
 }
 
+function ComoFunciona(project: Project) {
+  const steps: [string, string][] = [
+    ['1. Usina solar Helexia', 'Helexia constrói e opera (sem custo p/ o cliente)'],
+    [`2. Rede ${project.distributor.name}`, 'A energia gerada é injetada na rede'],
+    ['3. Suas unidades', 'Os créditos compensam o consumo das UCs'],
+    ['4. Você paga o PPA', 'Preço fixo, abaixo da tarifa = economia'],
+  ];
+  return React.createElement(View, { wrap: false, style: { marginTop: 8 } },
+    React.createElement(Text, { style: s.h2 }, 'Como funciona — Autoconsumo Remoto'),
+    React.createElement(View, { style: { flexDirection: 'row', alignItems: 'stretch', gap: 4 } },
+      ...steps.flatMap(([t, sub], i) => {
+        const box = React.createElement(View, { key: `b${i}`, style: { flex: 1, borderWidth: 1, borderColor: TEAL, borderRadius: 5, padding: 6, backgroundColor: i === 3 ? '#ecfdf5' : 'white' } },
+          React.createElement(Text, { style: { fontSize: 7.5, fontWeight: 'bold', color: NAVY, marginBottom: 2 } }, t),
+          React.createElement(Text, { style: { fontSize: 6.5, color: GREY } }, sub),
+        );
+        return i < 3
+          ? [box, React.createElement(View, { key: `a${i}`, style: { justifyContent: 'center' } }, React.createElement(Text, { style: { fontSize: 12, color: TEAL } }, '>'))]
+          : [box];
+      })
+    ),
+  );
+}
+
+function AnnualChart(d: ReturnType<typeof buildData>) {
+  const H = 64, plotW = 515;
+  const gw = plotW / Math.max(1, d.years);
+  const barW = Math.max(8, Math.min(46, gw * 0.30));
+  const max = Math.max(1, ...d.yearly.map(y => y.semC));
+  const k = (v: number) => `R$ ${Math.round(v / 1000).toLocaleString('pt-BR')}k`;
+  return React.createElement(View, { wrap: false, style: { marginTop: 8 } },
+    React.createElement(Text, { style: s.h2 }, 'Preço travado vs. tarifa em alta — custo anual SEM vs COM Helexia'),
+    React.createElement(View, { style: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 2 } },
+      ...d.yearly.map((y, i) => React.createElement(View, { key: i, style: { width: gw, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 3 } },
+        React.createElement(View, { style: { width: barW, alignItems: 'center' } },
+          React.createElement(Text, { style: { fontSize: 4.5, color: NAVY } }, k(y.semC)),
+          React.createElement(View, { style: { width: barW, height: y.semC / max * H, backgroundColor: '#6692A8' } })),
+        React.createElement(View, { style: { width: barW, alignItems: 'center' } },
+          React.createElement(Text, { style: { fontSize: 4.5, color: '#15803d' } }, k(y.comC)),
+          React.createElement(View, { style: { width: barW, height: y.comC / max * H, backgroundColor: TEAL } })),
+      )),
+    ),
+    React.createElement(View, { style: { flexDirection: 'row' } },
+      ...d.yearly.map((y, i) => React.createElement(Text, { key: i, style: { width: gw, fontSize: 5.5, color: '#94a3b8', textAlign: 'center' } }, y.label)),
+    ),
+    React.createElement(Text, { style: { fontSize: 6.5, color: '#475569', marginTop: 3 } },
+      `PPA Helexia travado em R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh enquanto a tarifa vai de ~R$ ${Math.round(d.tariffY1).toLocaleString('pt-BR')} a ~R$ ${Math.round(d.tariffLast).toLocaleString('pt-BR')}/MWh. A diferença (sua economia) cresce a cada reajuste.`),
+  );
+}
+
+function RiskBox() {
+  const items = ['Sem investimento — CAPEX zero, sem obra na sua planta', 'O&M e disponibilidade da usina por conta da Helexia', 'Modelo take-or-pay protege ambos os lados', 'Energia 100% renovável e rastreável (ESG)'];
+  return React.createElement(View, { wrap: false, style: { marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, padding: 8, backgroundColor: LIGHT } },
+    React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginBottom: 3 } }, 'Por que é seguro para o cliente'),
+    React.createElement(View, { style: { flexDirection: 'row', flexWrap: 'wrap' } },
+      ...items.map((it, i) => React.createElement(View, { key: i, style: { width: '50%', flexDirection: 'row', marginBottom: 2 } },
+        React.createElement(Text, { style: { fontSize: 8, color: TEAL, width: 10 } }, '✓'),
+        React.createElement(Text, { style: { fontSize: 7.5, color: '#334155', flex: 1 } }, it))),
+    ),
+  );
+}
+
 function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
   const { sm, n } = d;
   const cliente = meta.cliente ?? cleanName(project.clientName);
@@ -266,7 +350,6 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
   const local = meta.local ?? 'Rio de Janeiro';
   const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const u = usinaBits(meta, d);
-  const coverage = d.consTot > 0 ? (sm.totalGeneration / (d.consTot * n)) * 100 : 0;
   const ecoPos = sm.economiaLiquida >= 0;
 
   return React.createElement(Page, { size: 'A4', style: s.page },
@@ -319,41 +402,51 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
     d.pontaTarifa > 0 && React.createElement(Text, { style: { ...s.p, marginBottom: 2 } },
       `O consumo em ponta (tarifa evitada ~R$ ${Math.round(d.pontaTarifa).toLocaleString('pt-BR')}/MWh) é o que mais encarece a fatura — é onde a GD gera mais economia.`),
     MonthlyChart(d),
-    // A solução (moved here to balance the layout)
-    React.createElement(Text, { style: { ...s.h2, marginTop: 8 } }, 'A solução Helexia — Autoconsumo Remoto'),
-    React.createElement(Text, { style: s.p },
-      `A Helexia constrói, é proprietária e opera ${u.phrase} — o cliente não investe, não instala nada na sua planta e não cuida da manutenção. No modelo de Autoconsumo Remoto (Lei 14.300/2022), a energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades consumidoras do cliente. O cliente paga apenas pela energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — abaixo da tarifa e sem bandeiras.`),
-    React.createElement(Text, { style: s.p },
-      `Estrutura contratual: Contrato de Locação da Usina + O&M — a operação e a manutenção ficam por conta da Helexia. Remuneração em modelo take-or-pay sobre a energia injetada. O rateio dos créditos entre as unidades é notificado à distribuidora (NDU). Créditos garantidos pela Lei 14.300/2022.`),
-    React.createElement(Text, { style: { ...s.p, color: GREY } },
-      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês), cobrindo ~${coverage.toFixed(0)}% do consumo.`),
+    ComoFunciona(project),
   );
 }
 
 function Page2(project: Project, _result: SimulationResult, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
   const { sm, n } = d;
   const ecoPos = sm.economiaLiquida >= 0;
-  const contato = meta.contato ?? 'comercial.brasil@helexia.eu';
-  const resolucao = shortResolution(project.distributor.resolution);
+  const u = usinaBits(meta, d);
+  const coverage = d.consTot > 0 ? (sm.totalGeneration / (d.consTot * n)) * 100 : 0;
   const bancoShare = sm.valorTotal > 0 ? sm.bancoResidualValue / sm.valorTotal : 0;
   const bancoMaterial = bancoShare >= 0.05;
 
   return React.createElement(Page, { size: 'A4', style: s.page },
-    React.createElement(Text, { style: s.h2 }, 'Comparativo detalhado — SEM vs COM Helexia'),
+    React.createElement(Text, { style: s.h2 }, 'A solução Helexia — Autoconsumo Remoto'),
+    React.createElement(Text, { style: s.p },
+      `A Helexia constrói, é proprietária e opera ${u.phrase} — o cliente não investe, não instala nada na sua planta e não cuida da manutenção. No modelo de Autoconsumo Remoto (Lei 14.300/2022), a energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades consumidoras do cliente. O cliente paga apenas pela energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — abaixo da tarifa e sem bandeiras.`),
+    React.createElement(Text, { style: s.p },
+      `Estrutura contratual: Contrato de Locação da Usina + O&M — operação e manutenção por conta da Helexia. Remuneração take-or-pay sobre a energia injetada. O rateio dos créditos é notificado à distribuidora (NDU). Créditos garantidos pela Lei 14.300/2022.`),
+    React.createElement(Text, { style: { ...s.p, color: GREY } },
+      `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês), cobrindo ~${coverage.toFixed(0)}% do consumo.`),
+    React.createElement(Text, { style: { ...s.h2, marginTop: 8 } }, 'Comparativo detalhado — SEM vs COM Helexia'),
     DetailedInvoices(project, d),
     ecoPos
       ? React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: '#15803d', marginTop: 6 } },
           `Economia acumulada de ${fmtBRL(sm.economiaLiquida)} em ${n} meses (média do contrato).`)
       : React.createElement(Text, { style: { fontSize: 8, color: '#dc2626', marginTop: 6 } },
           `Neste cenário o custo COM supera o SEM em ${fmtBRL(Math.abs(sm.economiaLiquida))} — revise PPA, tarifa-base ou rateio.`),
+    AnnualChart(d),
+    RiskBox(),
     // Banco — emphasis scales with materiality
     bancoMaterial
-      ? React.createElement(View, null,
-          React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginTop: 6 } }, 'Banco de créditos — um ativo que continua seu'),
+      ? React.createElement(View, { wrap: false },
+          React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginTop: 8 } }, 'Banco de créditos — um ativo que continua seu'),
           React.createElement(Text, { style: { ...s.p, marginTop: 2 } },
             `A energia injetada e não consumida vira crédito no Sistema de Compensação (SCEE), válido por até 60 meses a partir da geração (Lei 14.300/2022). Os créditos abatem o consumo dos meses seguintes ou de outras unidades do cliente. Ao final do contrato, o saldo de ${fmtMWh(sm.bancoResidualKWh)}, equivalente a ${fmtBRL(sm.bancoResidualValue)} ao PPA, ainda pertence ao cliente — ao serem utilizados, abatem a tarifa cheia, valendo ainda mais.`))
-      : React.createElement(Text, { style: { ...s.p, marginTop: 6 } },
+      : React.createElement(Text, { style: { ...s.p, marginTop: 8 } },
           `Banco de créditos residual ao fim do contrato: ${fmtMWh(sm.bancoResidualKWh)} (${fmtBRL(sm.bancoResidualValue)} ao PPA), válidos por até 60 meses (Lei 14.300/2022) — crédito que continua do cliente.`),
+  );
+}
+
+function Page3(project: Project, meta: ProposalMeta, d: ReturnType<typeof buildData>) {
+  const contato = meta.contato ?? 'comercial.brasil@helexia.eu';
+  const resolucao = shortResolution(project.distributor.resolution);
+  void d;
+  return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Text, { style: s.quote },
       '"Com o modelo da Helexia, o cliente paga menos pela energia fora e dentro da ponta, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'),
     React.createElement(Text, { style: s.cta }, 'Próximos passos'),
@@ -387,6 +480,7 @@ export async function generateProposalPDF(project: Project, result: SimulationRe
   const doc = React.createElement(Document, null,
     Page1(project, result, meta, d),
     Page2(project, result, meta, d),
+    Page3(project, meta, d),
   );
   return pdf(doc).toBlob();
 }

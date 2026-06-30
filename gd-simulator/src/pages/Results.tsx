@@ -18,7 +18,7 @@ import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
 import { generatePDF, downloadPDF } from '../engine/pdf';
-import { generateProposalPDF, downloadProposalPDF } from '../engine/proposalPdf';
+import { generateProposalPDF, downloadProposalPDF, type ProposalMeta } from '../engine/proposalPdf';
 import { exportResultsExcel } from '../engine/excel';
 import { exportConsumptionExcel } from '../engine/consumptionExcel';
 
@@ -40,6 +40,8 @@ export function Results() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [isExportingProposal, setIsExportingProposal] = useState(false);
+  const [showProposalForm, setShowProposalForm] = useState(false);
+  const [proposalMeta, setProposalMeta] = useState<ProposalMeta>({ local: 'Rio de Janeiro' });
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   // Cleanup worker and timeout on unmount
@@ -232,6 +234,55 @@ export function Results() {
         </div>
       )}
 
+      {/* Personalizar proposta */}
+      {showProposalForm && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowProposalForm(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-slate-800 mb-1">Personalizar proposta</h3>
+            <p className="text-xs text-slate-500 mb-4">Deixe em branco para usar os padrões.</p>
+            {([
+              ['cliente', 'Cliente (título)', project.clientName.split(/\s+[—–·]\s+/)[0]],
+              ['segmento', 'Segmento', 'Comercial / Industrial'],
+              ['usinaCodigo', 'Código da usina', 'ex.: HCO01'],
+              ['contato', 'Contato (vendedor)', 'comercial.brasil@helexia.eu'],
+              ['local', 'Cidade', 'Rio de Janeiro'],
+            ] as [keyof ProposalMeta, string, string][]).map(([key, label, ph]) => (
+              <div key={key} className="mb-3">
+                <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+                <input
+                  type="text"
+                  value={(proposalMeta[key] as string) ?? ''}
+                  placeholder={ph}
+                  onChange={e => setProposalMeta(m => ({ ...m, [key]: e.target.value || undefined }))}
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            ))}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowProposalForm(false)} className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
+              <button
+                onClick={async () => {
+                  setShowProposalForm(false);
+                  setIsExportingProposal(true);
+                  try {
+                    const blob = await generateProposalPDF(project, result, proposalMeta);
+                    downloadProposalPDF(blob, proposalMeta.cliente || project.clientName);
+                  } catch (e) {
+                    setToast('Erro ao gerar proposta: ' + (e instanceof Error ? e.message : 'desconhecido'));
+                    setTimeout(() => setToast(null), 5000);
+                  }
+                  setIsExportingProposal(false);
+                }}
+                className="px-4 py-1.5 text-sm text-white rounded-lg"
+                style={{ backgroundColor: '#2F927B' }}
+              >
+                Gerar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-800">{project.clientName} — Resultados</h1>
@@ -278,17 +329,7 @@ export function Results() {
             {isExportingPDF ? 'Gerando PDF...' : 'Exportar PDF'}
           </button>
           <button
-            onClick={async () => {
-              setIsExportingProposal(true);
-              try {
-                const blob = await generateProposalPDF(project, result);
-                downloadProposalPDF(blob, project.clientName);
-              } catch (e) {
-                setToast('Erro ao gerar proposta: ' + (e instanceof Error ? e.message : 'desconhecido'));
-                setTimeout(() => setToast(null), 5000);
-              }
-              setIsExportingProposal(false);
-            }}
+            onClick={() => setShowProposalForm(true)}
             disabled={isExportingProposal}
             className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-60"
             style={{ backgroundColor: '#2F927B' }}
