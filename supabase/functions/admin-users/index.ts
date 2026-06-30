@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
   // 2) Act with service_role.
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
-  let payload: { action?: string; id?: string; email?: string; password?: string; full_name?: string; redirectTo?: string };
+  let payload: { action?: string; id?: string; email?: string; password?: string; full_name?: string; redirectTo?: string; active?: boolean };
   try { payload = await req.json(); } catch { return json({ error: 'invalid body' }, 400); }
   const { action } = payload;
 
@@ -89,6 +89,31 @@ Deno.serve(async (req: Request) => {
         if (payload.email) up.email = payload.email.trim().toLowerCase();
         await admin.from('profiles').upsert(up);
       }
+      return json({ ok: true });
+    }
+
+    if (action === 'set_active' || action === 'delete') {
+      const id = payload.id;
+      if (!id) return json({ error: 'id obrigatório' }, 400);
+      // Protect super-admins from being deactivated/removed.
+      const { data: tgt } = await admin.auth.admin.getUserById(id);
+      const tEmail = tgt.user?.email?.toLowerCase();
+      if (tEmail) {
+        const { data: sa } = await admin.from('super_admins').select('email');
+        if ((sa ?? []).some((r: { email: string }) => r.email.toLowerCase() === tEmail)) {
+          return json({ error: 'não é permitido desativar/remover um super-admin' }, 400);
+        }
+      }
+      if (action === 'set_active') {
+        const active = (payload as { active?: boolean }).active;
+        const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: active ? 'none' : '876000h' });
+        if (error) return json({ error: error.message }, 400);
+        return json({ ok: true });
+      }
+      // delete: remove profile then auth user (FK may block if they still own projects).
+      await admin.from('profiles').delete().eq('id', id);
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) return json({ error: error.message }, 400);
       return json({ ok: true });
     }
 

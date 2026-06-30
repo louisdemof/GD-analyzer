@@ -169,6 +169,14 @@ export async function cloudAdminUpdateUser(id: string, patch: { fullName?: strin
   return invokeAdminUsers({ action: 'update', id, full_name: patch.fullName, password: patch.password });
 }
 
+export async function cloudAdminSetActive(id: string, active: boolean): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminUsers({ action: 'set_active', id, active });
+}
+
+export async function cloudAdminDeleteUser(id: string): Promise<{ ok: boolean; error?: string }> {
+  return invokeAdminUsers({ action: 'delete', id });
+}
+
 export interface DirectoryUser { id: string; email: string; full_name: string | null }
 export async function cloudListUsers(): Promise<DirectoryUser[]> {
   if (!(await authed()) || !supabase) return [];
@@ -187,7 +195,7 @@ export async function cloudLogLogin(): Promise<void> {
 }
 
 // Per-user stats for the admin panel (name, email, last login, # projects). Super-admins only.
-export interface AdminUserStat { id: string; email: string; full_name: string | null; lastSignInAt: string | null; projectCount: number }
+export interface AdminUserStat { id: string; email: string; full_name: string | null; lastSignInAt: string | null; projectCount: number; bannedUntil: string | null }
 export async function cloudAdminUserStats(): Promise<AdminUserStat[]> {
   if (!(await authed()) || !supabase) return [];
   const { data, error } = await supabase.rpc('admin_user_stats');
@@ -195,6 +203,7 @@ export async function cloudAdminUserStats(): Promise<AdminUserStat[]> {
   return (data as Record<string, unknown>[]).map(r => ({
     id: r.id as string, email: r.email as string, full_name: (r.full_name as string) ?? null,
     lastSignInAt: (r.last_sign_in_at as string) ?? null, projectCount: Number(r.project_count) || 0,
+    bannedUntil: (r.banned_until as string) ?? null,
   }));
 }
 

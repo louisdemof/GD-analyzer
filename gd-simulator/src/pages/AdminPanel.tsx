@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import {
   cloudIsSuperAdmin, cloudRecentActivity, cloudAdminUserStats, LOGIN_PROJECT_ID,
   cloudAdminCreateUser, cloudAdminUpdateUser, cloudAdminInviteUser, cloudSuperAdminEmails,
+  cloudAdminSetActive, cloudAdminDeleteUser,
   type ActivityEntry, type AdminUserStat, type AuditAction,
 } from '../storage/cloudSync';
 import { STATUS_META, STATUS_ORDER, statusOf } from '../lib/projectStatus';
@@ -101,6 +102,25 @@ export function AdminPanel() {
     setBusy(false);
     if (r.ok) { flash(true, `Convite enviado para ${nu.email}.`); setNu({ email: '', full_name: '', password: '' }); reloadUsers(); }
     else flash(false, r.error || 'Falha ao enviar convite.');
+  };
+
+  const isBanned = (u: AdminUserStat) => !!u.bannedUntil && new Date(u.bannedUntil) > new Date();
+
+  const handleSetActive = async (u: AdminUserStat, active: boolean) => {
+    setBusy(true);
+    const r = await cloudAdminSetActive(u.id, active);
+    setBusy(false);
+    if (r.ok) { flash(true, active ? `${u.email} reativado.` : `${u.email} desativado.`); reloadUsers(); }
+    else flash(false, r.error || 'Falha.');
+  };
+
+  const handleDeleteUser = async (u: AdminUserStat) => {
+    if (!window.confirm(`Remover ${u.email} permanentemente? Esta ação não pode ser desfeita.`)) return;
+    setBusy(true);
+    const r = await cloudAdminDeleteUser(u.id);
+    setBusy(false);
+    if (r.ok) { flash(true, `${u.email} removido.`); reloadUsers(); }
+    else flash(false, r.error || 'Falha ao remover.');
   };
 
   const handleSaveEdit = async (id: string) => {
@@ -238,17 +258,26 @@ export function AdminPanel() {
                       {avatarInitials(u.full_name, u.email)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-slate-700 truncate flex items-center gap-1.5">
+                      <p className={`truncate flex items-center gap-1.5 ${isBanned(u) ? 'text-slate-400' : 'text-slate-700'}`}>
                         {u.full_name || <span className="text-slate-400 italic">sem nome</span>}
-                        {superEmails.has(u.email.toLowerCase()) && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-navy-100 text-white shrink-0" style={{ backgroundColor: '#004B70' }}>super-admin</span>}
-                        {!u.lastSignInAt && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 shrink-0">nunca acessou</span>}
+                        {superEmails.has(u.email.toLowerCase()) && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold text-white shrink-0" style={{ backgroundColor: '#004B70' }}>super-admin</span>}
+                        {isBanned(u) && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-rose-100 text-rose-700 shrink-0">desativado</span>}
+                        {!isBanned(u) && !u.lastSignInAt && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 shrink-0">nunca acessou</span>}
                       </p>
                       <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
                       <p className="text-[11px] text-slate-400">
                         Último acesso: <span className="text-slate-500">{timeAgo(u.lastSignInAt)}</span> · {u.projectCount} projeto{u.projectCount === 1 ? '' : 's'}
                       </p>
                     </div>
-                    <button onClick={() => { setEditId(u.id); setEditVals({ full_name: u.full_name || '', password: '' }); }} className="text-xs text-teal-600 hover:underline shrink-0">editar</button>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <button onClick={() => { setEditId(u.id); setEditVals({ full_name: u.full_name || '', password: '' }); }} className="text-xs text-teal-600 hover:underline">editar</button>
+                      {!superEmails.has(u.email.toLowerCase()) && (
+                        <button onClick={() => handleSetActive(u, isBanned(u))} disabled={busy} className="text-xs text-amber-600 hover:underline disabled:opacity-50">{isBanned(u) ? 'reativar' : 'desativar'}</button>
+                      )}
+                      {!superEmails.has(u.email.toLowerCase()) && u.projectCount === 0 && (
+                        <button onClick={() => handleDeleteUser(u)} disabled={busy} className="text-xs text-rose-600 hover:underline disabled:opacity-50">remover</button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
