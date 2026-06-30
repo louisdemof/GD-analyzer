@@ -221,16 +221,18 @@ function Page2(project: Project, result: SimulationResult, meta: ProposalMeta, d
       `Banco de créditos ao final do contrato: ${fmtMWh(sm.bancoResidualKWh)} ≈ ${fmtBRL(sm.bancoResidualValue)} (valorizado ao PPA). Créditos gerados e não consumidos continuam do cliente, válidos por até 60 meses (Lei 14.300/2022) — um ativo adicional além da economia mensal.`),
     React.createElement(Text, { style: s.quote },
       '"Com o modelo da Helexia, o cliente paga menos pela energia fora e dentro da ponta, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'),
-    React.createElement(Text, { style: s.cta }, 'Quanto a sua operação pode economizar?'),
+    React.createElement(Text, { style: s.cta }, 'Próximos passos'),
     React.createElement(Text, { style: { fontSize: 9, color: '#334155' } },
-      `Peça um estudo gratuito da Helexia e descubra o potencial de economia da sua empresa.  ·  ${contato}`),
+      `1. Validação das faturas (já realizada neste estudo)  →  2. Assinatura do contrato de fornecimento (PPA)  →  3. Conexão e início da economia.`),
+    React.createElement(Text, { style: { fontSize: 9, color: NAVY, fontWeight: 'bold', marginTop: 3 } },
+      `Fale com a Helexia para avançar: ${contato}`),
     // Boilerplate
     React.createElement(View, { style: s.about },
       React.createElement(Text, { style: s.aboutTitle }, 'Helexia · grupo Voltalia · família Mulliez'),
       React.createElement(Text, { style: s.aboutText }, HELEXIA_ABOUT),
     ),
     React.createElement(Text, { style: s.disclaimer },
-      `Este estudo demonstra condições específicas de um cliente no momento da análise e não caracteriza oferta ao cliente final. Serve meramente para fins ilustrativos do modelo de negócio. Valores baseados em projeção de geração P50 e na tarifa ${project.distributor.name} homologada (${resolucao}); valores reais podem variar conforme condições climáticas, alterações tarifárias e disponibilidade da usina.`),
+      `Estudo elaborado com base nas faturas e no perfil de consumo do cliente na data da análise. Os valores são uma projeção e não constituem oferta vinculante até a assinatura do contrato. Baseado em geração P50 e na tarifa ${project.distributor.name} homologada (${resolucao}); valores reais podem variar conforme condições climáticas, alterações tarifárias e disponibilidade da usina.`),
   );
 }
 
