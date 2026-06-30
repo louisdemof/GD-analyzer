@@ -149,9 +149,11 @@ function Page1(project: Project, result: SimulationResult, meta: ProposalMeta, d
     d.pontaTarifa > 0 && React.createElement(Text, { style: s.p },
       `O peso do consumo em ponta (tarifa evitada ~R$ ${Math.round(d.pontaTarifa).toLocaleString('pt-BR')}/MWh) é o que mais encarece a fatura — é onde a GD gera mais economia. Preço fixo Helexia: R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh.`),
     // A solução
-    React.createElement(Text, { style: s.h2 }, 'A solução Helexia'),
+    React.createElement(Text, { style: s.h2 }, 'A solução Helexia — Autoconsumo Remoto'),
     React.createElement(Text, { style: s.p },
-      `Via ${tipoGd}, o cliente é conectado à usina solar ${usinaCod}${usinaNome}, sem instalar nada na sua planta. Com um contrato de fornecimento (PPA), passa a ter um custo fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh. Os créditos da usina compensam o consumo e os benefícios fiscais da GD reduzem ainda mais o valor líquido da fatura.`),
+      `A Helexia constrói, é proprietária e opera a usina solar ${usinaCod}${usinaNome} — o cliente não investe, não instala nada na sua planta e não cuida da manutenção. No modelo de Autoconsumo Remoto (Lei 14.300/2022), a energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades consumidoras do cliente. O cliente paga apenas pela energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — abaixo da tarifa e sem bandeiras.`),
+    React.createElement(Text, { style: s.p },
+      `Estrutura contratual: Contrato de Locação da Usina + O&M — a operação e a manutenção ficam por conta da Helexia. Remuneração em modelo take-or-pay sobre a energia injetada. O rateio dos créditos entre as unidades é definido e notificado à distribuidora (NDU). Os créditos são garantidos pela Lei 14.300/2022.`),
     React.createElement(Text, { style: { ...s.p, color: GREY } },
       `Usina de referência: ${Math.round(d.capacidade).toLocaleString('pt-BR')} kWac · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês).`),
   );
