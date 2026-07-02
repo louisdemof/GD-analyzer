@@ -57,6 +57,48 @@ function isGrupoA(tg: TariffGroup): boolean {
   return tg.startsWith('A');
 }
 
+// One editable monthly grid with a quick-fill toolbar (type a value → apply to all months,
+// or an annual total → distribute evenly). Used for Fora-Ponta / Ponta / Reservado.
+function MonthGrid({ label, color, data, field, count, labels, onUpdate }: {
+  label: string; color: string; data: number[]; field: keyof ConsumptionUnit; count: number; labels: string[];
+  onUpdate: (u: Partial<ConsumptionUnit>) => void;
+}) {
+  const [fill, setFill] = useState('');
+  const total = data.reduce((a, b) => a + (b || 0), 0);
+  const setCell = (idx: number, raw: string) => {
+    const v = parseFloat(raw);
+    const next = data.length === count ? [...data] : Array.from({ length: count }, (_, i) => data[i] ?? 0);
+    next[idx] = isNaN(v) ? 0 : v;
+    onUpdate({ [field]: next } as Partial<ConsumptionUnit>);
+  };
+  const fillAll = (perMonth: number) => onUpdate({ [field]: Array.from({ length: count }, () => Math.round(perMonth)) } as Partial<ConsumptionUnit>);
+  const applyMonthly = () => { const v = parseFloat(fill); if (!isNaN(v)) fillAll(v); };
+  const applyAnnual = () => { const v = parseFloat(fill); if (!isNaN(v)) fillAll(v / 12); };
+  return (
+    <div className="rounded border border-slate-200 bg-white p-2">
+      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1.5">
+        <span className="text-[11px] font-semibold" style={{ color }}>{label}</span>
+        <div className="flex items-center gap-1.5">
+          <input type="number" value={fill} onChange={e => setFill(e.target.value)} onKeyDown={e => e.key === 'Enter' && applyMonthly()}
+            placeholder="valor…" className="w-20 px-1.5 py-0.5 border border-slate-300 rounded text-[10px] font-mono text-right focus:outline-none focus:ring-1 focus:ring-teal-500" />
+          <button type="button" onClick={applyMonthly} title="Aplicar este valor a todos os meses" className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">todos os meses</button>
+          <button type="button" onClick={applyAnnual} title="Tratar o valor como total anual e dividir por 12" className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600">÷12 (anual)</button>
+          <span className="text-[10px] font-mono text-slate-500">Total: {total.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kWh</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-6 gap-1">
+        {Array.from({ length: count }, (_, i) => (
+          <div key={i} className="flex flex-col">
+            <span className="text-[9px] text-slate-400 text-center mb-0.5">{labels[i]}</span>
+            <input type="number" value={data[i] ?? 0} onChange={e => setCell(i, e.target.value)}
+              className="px-1.5 py-1 border border-slate-300 rounded text-[10px] font-mono text-right focus:outline-none focus:ring-1 focus:ring-teal-500" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Inline monthly-consumption editor shown when a UC row is expanded ("▶ Consumo").
 function MonthlyConsumptionEditor({ uc, contractStartMonth, onUpdate }: {
   uc: ConsumptionUnit;
@@ -72,47 +114,15 @@ function MonthlyConsumptionEditor({ uc, contractStartMonth, onUpdate }: {
   const labels = monthLabels(contractStartMonth, count);
   const hasRSV = !!uc.consumptionReservado && uc.consumptionReservado.length > 0;
 
-  const updateCell = (arr: number[], idx: number, field: keyof ConsumptionUnit, raw: string) => {
-    const v = parseFloat(raw);
-    const next = arr.length === count ? [...arr] : Array.from({ length: count }, (_, i) => arr[i] ?? 0);
-    next[idx] = isNaN(v) ? 0 : v;
-    onUpdate({ [field]: next } as Partial<ConsumptionUnit>);
-  };
-
-  const grid = (label: string, color: string, data: number[], field: keyof ConsumptionUnit) => {
-    const total = data.reduce((a, b) => a + (b || 0), 0);
-    return (
-      <div className="rounded border border-slate-200 bg-white p-2">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-semibold" style={{ color }}>{label}</span>
-          <span className="text-[10px] font-mono text-slate-500">Total: {total.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kWh</span>
-        </div>
-        <div className="grid grid-cols-6 gap-1">
-          {Array.from({ length: count }, (_, i) => (
-            <div key={i} className="flex flex-col">
-              <span className="text-[9px] text-slate-400 text-center mb-0.5">{labels[i]}</span>
-              <input
-                type="number"
-                value={data[i] ?? 0}
-                onChange={e => updateCell(data, i, field, e.target.value)}
-                className="px-1.5 py-1 border border-slate-300 rounded text-[10px] font-mono text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-3 mb-1">
         <span className="text-xs font-semibold text-slate-700">Consumo mensal — {uc.name}</span>
-        <span className="text-[10px] text-slate-500">{count} meses · edite as células diretamente</span>
+        <span className="text-[10px] text-slate-500">{count} meses · digite célula a célula, ou use “valor + todos os meses / ÷12”</span>
       </div>
-      {grid('Fora Ponta (kWh)', '#2F927B', uc.consumptionFP, 'consumptionFP')}
-      {uc.isGrupoA && grid('Ponta (kWh)', '#004B70', uc.consumptionPT || [], 'consumptionPT')}
-      {hasRSV && grid('Reservado (kWh)', '#f59e0b', uc.consumptionReservado || [], 'consumptionReservado')}
+      <MonthGrid label={uc.isGrupoA ? 'Fora Ponta (kWh)' : 'Consumo (kWh)'} color="#2F927B" data={uc.consumptionFP} field="consumptionFP" count={count} labels={labels} onUpdate={onUpdate} />
+      {uc.isGrupoA && <MonthGrid label="Ponta (kWh)" color="#004B70" data={uc.consumptionPT || []} field="consumptionPT" count={count} labels={labels} onUpdate={onUpdate} />}
+      {hasRSV && <MonthGrid label="Reservado (kWh)" color="#f59e0b" data={uc.consumptionReservado || []} field="consumptionReservado" count={count} labels={labels} onUpdate={onUpdate} />}
       {uc.isGrupoA && (
         <div className="rounded border border-slate-200 bg-white p-2 mt-2">
           <div className="flex items-center justify-between mb-1.5">
