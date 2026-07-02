@@ -10,6 +10,7 @@ import copelData2 from '../../reference/COPEL_DEMO_2.json';
 import copelData3 from '../../reference/COPEL_DEMO_3.json';
 import copelData4 from '../../reference/COPEL_DEMO_4.json';
 import superfrioData from '../../reference/SUPERFRIO_CWBII_ACL_DEMO.json';
+import caseEmsData from '../../reference/CASE_EMS_DEMO.json';
 import superfrioPortfolioData from '../../reference/SUPERFRIO_PR_PORTFOLIO_DEMO.json';
 import superfrioFrontloadData from '../../reference/SUPERFRIO_PR_FRONTLOAD_DEMO.json';
 import superfrio5yData from '../../reference/SUPERFRIO_PR_5Y_DEMO.json';
@@ -64,6 +65,7 @@ interface ProjectStore {
   loadSuperfrioPortfolioDemo: () => void;
   loadSuperfrioFrontloadDemo: () => void;
   loadSuperfrio5yDemo: () => void;
+  loadCaseEmsDemo: () => void;
 
   // Export/Import
   exportProject: (id: string) => string;
@@ -520,6 +522,32 @@ export const useProjectStore = create<ProjectStore>()(
             currentProjectId: project.id,
           };
         });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      loadCaseEmsDemo: () => {
+        const demo = caseEmsData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'case-ems-demo',
+          clientName: demo.clientName,
+          marketType: demo.marketType as Project['marketType'],
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+        set(state => ({
+          projects: [...state.projects.filter(p => p.id !== 'case-ems-demo'), project],
+          currentProjectId: project.id,
+        }));
         saveProjectToDB(project).catch(() => {});
       },
 

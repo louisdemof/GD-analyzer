@@ -1,0 +1,115 @@
+{
+  "project": {
+    "clientName": "Case EMS",
+    "marketType": "CATIVO",
+    "distributor": {
+      "id": "EMS",
+      "name": "Energisa Mato Grosso do Sul",
+      "state": "MS",
+      "resolution": "Res. ANEEL 3.441/2025",
+      "tariffs": {
+        "B_TUSD": 0.59208,
+        "B_TE": 0.28602,
+        "A_FP_TUSD_TE": 0.39961,
+        "A_PT_TUSD_TE": 2.25614,
+        "A_TE_FP": 0.26963,
+        "A_TE_PT": 0.44621,
+        "A_FP_DEMANDA": 34.69
+      },
+      "taxes": {
+        "ICMS": 0.17,
+        "PIS": 0.0153,
+        "COFINS": 0.0703
+      }
+    },
+    "plant": {
+      "id": "cassilandia-2",
+      "name": "Cassilândia 2",
+      "capacityKWac": 1421,
+      "distributor": "EMS",
+      "p50Profile": [
+        165770,
+        169537,
+        178956,
+        192142,
+        197794,
+        203445,
+        210980,
+        216631,
+        207212,
+        197794,
+        173305,
+        160119
+      ],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.45,
+      "contractStartMonth": "2027-01",
+      "contractMonths": 60
+    },
+    "ucs": [
+      {
+        "id": "ems-uc-01",
+        "name": "Case EMS — Matriz",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          141734,
+          144954,
+          153007,
+          164282,
+          169114,
+          173946,
+          180388,
+          185219,
+          177166,
+          169114,
+          148176,
+          136902
+        ],
+        "consumptionPT": [
+          15748,
+          16106,
+          17001,
+          18254,
+          18790,
+          19327,
+          20043,
+          20580,
+          19685,
+          18790,
+          16464,
+          15211
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 520,
+        "demandaFaturadaFP": 520,
+        "demandaMedidaMensal": [
+          437,
+          447,
+          472,
+          507,
+          522,
+          537,
+          557,
+          572,
+          547,
+          522,
+          457,
+          423
+        ]
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false
+    },
+    "growthRate": 0.02,
+    "generationDegradation": 0.005,
+    "performanceFactor": 1.0,
+    "rateio": {
+      "periods": [],
+      "isOptimised": false
+    }
+  }
+}

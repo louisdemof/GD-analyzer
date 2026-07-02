@@ -11,7 +11,7 @@ import { ShareDialog } from '../components/ShareDialog';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject, deleteProject } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, loadCaseEmsDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject, deleteProject } = useProjectStore();
   const navigate = useNavigate();
   const { cloudEnabled, user } = useAuth();
   const firstName = (() => {
@@ -363,6 +363,7 @@ export function Dashboard() {
                   { label: 'SUPERFRIO Paraná — Portfólio (5 UCs + HAP)', fn: loadSuperfrioPortfolioDemo, route: 'superfrio-pr-portfolio' },
                   { label: 'SUPERFRIO PR — Portfólio +HAP05 front-load', fn: loadSuperfrioFrontloadDemo, route: 'superfrio-pr-frontload' },
                   { label: 'SUPERFRIO PR — 5 anos · TE travado', fn: loadSuperfrio5yDemo, route: 'superfrio-pr-5y' },
+                  { label: 'Case EMS — Cassilândia 2 (A4 Verde · match 95%)', fn: loadCaseEmsDemo, route: 'case-ems-demo' },
                 ] as const).map(d => (
                   <button
                     key={d.route}
