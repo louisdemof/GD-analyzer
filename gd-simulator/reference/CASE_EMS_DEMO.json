@@ -44,7 +44,7 @@
       "useActual": false,
       "ppaRateRsBRLkWh": 0.45,
       "contractStartMonth": "2027-01",
-      "contractMonths": 60
+      "contractMonths": 24
     },
     "ucs": [
       {
