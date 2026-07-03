@@ -241,37 +241,26 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       const autoCompPT = Math.min(ownGenSurplusAfterFPposto * FA, consPT);
       creditsPTApplied = autoCompPT;
 
-      // Row 30: Bank draw — FP-posto pool = consFP + consRSV (same posto 1:1)
-      const fpPostoShortfallAfterCredits = Math.max(0, (consFP + consRSV) - ownGen - cs3Credits - batCredits);
-      const ptShortfallAfterOwnGen = Math.max(0, consPT - autoCompPT);
-      const ptShortfallAsFPequiv = FA > 0 ? ptShortfallAfterOwnGen / FA : 0;
-      bankDraw = Math.min(bankStart, fpPostoShortfallAfterCredits + ptShortfallAsFPequiv);
-
-      // Row 31: Bank end
-      const fpPostoDeficit = Math.max(0, (consFP + consRSV) - ownGen);
-      const cs3Surplus = Math.max(0, cs3Credits - fpPostoDeficit);
-      const ownGenSurplus = Math.max(0, ownGen - (consFP + consRSV));
-      bank = Math.max(0, bankStart - bankDraw) + batCredits + cs3Surplus + ownGenSurplus;
-
-      // Row 36: Custo — allocate credits FP-regular first, then RSV (same posto,
-      // maximizes customer savings within the FP-posto bucket), then surplus to PT via FA.
-      let resFP = 0, resPT = 0, resRSV = 0;
-      if (bank > 0) {
-        costRede = 0;
-        // Bank still positive means everything got covered (or already in bank).
-      } else {
-        const totalPool = ownGen + cs3Credits + batCredits + bankStart;
-        const fpUncovered = Math.max(0, consFP - totalPool);
-        const remAfterFP = Math.max(0, totalPool - consFP);
-        const rsvUncovered = Math.max(0, consRSV - remAfterFP);
-        const remAfterRSV = Math.max(0, remAfterFP - consRSV);
-        const ptCoveredBySurplus = remAfterRSV * FA;
-        const ptUncovered = Math.max(0, consPT - ptCoveredBySurplus);
-        costRede = fpUncovered * T_AFP_eff + rsvUncovered * T_ARSV_eff + ptUncovered * T_APT_eff;
-        resFP = fpUncovered;
-        resRSV = rsvUncovered;
-        resPT = ptUncovered;
-      }
+      // ── Compensação SCEE em kWh FP-equivalente (REN 1000, Fator de Ajuste) ──
+      // Pool total do mês = own-gen + usina (cs3) + BAT + banco inicial, tudo em kWh FP-equiv.
+      // Aloca FP-regular (1:1) → Reservado (1:1) → Ponta (1 crédito FP compensa FA kWh de ponta).
+      // O consumo que sobrar paga tarifa de rede; o excedente de créditos vai para o banco.
+      // FIX: antes o banco recebia o excedente FP SEM abater a ponta (consPT/FA), e um atalho
+      // "if (bank>0) custo=0" zerava o resíduo — o que compensava ponta 1:1 e ignorava o FA.
+      const totalPool = ownGen + cs3Credits + batCredits + bankStart;
+      const fpUncovered = Math.max(0, consFP - totalPool);
+      const afterFP = Math.max(0, totalPool - consFP);
+      const rsvUncovered = Math.max(0, consRSV - afterFP);
+      const afterRSV = Math.max(0, afterFP - consRSV);
+      const ptCovered = Math.min(consPT, afterRSV * FA);        // kWh de ponta compensados via FA
+      const ptUncovered = Math.max(0, consPT - ptCovered);
+      const fpEquivForPT = FA > 0 ? ptCovered / FA : 0;         // créditos FP-equiv gastos na ponta
+      const resFP = fpUncovered, resRSV = rsvUncovered, resPT = ptUncovered;
+      costRede = resFP * T_AFP_eff + resRSV * T_ARSV_eff + resPT * T_APT_eff;
+      // Banco final = excedente FP-equivalente após cobrir FP + Reservado + Ponta(via FA).
+      bank = Math.max(0, afterRSV - fpEquivForPT);
+      // Draw = quanto do banco inicial foi consumido líquido no mês (para relatório do banco).
+      bankDraw = Math.max(0, bankStart - bank);
       // Compensated per posto = consumption − residual. Used by tax-leak formulas
       // below and by the Detalhe Impostos UI for compensação visualization.
       const compFP = Math.max(0, consFP - resFP);
