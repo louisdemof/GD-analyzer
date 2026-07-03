@@ -132,7 +132,23 @@ export function TaxBreakdownPanel({ project, result }: Props) {
                     </tr>
                   </>
                 )}
-                {u.beneficioIncentivada !== undefined && (
+                {u.beneficioIncentivadaLines ? (
+                  u.beneficioIncentivadaLines.map((ln, i) => {
+                    const credit = ln.value < 0; // <0 = crédito (reduz SEM) ; >0 = custo (energia ACL)
+                    const mag = Math.abs(ln.value);
+                    const sign = credit ? '−' : '+';
+                    return (
+                      <tr key={i} className={`border-b border-slate-100 ${credit ? 'bg-emerald-50/40' : 'bg-sky-50/40'}`}>
+                        <td className={`px-3 py-2 font-medium ${credit ? 'text-emerald-800' : 'text-sky-800'}`}>{ln.label}</td>
+                        <td className={`px-3 py-2 text-right font-mono ${credit ? 'text-emerald-700' : 'text-sky-700'}`}>{sign}{fmtBRL(mag)}</td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-400">—</td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-400">—</td>
+                        <td className="px-3 py-2 text-right font-mono text-slate-400 border-l border-slate-200">—</td>
+                        <td className={`px-3 py-2 text-right font-mono ${credit ? 'text-rose-600' : 'text-emerald-700'}`}>{sign}{fmtBRL(mag)}</td>
+                      </tr>
+                    );
+                  })
+                ) : u.beneficioIncentivada !== undefined && (
                   <tr className="border-b border-slate-100 bg-emerald-50/40">
                     <td className="px-3 py-2 text-emerald-800 font-medium">Benefício/Subsídio incentivada (energia ACL + desconto TUSD/demanda)</td>
                     <td className="px-3 py-2 text-right font-mono text-emerald-700">−{fmtBRL(u.beneficioIncentivada)}</td>

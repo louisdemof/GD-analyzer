@@ -53,6 +53,10 @@ export interface TaxBreakdownUC {
   // mercado livre (energia ACL + TUSD/demanda com desconto incentivada) = benefício.
   // >0 = a reconstrução cativa superestima a SEM real (crédito reduz a SEM).
   beneficioIncentivada?: number;
+  // ACL only: o mesmo benefício, itemizado — mostra que a energia (TE) é comprada da
+  // Comercializadora no mercado livre (não a TE cativa da distribuidora) + os descontos de
+  // TUSD/demanda incentivada. A soma dos `value` == −beneficioIncentivada (reconcilia igual).
+  beneficioIncentivadaLines?: { label: string; value: number }[];
   // Não-ACL: reconciliação da SEM reconstruída (tarifa flat) → SEM real do bank sim
   // (reajuste anual). >0 reduz a SEM. Em projetos sem reajuste fica ausente.
   ajusteSEM?: number;
@@ -179,10 +183,12 @@ export function computeTaxBreakdown(
     const postos: TaxBreakdownPostoBlock[] = [];
     let totalSEM = 0;
     let totalCOM = 0;
+    let cativoTEtotal = 0; // soma da TE cativa (all-in) das linhas de posto — usada no split ACL
 
     for (const p of postoConfigs) {
       if (!p.show) continue;
       const semTE = taxBreakdown(p.semK, p.teRate, taxes);
+      cativoTEtotal += semTE.total;
       const semTUSD = taxBreakdown(p.semK, p.tusdRate, taxes);
       const comResTE = taxBreakdown(p.comK, p.teRate, taxes);
       const comResTUSD = taxBreakdown(p.comK, p.tusdRate, taxes);
@@ -276,6 +282,26 @@ export function computeTaxBreakdown(
     totalSEM = realSEM;
     totalCOM = realComRede + reconstructedPPA; // PPA scaled post-loop
 
+    // ACL: itemize the incentivada benefit so the table shows the energy is bought from the
+    // Comercializadora (mercado livre) — not the distributor's captive TE. teFpCost/tePtCost
+    // already hold the real ACL energy (all-in) from bank.ts, so no re-derivation/drift.
+    let beneficioIncentivadaLines: { label: string; value: number }[] | undefined;
+    if (isACL && Math.abs(semOver) > 1) {
+      const aclEnergyCost = isMonthly
+        ? ((semDetails?.[monthIndex]?.teFpCost ?? 0) + (semDetails?.[monthIndex]?.tePtCost ?? 0))
+        : (sumField(semDetails, 'teFpCost') + sumField(semDetails, 'tePtCost'));
+      const acl = uc.aclBaselineOverride ?? project.aclBaseline;
+      const priceMWh = acl?.energyPriceSemImp ? Math.round(acl.energyPriceSemImp * 1000) : undefined;
+      // xdisc = parcela do benefício que é desconto de TUSD ponta + demanda (o resto é a troca
+      // de energia cativa→ACL). As 3 linhas somam −semOver (mesma reconciliação da linha única).
+      const xdisc = semOver - (cativoTEtotal - aclEnergyCost);
+      beneficioIncentivadaLines = [
+        { label: `Energia comprada na Comercializadora (ACL${priceMWh ? ` · R$ ${priceMWh}/MWh` : ''})`, value: aclEnergyCost },
+        { label: 'TE cativo da distribuidora — não faturada na ACL', value: -cativoTEtotal },
+        { label: 'Desconto TUSD ponta + demanda (fonte incentivada)', value: -xdisc },
+      ];
+    }
+
     ucs.push({
       ucId: uc.id,
       ucName: uc.name,
@@ -285,6 +311,7 @@ export function computeTaxBreakdown(
       demanda,
       ppaHelexia: reconstructedPPA > 0 ? reconstructedPPA : undefined,
       beneficioIncentivada: isACL && Math.abs(semOver) > 1 ? semOver : undefined,
+      beneficioIncentivadaLines,
       ajusteSEM: !isACL && Math.abs(semOver) > 1 ? semOver : undefined,
       ajusteRedeCOM: Math.abs(comOver) > 1 ? comOver : undefined,
       totalSEM,
