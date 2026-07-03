@@ -1,4 +1,20 @@
 import type { Project, SimulationResult, UCMonthlyDetail } from './types';
+import { incentivadaDiscounts } from './tariff';
+
+// Decompose an ALL-IN component cost (R$) back into sem-impostos / PIS+COFINS / ICMS, where a
+// fonte-incentivada discount `disc` (0..1) applied on the base and taxes charged on the FULL
+// base (por dentro). disc=0 → plain reverse gross-up. Sum of the three == the input all-in.
+export function decomposeCost(
+  allIn: number, disc: number, PC: number, ICMS: number,
+): { semImpostos: number; pisCofins: number; icms: number; total: number } {
+  if (allIn === 0 || PC >= 1 || ICMS >= 1) return { semImpostos: allIn, pisCofins: 0, icms: 0, total: allIn };
+  const grossUp = 1 / ((1 - PC) * (1 - ICMS));
+  const baseFull = (grossUp - disc) !== 0 ? allIn / (grossUp - disc) : allIn;
+  const semImpostos = baseFull * (1 - disc);
+  const pisCofins = baseFull * PC / (1 - PC);
+  const icms = (baseFull / (1 - PC)) * ICMS / (1 - ICMS);
+  return { semImpostos, pisCofins, icms, total: allIn };
+}
 
 // Brazilian "por dentro" tax breakdown: given sem-impostos R$/kWh and consumption
 // in kWh, return the energy / PIS+COFINS / ICMS components such that they sum to
@@ -114,6 +130,7 @@ export function computeTaxBreakdown(
   const pisCofinsExempt = taxes.pisCofinsExempt ?? true;
   // NONE scope forces no-isenção even if scenarios.icmsExempt = true.
   const effectiveIcmsExempt = icmsScope === 'NONE' ? false : project.scenarios.icmsExempt;
+  const isACL = project.marketType === 'ACL';
   const cm = project.plant.contractMonths;
   // When monthIndex is provided, scope all UC sums to that single month.
   const isMonthly = typeof monthIndex === 'number' && monthIndex >= 0 && monthIndex < cm;
@@ -170,6 +187,24 @@ export function computeTaxBreakdown(
     const teRSV = rsvBase * teRatioFP;
     const tusdRSV = rsvBase * (1 - teRatioFP);
 
+    // ── ACL SEM: energy is bought from the Comercializadora (stored teFp/tePtCost) and TUSD +
+    // demanda carry the incentivada discount (stored tusd*/demandaCost). We rebuild the SEM lines
+    // from those real bank-sim costs — NO captive TE anywhere — so the table matches the ACL bill.
+    const acl = isACL ? (uc.aclBaselineOverride ?? project.aclBaseline) : undefined;
+    const incLevel = acl?.incentivadaLevel ?? 0;
+    const incDisc = acl && incLevel > 0 && uc.isGrupoA
+      ? incentivadaDiscounts(incLevel, /AZUL/i.test(uc.tariffGroup), tusdFP, tusdPT)
+      : null;
+    const discConsFor = (posto: 'FP' | 'PT' | 'RSV'): number =>
+      incDisc ? (posto === 'PT' ? incDisc.consumoPT : incDisc.consumoFP)
+      : (posto === 'PT' ? (acl?.tusdDiscountConsumoPT ?? acl?.tusdDiscountConsumo ?? 0) : (acl?.tusdDiscountConsumo ?? 0));
+    const discDem = incDisc ? incDisc.demanda : (acl?.tusdDiscountDemanda ?? 0);
+    const energyPC = (acl?.energyPisCofins ?? true) ? (acl?.energyPisCofinsPct ?? 0.0925) : 0;
+    const energyICMS = (acl?.energyIcms ?? true) ? taxes.ICMS : 0;
+    const PCd = taxes.PIS + taxes.COFINS;
+    const storedSemAt = (key: keyof UCMonthlyDetail): number =>
+      isMonthly ? ((semDetails?.[monthIndex]?.[key] as number | undefined) ?? 0) : sumField(semDetails, key);
+
     const postoConfigs: { name: 'FP' | 'PT' | 'RSV'; teRate: number; tusdRate: number; semK: number; comK: number; compK: number; show: boolean }[] = [
       { name: 'FP', teRate: teFP, tusdRate: tusdFP, semK: residualSemFP, comK: residualComFP, compK: compFP, show: true },
       { name: 'PT', teRate: tePT, tusdRate: tusdPT, semK: residualSemPT, comK: residualComPT, compK: compPT, show: uc.isGrupoA },
@@ -182,8 +217,17 @@ export function computeTaxBreakdown(
 
     for (const p of postoConfigs) {
       if (!p.show) continue;
-      const semTE = taxBreakdown(p.semK, p.teRate, taxes);
-      const semTUSD = taxBreakdown(p.semK, p.tusdRate, taxes);
+      // ACL (FP/PT): SEM energy = Comercializadora (stored), SEM TUSD = discounted (stored).
+      // RSV+ACL is rare and folded into FP by the sim → keep captive reconstruction (reconciled).
+      const aclPosto = !!acl && (p.name === 'FP' || p.name === 'PT');
+      const semTE = aclPosto
+        ? decomposeCost(p.name === 'FP' ? storedSemAt('teFpCost') : storedSemAt('tePtCost'), 0, energyPC, energyICMS)
+        : taxBreakdown(p.semK, p.teRate, taxes);
+      const semTUSD = aclPosto
+        ? decomposeCost(p.name === 'FP' ? storedSemAt('tusdFpCost') : storedSemAt('tusdPtCost'), discConsFor(p.name), PCd, taxes.ICMS)
+        : taxBreakdown(p.semK, p.tusdRate, taxes);
+      const teLbl = aclPosto ? `Energia ACL ${p.name} (Comercializadora)` : `TE ${p.name} (sem impostos)`;
+      const teTaxLbl = aclPosto ? `energia ACL ${p.name}` : `TE ${p.name}`;
       const comResTE = taxBreakdown(p.comK, p.teRate, taxes);
       const comResTUSD = taxBreakdown(p.comK, p.tusdRate, taxes);
       const compTE_leak = taxBreakdown(p.compK, p.teRate, taxes);
@@ -198,12 +242,14 @@ export function computeTaxBreakdown(
       const pcLeakTE = pisCofinsExempt ? 0 : compTE_leak.pisCofins;
       const pcLeakTUSD = pisCofinsExempt ? 0 : compTUSD_leak.pisCofins;
 
+      const tusdLbl = aclPosto && p.name === 'PT' && discConsFor('PT') > 0
+        ? `TUSD ${p.name} (sem impostos, c/ desc. incentivada)` : `TUSD ${p.name} (sem impostos)`;
       const lines: TaxBreakdownLine[] = [
-        { label: `TE ${p.name} (sem impostos)`, sem: semTE.semImpostos, com: comResTE.semImpostos, delta: semTE.semImpostos - comResTE.semImpostos },
-        { label: `TUSD ${p.name} (sem impostos)`, sem: semTUSD.semImpostos, com: comResTUSD.semImpostos, delta: semTUSD.semImpostos - comResTUSD.semImpostos },
-        { label: `PIS+COFINS sobre TE ${p.name}`, sem: semTE.pisCofins, com: comResTE.pisCofins + pcLeakTE, delta: semTE.pisCofins - (comResTE.pisCofins + pcLeakTE) },
+        { label: teLbl, sem: semTE.semImpostos, com: comResTE.semImpostos, delta: semTE.semImpostos - comResTE.semImpostos },
+        { label: tusdLbl, sem: semTUSD.semImpostos, com: comResTUSD.semImpostos, delta: semTUSD.semImpostos - comResTUSD.semImpostos },
+        { label: `PIS+COFINS sobre ${teTaxLbl}`, sem: semTE.pisCofins, com: comResTE.pisCofins + pcLeakTE, delta: semTE.pisCofins - (comResTE.pisCofins + pcLeakTE) },
         { label: `PIS+COFINS sobre TUSD ${p.name}`, sem: semTUSD.pisCofins, com: comResTUSD.pisCofins + pcLeakTUSD, delta: semTUSD.pisCofins - (comResTUSD.pisCofins + pcLeakTUSD) },
-        { label: `ICMS sobre TE ${p.name}`, sem: semTE.icms, com: comResTE.icms + icmsLeakTE, delta: semTE.icms - (comResTE.icms + icmsLeakTE) },
+        { label: `ICMS sobre ${teTaxLbl}`, sem: semTE.icms, com: comResTE.icms + icmsLeakTE, delta: semTE.icms - (comResTE.icms + icmsLeakTE) },
         { label: `ICMS sobre TUSD ${p.name}`, sem: semTUSD.icms, com: comResTUSD.icms + icmsLeakTUSD, delta: semTUSD.icms - (comResTUSD.icms + icmsLeakTUSD) },
       ];
       const subtotalSEM = semTE.total + semTUSD.total;
@@ -227,24 +273,45 @@ export function computeTaxBreakdown(
     const demandaKW = uc.isGrupoA ? (uc.demandaFaturadaFP ?? 0) : 0;
     const demandaMonths = isMonthly ? 1 : cm;
     if (demandaKW > 0 && (d.tariffs.A_FP_DEMANDA ?? 0) > 0) {
-      const T_dem_sem = d.tariffs.A_FP_DEMANDA ?? 0;
-      const demSem = T_dem_sem * demandaKW * demandaMonths;
       const PC = taxes.PIS + taxes.COFINS;
-      const demPC = (1 - PC) > 0 ? demSem * PC / (1 - PC) : 0;
-      const demICMS = (1 - taxes.ICMS) > 0 ? (demSem + demPC) * taxes.ICMS / (1 - taxes.ICMS) : 0;
-      const subtotal = demSem + demPC + demICMS;
-      demanda = {
-        kW: demandaKW,
-        months: demandaMonths,
-        lines: [
-          { label: 'Demanda sem impostos', sem: demSem, com: demSem, delta: 0 },
-          { label: 'PIS+COFINS sobre Demanda', sem: demPC, com: demPC, delta: 0 },
-          { label: 'ICMS sobre Demanda', sem: demICMS, com: demICMS, delta: 0 },
-        ],
-        subtotal,
-      };
-      totalSEM += subtotal;
-      totalCOM += subtotal;
+      if (acl) {
+        // ACL: SEM demanda carries the incentivada discount (stored, from the sim); COM demanda
+        // is full (cativo GD — a perda do desconto aparece como economia negativa na demanda).
+        const demSemCost = isMonthly ? (semDetails?.[monthIndex]?.demandaCost ?? 0) : sumField(semDetails, 'demandaCost');
+        const demComCost = isMonthly ? (comDetails?.[monthIndex]?.demandaCost ?? 0) : sumField(comDetails, 'demandaCost');
+        const s = decomposeCost(demSemCost, discDem, PC, taxes.ICMS);
+        const c = decomposeCost(demComCost, 0, PC, taxes.ICMS);
+        demanda = {
+          kW: demandaKW,
+          months: demandaMonths,
+          lines: [
+            { label: discDem > 0 ? 'Demanda sem impostos (c/ desc. incentivada)' : 'Demanda sem impostos', sem: s.semImpostos, com: c.semImpostos, delta: s.semImpostos - c.semImpostos },
+            { label: 'PIS+COFINS sobre Demanda', sem: s.pisCofins, com: c.pisCofins, delta: s.pisCofins - c.pisCofins },
+            { label: 'ICMS sobre Demanda', sem: s.icms, com: c.icms, delta: s.icms - c.icms },
+          ],
+          subtotal: s.total,
+        };
+        totalSEM += s.total;
+        totalCOM += c.total;
+      } else {
+        const T_dem_sem = d.tariffs.A_FP_DEMANDA ?? 0;
+        const demSem = T_dem_sem * demandaKW * demandaMonths;
+        const demPC = (1 - PC) > 0 ? demSem * PC / (1 - PC) : 0;
+        const demICMS = (1 - taxes.ICMS) > 0 ? (demSem + demPC) * taxes.ICMS / (1 - taxes.ICMS) : 0;
+        const subtotal = demSem + demPC + demICMS;
+        demanda = {
+          kW: demandaKW,
+          months: demandaMonths,
+          lines: [
+            { label: 'Demanda sem impostos', sem: demSem, com: demSem, delta: 0 },
+            { label: 'PIS+COFINS sobre Demanda', sem: demPC, com: demPC, delta: 0 },
+            { label: 'ICMS sobre Demanda', sem: demICMS, com: demICMS, delta: 0 },
+          ],
+          subtotal,
+        };
+        totalSEM += subtotal;
+        totalCOM += subtotal;
+      }
     }
 
     // ── Reconcile the flat-tariff reconstruction (postos + demanda + leaks above) to the
@@ -271,7 +338,6 @@ export function computeTaxBreakdown(
     // Overstatement (>0) = reconstruction higher than real → reconciling credit reduces it.
     const semOver = reconstructedSEM - realSEM;
     const comOver = reconstructedComRede - realComRede;
-    const isACL = project.marketType === 'ACL';
 
     totalSEM = realSEM;
     totalCOM = realComRede + reconstructedPPA; // PPA scaled post-loop
