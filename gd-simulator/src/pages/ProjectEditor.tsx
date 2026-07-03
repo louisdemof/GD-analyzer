@@ -35,6 +35,8 @@ export function ProjectEditor() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const pendingImportRef = useRef<ImportResult | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
 
   // Access / ownership info (cloud only).
   const { cloudEnabled } = useAuth();
@@ -305,7 +307,25 @@ export function ProjectEditor() {
             <img src={project.clientLogo} alt="logo" className="h-12 max-w-[140px] object-contain border border-slate-200 rounded bg-white p-1" />
           )}
           <div>
-            <h1 className="text-xl font-bold text-slate-800">{project.clientName}</h1>
+            {editingName ? (
+              <input
+                autoFocus
+                value={nameDraft}
+                onChange={e => setNameDraft(e.target.value)}
+                onBlur={() => { const n = nameDraft.trim(); if (n) updateProject(project.id, { clientName: n }); setEditingName(false); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { const n = nameDraft.trim(); if (n) updateProject(project.id, { clientName: n }); setEditingName(false); }
+                  if (e.key === 'Escape') setEditingName(false);
+                }}
+                className="text-xl font-bold text-slate-800 border border-teal-400 rounded px-1 -mx-1 outline-none focus:ring-2 focus:ring-teal-200"
+              />
+            ) : (
+              <h1
+                className="text-xl font-bold text-slate-800 cursor-text hover:text-teal-700"
+                title="Duplo-clique para renomear"
+                onDoubleClick={() => { setNameDraft(project.clientName || ''); setEditingName(true); }}
+              >{project.clientName}</h1>
+            )}
             <p className="text-xs text-slate-500">
               Configuração do Projeto · {' '}
               <button onClick={() => logoInputRef.current?.click()} className="text-teal-600 hover:underline">

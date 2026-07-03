@@ -36,6 +36,14 @@ export function Dashboard() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'created'>('updated');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const startRename = (id: string, current: string) => { setEditingId(id); setNameDraft(current); };
+  const commitRename = (id: string) => {
+    const name = nameDraft.trim();
+    if (name) updateProject(id, { clientName: name });
+    setEditingId(null);
+  };
   const [view, setView] = useState<'cards' | 'table'>(() =>
     (localStorage.getItem('gd-dashboard-view') as 'cards' | 'table') || 'cards');
   useEffect(() => { localStorage.setItem('gd-dashboard-view', view); }, [view]);
@@ -183,10 +191,29 @@ export function Dashboard() {
                 {folder.name}
               </span>
             )}
-            <h3 className="font-semibold text-slate-800 truncate">{p.clientName || 'Sem nome'}</h3>
+            {editingId === p.id ? (
+              <input
+                autoFocus
+                value={nameDraft}
+                onClick={e => e.stopPropagation()}
+                onChange={e => setNameDraft(e.target.value)}
+                onBlur={() => commitRename(p.id)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitRename(p.id); }
+                  if (e.key === 'Escape') { e.preventDefault(); setEditingId(null); }
+                }}
+                className="w-full font-semibold text-slate-800 border border-teal-400 rounded px-1 -mx-1 outline-none focus:ring-2 focus:ring-teal-200"
+              />
+            ) : (
+              <h3
+                className="font-semibold text-slate-800 truncate"
+                title="Duplo-clique para renomear"
+                onDoubleClick={e => { e.stopPropagation(); startRename(p.id, p.clientName || ''); }}
+              >{p.clientName || 'Sem nome'}</h3>
+            )}
             <p className="text-xs text-slate-500 mt-1">{p.plant.name || 'Planta não definida'}</p>
           </div>
-          <div className="flex gap-1">
+          <div className="absolute top-3 right-3 flex gap-1 bg-white/95 rounded-lg px-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
             <button onClick={(e) => handleDuplicate(e, p.id)} className="p-1 text-slate-400 hover:text-teal-600" title="Duplicar">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
             </button>
