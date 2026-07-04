@@ -17,6 +17,7 @@ function fmtKWh(v: number): string {
 export function TaxBreakdownPanel({ project, result }: Props) {
   // 'all' = contract total; otherwise month index 0..N-1
   const [selectedMonth, setSelectedMonth] = useState<'all' | number>('all');
+  const [benefOpen, setBenefOpen] = useState<Record<string, boolean>>({});
   const monthArg = selectedMonth === 'all' ? undefined : selectedMonth;
   const tb = computeTaxBreakdown(project, result, monthArg);
   const PC = tb.distributor.pisRate + tb.distributor.cofinsRate;
@@ -130,6 +131,36 @@ export function TaxBreakdownPanel({ project, result }: Props) {
                       <td className="px-3 py-1.5 text-right font-mono border-l border-slate-200">{fmtBRL(u.demanda.subtotal)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-slate-400">—</td>
                     </tr>
+                  </>
+                )}
+                {u.beneficioTarifario && (
+                  <>
+                    <tr
+                      className="border-b border-slate-100 bg-emerald-50/50 cursor-pointer hover:bg-emerald-50"
+                      onClick={() => setBenefOpen(o => ({ ...o, [u.ucId]: !o[u.ucId] }))}
+                    >
+                      <td className="px-3 py-2 text-emerald-800 font-medium">
+                        <span className="inline-block w-3 text-emerald-600">{benefOpen[u.ucId] ? '▾' : '▸'}</span>
+                        {' '}Benefício Tarifário (fonte incentivada)
+                        <span className="text-slate-400 font-normal"> · já refletido nas linhas acima</span>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-700">R$&nbsp;{fmtBRL(u.beneficioTarifario.total)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-slate-300">—</td>
+                      <td className="px-3 py-2 text-right font-mono text-slate-300">—</td>
+                      <td className="px-3 py-2 text-right font-mono text-slate-300 border-l border-slate-200">—</td>
+                      <td className="px-3 py-2 text-right text-[10px] text-slate-400">clique p/ detalhar</td>
+                    </tr>
+                    {benefOpen[u.ucId] && u.beneficioTarifario.linhas.map((ln, i) => (
+                      <tr key={`bt-${i}`} className="border-b border-slate-50 bg-emerald-50/20">
+                        <td className="px-3 py-1.5 pl-9">
+                          <span className="text-slate-700">{ln.label}</span>
+                          <span className="text-emerald-700 font-medium"> · {(ln.pct * 100).toFixed(0)}%</span>
+                          <div className="text-[10.5px] text-slate-500 mt-0.5 max-w-[520px]">{ln.explicacao}</div>
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-mono text-emerald-700">R$&nbsp;{fmtBRL(ln.valor)}</td>
+                        <td colSpan={4}></td>
+                      </tr>
+                    ))}
                   </>
                 )}
                 {u.beneficioIncentivada !== undefined && (

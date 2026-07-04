@@ -69,6 +69,12 @@ export interface TaxBreakdownUC {
   // mercado livre (energia ACL + TUSD/demanda com desconto incentivada) = benefício.
   // >0 = a reconstrução cativa superestima a SEM real (crédito reduz a SEM).
   beneficioIncentivada?: number;
+  // ACL: valor do desconto de fonte incentivada (TUSD ponta + demanda), JÁ refletido nas linhas
+  // acima. Linha informativa/expansível — não entra no total (senão contaria duas vezes).
+  beneficioTarifario?: {
+    total: number;
+    linhas: { label: string; pct: number; valor: number; explicacao: string }[];
+  };
   // Não-ACL: reconciliação da SEM reconstruída (tarifa flat) → SEM real do bank sim
   // (reajuste anual). >0 reduz a SEM. Em projetos sem reajuste fica ausente.
   ajusteSEM?: number;
@@ -211,6 +217,9 @@ export function computeTaxBreakdown(
       { name: 'RSV', teRate: teRSV, tusdRate: tusdRSV, semK: residualSemRSV, comK: residualComRSV, compK: compRSV, show: consRSV > 0 },
     ];
 
+    const incLbl = incLevel > 0 ? `I${Math.round(incLevel * 100)}` : 'incentivada';
+    const beneficioLinhas: { label: string; pct: number; valor: number; explicacao: string }[] = [];
+
     const postos: TaxBreakdownPostoBlock[] = [];
     let totalSEM = 0;
     let totalCOM = 0;
@@ -242,7 +251,16 @@ export function computeTaxBreakdown(
       const pcLeakTE = pisCofinsExempt ? 0 : compTE_leak.pisCofins;
       const pcLeakTUSD = pisCofinsExempt ? 0 : compTUSD_leak.pisCofins;
 
-      const tusdLbl = aclPosto && p.name === 'PT' && discConsFor('PT') > 0
+      const dptDisc = discConsFor(p.name);
+      if (aclPosto && p.name === 'PT' && dptDisc > 0) {
+        // valor do desconto (base sem impostos): base_cheia − base_descontada = descontada × d/(1−d)
+        beneficioLinhas.push({
+          label: 'Desconto TUSD Ponta', pct: dptDisc,
+          valor: semTUSD.semImpostos * dptDisc / (1 - dptDisc),
+          explicacao: `Fonte incentivada ${incLbl}: ${(dptDisc * 100).toFixed(0)}% de desconto sobre a base da TUSD de ponta (regra Verde: nível × (1 − TUSD_FP/TUSD_PT)). Os impostos incidem sobre a tarifa cheia.`,
+        });
+      }
+      const tusdLbl = aclPosto && p.name === 'PT' && dptDisc > 0
         ? `TUSD ${p.name} (sem impostos, c/ desc. incentivada)` : `TUSD ${p.name} (sem impostos)`;
       const lines: TaxBreakdownLine[] = [
         { label: teLbl, sem: semTE.semImpostos, com: comResTE.semImpostos, delta: semTE.semImpostos - comResTE.semImpostos },
@@ -281,6 +299,13 @@ export function computeTaxBreakdown(
         const demComCost = isMonthly ? (comDetails?.[monthIndex]?.demandaCost ?? 0) : sumField(comDetails, 'demandaCost');
         const s = decomposeCost(demSemCost, discDem, PC, taxes.ICMS);
         const c = decomposeCost(demComCost, 0, PC, taxes.ICMS);
+        if (discDem > 0) {
+          beneficioLinhas.push({
+            label: 'Desconto Demanda contratada', pct: discDem,
+            valor: c.semImpostos - s.semImpostos,
+            explicacao: `Fonte incentivada ${incLbl}: ${(discDem * 100).toFixed(0)}% de desconto sobre a demanda contratada (perdido ao migrar para GD cativo).`,
+          });
+        }
         demanda = {
           kW: demandaKW,
           months: demandaMonths,
@@ -351,6 +376,9 @@ export function computeTaxBreakdown(
       demanda,
       ppaHelexia: reconstructedPPA > 0 ? reconstructedPPA : undefined,
       beneficioIncentivada: isACL && Math.abs(semOver) > 1 ? semOver : undefined,
+      beneficioTarifario: beneficioLinhas.length
+        ? { total: beneficioLinhas.reduce((a, l) => a + l.valor, 0), linhas: beneficioLinhas }
+        : undefined,
       ajusteSEM: !isACL && Math.abs(semOver) > 1 ? semOver : undefined,
       ajusteRedeCOM: Math.abs(comOver) > 1 ? comOver : undefined,
       totalSEM,
