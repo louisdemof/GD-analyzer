@@ -47,23 +47,16 @@ function plantFromHelexia(hp: HelexiaPlant, startMonth: string, months: number, 
 }
 
 export function AdditionalPlants({ primary, additionalPlants: plants, onChange, distributorId }: Props) {
-  // ALL Helexia plants are selectable (portfolio rotation). Those in the same
-  // distribuidora as the project are surfaced first (autoconsumo remoto is only
-  // physically valid within the same concession); every other plant follows in a
-  // second group so nothing is blocked.
-  const { sameDistPlants, otherPlants } = useMemo(() => {
-    const d = (distributorId || '').toUpperCase();
-    const matches = (p: HelexiaPlant) => {
+  // Helexia plants filtered to this project's distributor (fallback to all).
+  const options = useMemo(() => {
+    if (!distributorId) return HELEXIA_PLANTS;
+    const d = distributorId.toUpperCase();
+    const filtered = HELEXIA_PLANTS.filter(p => {
       const dist = (p.distribuidora || '').toUpperCase();
-      return !!d && !!dist && (d.includes(dist) || dist.includes(d));
-    };
-    if (!d) return { sameDistPlants: HELEXIA_PLANTS, otherPlants: [] as HelexiaPlant[] };
-    return {
-      sameDistPlants: HELEXIA_PLANTS.filter(matches),
-      otherPlants: HELEXIA_PLANTS.filter(p => !matches(p)),
-    };
+      return dist && (d.includes(dist) || dist.includes(d));
+    });
+    return filtered.length > 0 ? filtered : HELEXIA_PLANTS;
   }, [distributorId]);
-  const options = useMemo(() => [...sameDistPlants, ...otherPlants], [sameDistPlants, otherPlants]);
 
   const addPlant = () => {
     const used = new Set([primary.name, ...plants.map(p => p.name)]);
@@ -141,20 +134,9 @@ export function AdditionalPlants({ primary, additionalPlants: plants, onChange, 
                     className="flex-1 px-2 py-1 text-sm border border-slate-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                   >
                     <option value="">— escolher usina Helexia —</option>
-                    {sameDistPlants.length > 0 && (
-                      <optgroup label={distributorId ? `Mesma distribuidora (${distributorId})` : 'Todas as usinas'}>
-                        {sameDistPlants.map(o => (
-                          <option key={o.codigo} value={o.codigo}>{o.codigo} · {o.nome} ({o.potenciaAC} kWac)</option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {otherPlants.length > 0 && (
-                      <optgroup label="Outras distribuidoras — compensação exige mesma concessão">
-                        {otherPlants.map(o => (
-                          <option key={o.codigo} value={o.codigo}>{o.codigo} · {o.nome} ({o.potenciaAC} kWac) · {o.distribuidora}</option>
-                        ))}
-                      </optgroup>
-                    )}
+                    {options.map(o => (
+                      <option key={o.codigo} value={o.codigo}>{o.codigo} · {o.nome} ({o.potenciaAC} kWac)</option>
+                    ))}
                   </select>
                   <button
                     type="button"
