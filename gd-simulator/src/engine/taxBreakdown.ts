@@ -62,7 +62,8 @@ export interface TaxBreakdownUC {
     kW: number;
     months: number;
     lines: TaxBreakdownLine[];
-    subtotal: number;
+    subtotal: number;    // SEM (com desconto incentivada, se ACL)
+    subtotalCom: number; // COM (demanda cheia — GD cativo perde o desconto). = subtotal no cativo.
   };
   ppaHelexia?: number;
   // ACL only: crédito que reconcilia a SEM cativa (linhas acima) com a SEM real do
@@ -315,6 +316,7 @@ export function computeTaxBreakdown(
             { label: 'ICMS sobre Demanda', sem: s.icms, com: c.icms, delta: s.icms - c.icms },
           ],
           subtotal: s.total,
+          subtotalCom: c.total,
         };
         totalSEM += s.total;
         totalCOM += c.total;
@@ -333,6 +335,7 @@ export function computeTaxBreakdown(
             { label: 'ICMS sobre Demanda', sem: demICMS, com: demICMS, delta: 0 },
           ],
           subtotal,
+          subtotalCom: subtotal,
         };
         totalSEM += subtotal;
         totalCOM += subtotal;

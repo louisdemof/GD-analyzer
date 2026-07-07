@@ -126,9 +126,9 @@ export function TaxBreakdownPanel({ project, result }: Props) {
                     <tr className="border-b border-slate-200 font-semibold bg-slate-50">
                       <td className="px-3 py-1.5">Subtotal Demanda</td>
                       <td className="px-3 py-1.5 text-right font-mono">{fmtBRL(u.demanda.subtotal)}</td>
-                      <td className="px-3 py-1.5 text-right font-mono">{fmtBRL(u.demanda.subtotal)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{fmtBRL(u.demanda.subtotalCom)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-slate-400">—</td>
-                      <td className="px-3 py-1.5 text-right font-mono border-l border-slate-200">{fmtBRL(u.demanda.subtotal)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono border-l border-slate-200">{fmtBRL(u.demanda.subtotalCom)}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-slate-400">—</td>
                     </tr>
                   </>

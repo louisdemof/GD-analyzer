@@ -1386,8 +1386,8 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
           React.createElement(View, { style: { flexDirection: 'row', paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#f1f5f9', borderTopWidth: 0.5, borderTopColor: '#cbd5e1' } },
             React.createElement(Text, { style: { width: '38%', fontSize: 7, fontWeight: 'bold' } }, 'Subtotal Demanda'),
             React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
-            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
-            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotal)),
+            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotalCom)),
+            React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right' } }, fmtBRL(uc.demanda.subtotalCom)),
             React.createElement(Text, { style: { width: '15.5%', fontSize: 7, fontWeight: 'bold', textAlign: 'right', color: '#94a3b8' } }, '—')
           )
         ),

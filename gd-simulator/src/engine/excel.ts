@@ -98,7 +98,7 @@ export function exportResultsExcel(project: Project, result: SimulationResult): 
         for (const line of u.demanda.lines) {
           rows.push([line.label, Math.round(line.sem), Math.round(line.com), '', Math.round(line.com), 0]);
         }
-        rows.push([`Subtotal Demanda`, Math.round(u.demanda.subtotal), Math.round(u.demanda.subtotal), '', Math.round(u.demanda.subtotal), 0]);
+        rows.push([`Subtotal Demanda`, Math.round(u.demanda.subtotal), Math.round(u.demanda.subtotalCom), '', Math.round(u.demanda.subtotalCom), 0]);
         rows.push(['', '', '', '', '', '']);
       }
       if (u.ppaHelexia) {
