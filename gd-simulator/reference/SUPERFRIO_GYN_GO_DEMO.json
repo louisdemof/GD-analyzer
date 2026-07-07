@@ -1,0 +1,163 @@
+{
+  "project": {
+    "id": "superfrio-gyn-go",
+    "clientName": "SUPERFRIO GYN — Aparecida de Goiânia/GO (TAC Goiânia · ACL Cemig I5 → GD autoconsumo)",
+    "marketType": "ACL",
+    "aclBaseline": {
+      "energyPriceSemImp": 0.19237,
+      "energyIndexation": "FIXO",
+      "energyPisCofinsPct": 0.0925,
+      "tusdDiscountConsumo": 0.5,
+      "tusdDiscountConsumoPT": 0.5,
+      "tusdDiscountDemanda": 0.5,
+      "energyIcms": true,
+      "energyPisCofins": true
+    },
+    "distributor": {
+      "id": "EQUATORIAL-GO",
+      "name": "Equatorial Goiás",
+      "state": "GO",
+      "resolution": "Res. ANEEL 3.544/2025",
+      "tariffs": {
+        "B_TUSD": 0.56767,
+        "B_TE": 0.32414,
+        "A_FP_TUSD_TE": 0.45348,
+        "A_PT_TUSD_TE": 2.14105,
+        "A_TE_FP": 0.30387,
+        "A_TE_PT": 0.48489,
+        "A_FP_DEMANDA": 26.08
+      },
+      "taxes": {
+        "ICMS": 0.19,
+        "PIS": 0.0153,
+        "COFINS": 0.0703
+      }
+    },
+    "plant": {
+      "id": "superfrio-gyn-go-gd",
+      "name": "Usina GD GO (autoconsumo remoto · dim. p/ GYN)",
+      "capacityKWac": 850,
+      "distributor": "EQUATORIAL-GO",
+      "p50Profile": [
+        157280,
+        140713,
+        159274,
+        157342,
+        156721,
+        141821,
+        162644,
+        184045,
+        156485,
+        173974,
+        154378,
+        159602,
+        157280,
+        140713,
+        159274,
+        157342,
+        156721,
+        141821,
+        162644,
+        184045,
+        156485,
+        173974,
+        154378,
+        159602
+      ],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.42,
+      "contractStartMonth": "2028-01",
+      "contractMonths": 24
+    },
+    "simulationMonths": 24,
+    "ucs": [
+      {
+        "id": "gyn",
+        "name": "GYN — Aparecida de Goiânia/GO (A4 Verde · 5,8% ponta)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          157821,
+          145857,
+          126553,
+          122787,
+          301492,
+          133450,
+          117000,
+          111298,
+          95983,
+          94174,
+          116317,
+          131470,
+          157821,
+          145857,
+          126553,
+          122787,
+          301492,
+          133450,
+          117000,
+          111298,
+          95983,
+          94174,
+          116317,
+          131470
+        ],
+        "consumptionPT": [
+          3164,
+          5496,
+          4858,
+          6552,
+          5782,
+          7429,
+          13024,
+          12012,
+          11368,
+          13691,
+          12925,
+          12718,
+          3164,
+          5496,
+          4858,
+          6552,
+          5782,
+          7429,
+          13024,
+          12012,
+          11368,
+          13691,
+          12925,
+          12718
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 500,
+        "demandaFaturadaFP": 500,
+        "demandaMedidaMensal": [
+          425,
+          425,
+          425,
+          425,
+          425,
+          425,
+          425,
+          425,
+          425,
+          425,
+          425,
+          425
+        ]
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false
+    },
+    "growthRate": 0.02,
+    "generationDegradation": 0.005,
+    "performanceFactor": 0.95,
+    "rateio": {
+      "periods": [],
+      "isOptimised": false
+    }
+  }
+}

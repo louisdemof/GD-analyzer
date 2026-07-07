@@ -14,6 +14,8 @@ import caseEmsData from '../../reference/CASE_EMS_DEMO.json';
 import superfrioPortfolioData from '../../reference/SUPERFRIO_PR_PORTFOLIO_DEMO.json';
 import superfrioFrontloadData from '../../reference/SUPERFRIO_PR_FRONTLOAD_DEMO.json';
 import superfrio5yData from '../../reference/SUPERFRIO_PR_5Y_DEMO.json';
+import superfrioCgdMsData from '../../reference/SUPERFRIO_CGD_MS_DEMO.json';
+import superfrioGynGoData from '../../reference/SUPERFRIO_GYN_GO_DEMO.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, putProjectLocalOnly, putFolderLocalOnly, type ClientFolder } from '../storage/projectDB';
 import { cloudPullProjects, cloudPullFolders, cloudUpsertProject, cloudUpsertFolder } from '../storage/cloudSync';
 
@@ -65,6 +67,8 @@ interface ProjectStore {
   loadSuperfrioPortfolioDemo: () => void;
   loadSuperfrioFrontloadDemo: () => void;
   loadSuperfrio5yDemo: () => void;
+  loadSuperfrioCgdMsDemo: () => void;
+  loadSuperfrioGynGoDemo: () => void;
   loadCaseEmsDemo: () => void;
 
   // Export/Import
@@ -672,6 +676,66 @@ export const useProjectStore = create<ProjectStore>()(
             projects: [...withoutDemo, project],
             currentProjectId: project.id,
           };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      // SUPERFRIO CGD — Campo Grande/MS (Energisa MS). Perfil real 12m, 1,3% ponta.
+      // ACL Cemig I5 (R$192,37/MWh) → GD autoconsumo remoto. Usina dim. p/ ~108% do consumo.
+      loadSuperfrioCgdMsDemo: () => {
+        const demo = superfrioCgdMsData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'superfrio-cgd-ms',
+          clientName: demo.clientName,
+          marketType: demo.marketType as Project['marketType'],
+          aclBaseline: demo.aclBaseline as Project['aclBaseline'],
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          simulationMonths: demo.simulationMonths,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'superfrio-cgd-ms');
+          return { projects: [...withoutDemo, project], currentProjectId: project.id };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      // SUPERFRIO GYN — Aparecida de Goiânia/GO (Equatorial GO). Perfil real 12m, 5,8% ponta.
+      // ACL Cemig I5 (R$192,37/MWh) → GD autoconsumo remoto. Usina dim. p/ ~108% do consumo.
+      loadSuperfrioGynGoDemo: () => {
+        const demo = superfrioGynGoData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'superfrio-gyn-go',
+          clientName: demo.clientName,
+          marketType: demo.marketType as Project['marketType'],
+          aclBaseline: demo.aclBaseline as Project['aclBaseline'],
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          simulationMonths: demo.simulationMonths,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'superfrio-gyn-go');
+          return { projects: [...withoutDemo, project], currentProjectId: project.id };
         });
         saveProjectToDB(project).catch(() => {});
       },

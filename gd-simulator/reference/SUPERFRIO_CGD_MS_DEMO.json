@@ -1,0 +1,163 @@
+{
+  "project": {
+    "id": "superfrio-cgd-ms",
+    "clientName": "SUPERFRIO CGD — Campo Grande/MS (Frigoeste · ACL Cemig I5 → GD autoconsumo)",
+    "marketType": "ACL",
+    "aclBaseline": {
+      "energyPriceSemImp": 0.19237,
+      "energyIndexation": "FIXO",
+      "energyPisCofinsPct": 0.0925,
+      "tusdDiscountConsumo": 0.5,
+      "tusdDiscountConsumoPT": 0.5,
+      "tusdDiscountDemanda": 0.5,
+      "energyIcms": true,
+      "energyPisCofins": true
+    },
+    "distributor": {
+      "id": "EMS",
+      "name": "Energisa Mato Grosso do Sul",
+      "state": "MS",
+      "resolution": "Res. ANEEL 3.441/2025",
+      "tariffs": {
+        "B_TUSD": 0.59208,
+        "B_TE": 0.28602,
+        "A_FP_TUSD_TE": 0.39961,
+        "A_PT_TUSD_TE": 2.25614,
+        "A_TE_FP": 0.26963,
+        "A_TE_PT": 0.44621,
+        "A_FP_DEMANDA": 34.69
+      },
+      "taxes": {
+        "ICMS": 0.17,
+        "PIS": 0.0153,
+        "COFINS": 0.0703
+      }
+    },
+    "plant": {
+      "id": "superfrio-cgd-ms-gd",
+      "name": "Usina GD MS (autoconsumo remoto · dim. p/ CGD)",
+      "capacityKWac": 1400,
+      "distributor": "EMS",
+      "p50Profile": [
+        237009,
+        249497,
+        260163,
+        224631,
+        226187,
+        206406,
+        213079,
+        262918,
+        240097,
+        262585,
+        265340,
+        268562,
+        237009,
+        249497,
+        260163,
+        224631,
+        226187,
+        206406,
+        213079,
+        262918,
+        240097,
+        262585,
+        265340,
+        268562
+      ],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.42,
+      "contractStartMonth": "2028-01",
+      "contractMonths": 24
+    },
+    "simulationMonths": 24,
+    "ucs": [
+      {
+        "id": "cgd",
+        "name": "CGD — Campo Grande/MS (A4 Verde · 1,3% ponta)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          178871,
+          155557,
+          162729,
+          200861,
+          231886,
+          290549,
+          263582,
+          285911,
+          271468,
+          236833,
+          190982,
+          193356,
+          178871,
+          155557,
+          162729,
+          200861,
+          231886,
+          290549,
+          263582,
+          285911,
+          271468,
+          236833,
+          190982,
+          193356
+        ],
+        "consumptionPT": [
+          1778,
+          1677,
+          2001,
+          1549,
+          3820,
+          7168,
+          3582,
+          3448,
+          2241,
+          4728,
+          2666,
+          3196,
+          1778,
+          1677,
+          2001,
+          1549,
+          3820,
+          7168,
+          3582,
+          3448,
+          2241,
+          4728,
+          2666,
+          3196
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 700,
+        "demandaFaturadaFP": 700,
+        "demandaMedidaMensal": [
+          595,
+          595,
+          595,
+          595,
+          595,
+          595,
+          595,
+          595,
+          595,
+          595,
+          595,
+          595
+        ]
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false
+    },
+    "growthRate": 0.02,
+    "generationDegradation": 0.005,
+    "performanceFactor": 0.95,
+    "rateio": {
+      "periods": [],
+      "isOptimised": false
+    }
+  }
+}
