@@ -26,9 +26,25 @@ type Tab = 'distributor' | 'plant' | 'ucs' | 'demanda' | 'fatura';
 export function ProjectEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { projects, updateProject, updateDistributor, updatePlant, addUC, updateUC, removeUC, updateRateio, syncFromCloud } = useProjectStore();
+  const { projects, updateProject, updateDistributor, updatePlant, addUC, updateUC, removeUC, updateRateio, syncFromCloud, duplicateProject } = useProjectStore();
   const { runForProject } = useSimulationStore();
   const project = projects.find(p => p.id === id);
+  // Demos carregam com id fixo e podem ser sobrescritos ao recarregar. "Salvar como
+  // projeto" duplica para um id próprio (imune a re-seed) — o jeito seguro de guardar edições.
+  const DEMO_IDS = new Set([
+    'belo-alimentos-demo', 'copasul-cs3-demo', 'copel-demo', 'copel-demo-2', 'copel-demo-3',
+    'copel-demo-4', 'superfrio-cwbii-acl', 'superfrio-pr-portfolio', 'superfrio-pr-frontload',
+    'superfrio-pr-5y', 'superfrio-cgd-ms', 'superfrio-gyn-go', 'case-ems-demo',
+  ]);
+  const isDemo = !!project && DEMO_IDS.has(project.id);
+  const saveDemoAsProject = () => {
+    if (!project) return;
+    const clone = duplicateProject(project.id);
+    if (!clone) return;
+    const clean = (project.clientName || 'Projeto').replace(/\s*—\s*Copia$/, '');
+    updateProject(clone.id, { clientName: `${clean} (meu projeto)` });
+    navigate(`/project/${clone.id}`);
+  };
   const [tab, setTab] = useState<Tab>('distributor');
   const [toast, setToast] = useState<string | null>(null);
   const [importModal, setImportModal] = useState<{ type: 'confirm' | 'error'; result: ImportResult } | null>(null);
@@ -338,6 +354,16 @@ export function ProjectEditor() {
           </div>
         </div>
         <div className="flex gap-2">
+          {isDemo && (
+            <button
+              onClick={saveDemoAsProject}
+              title="Duplica este demo para um projeto próprio, que não será apagado ao recarregar o demo."
+              className="px-4 py-2 text-sm text-white rounded-lg font-medium"
+              style={{ backgroundColor: '#004B70' }}
+            >
+              💾 Salvar como projeto
+            </button>
+          )}
           <button
             onClick={() => exportConsumptionExcel(project)}
             className="px-4 py-2 text-sm border border-teal-500 text-teal-700 rounded-lg hover:bg-teal-50"

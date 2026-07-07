@@ -396,7 +396,23 @@ export function Dashboard() {
                 ] as const).map(d => (
                   <button
                     key={d.route}
-                    onClick={() => { setShowDemos(false); d.fn(); navigate(`/project/${d.route}`); }}
+                    onClick={() => {
+                      setShowDemos(false);
+                      const existing = projects.find(p => p.id === d.route);
+                      const edited = existing && existing.updatedAt !== existing.createdAt;
+                      if (edited) {
+                        // Demo já carregado e EDITADO: abrir sem recarregar (recarregar
+                        // destruiria as alterações). Para restaurar o demo original,
+                        // exclua-o primeiro e clique de novo.
+                        if (window.confirm('Este demo já foi carregado e possui alterações suas. Abrir mantém suas alterações. Para restaurar o demo ORIGINAL (apaga suas alterações), clique em Cancelar e exclua o projeto antes.')) {
+                          setCurrentProject(existing!.id);
+                          navigate(`/project/${d.route}`);
+                        }
+                        return;
+                      }
+                      d.fn();
+                      navigate(`/project/${d.route}`);
+                    }}
                     className="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-slate-50 text-slate-700"
                   >
                     {d.label}

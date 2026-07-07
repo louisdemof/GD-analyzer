@@ -196,29 +196,37 @@ export const useProjectStore = create<ProjectStore>()(
             if (!p) return false;
             return p.distributor?.taxes?.icmsScope === undefined;
           };
-          if (isStale('belo-alimentos-demo') || missingDemandaCheck('belo-alimentos-demo')) {
+          // NEVER re-seed a demo the user has edited (updatedAt diverges from createdAt
+          // once any field changes) — that would silently destroy their work.
+          const wasEdited = (projectId: string): boolean => {
+            const p = merged.find(x => x.id === projectId);
+            return !!p && !!p.updatedAt && !!p.createdAt && p.updatedAt !== p.createdAt;
+          };
+          if (!wasEdited('belo-alimentos-demo') && (isStale('belo-alimentos-demo') || missingDemandaCheck('belo-alimentos-demo'))) {
             get().loadBeloAlimentosDemo();
           }
-          if (isStale('copasul-cs3-demo') || missingDemandaCheck('copasul-cs3-demo')) {
+          if (!wasEdited('copasul-cs3-demo') && (isStale('copasul-cs3-demo') || missingDemandaCheck('copasul-cs3-demo'))) {
             get().loadDemoProject();
           }
-          if (isStale('copel-demo') || missingDemandaCheck('copel-demo') || missingIcmsScope('copel-demo')) {
+          if (!wasEdited('copel-demo') && (isStale('copel-demo') || missingDemandaCheck('copel-demo') || missingIcmsScope('copel-demo'))) {
             get().loadCopelDemo();
           }
-          if (isStale('copel-demo-2') || missingDemandaCheck('copel-demo-2') || missingIcmsScope('copel-demo-2')) {
+          if (!wasEdited('copel-demo-2') && (isStale('copel-demo-2') || missingDemandaCheck('copel-demo-2') || missingIcmsScope('copel-demo-2'))) {
             get().loadCopelDemo2();
           }
-          if (isStale('copel-demo-3') || missingDemandaCheck('copel-demo-3') || missingIcmsScope('copel-demo-3')) {
+          if (!wasEdited('copel-demo-3') && (isStale('copel-demo-3') || missingDemandaCheck('copel-demo-3') || missingIcmsScope('copel-demo-3'))) {
             get().loadCopelDemo3();
           }
           // Demo 4 also re-seeds when the plant lacks intermediationFeePct
           // (added with the proposta scenario; old persisted copies miss it).
           const demo4 = merged.find(x => x.id === 'copel-demo-4');
           if (
-            isStale('copel-demo-4') ||
-            missingDemandaCheck('copel-demo-4') ||
-            missingIcmsScope('copel-demo-4') ||
-            (demo4 && demo4.plant?.intermediationFeePct === undefined)
+            !wasEdited('copel-demo-4') && (
+              isStale('copel-demo-4') ||
+              missingDemandaCheck('copel-demo-4') ||
+              missingIcmsScope('copel-demo-4') ||
+              (demo4 && demo4.plant?.intermediationFeePct === undefined)
+            )
           ) {
             get().loadCopelDemo4();
           }
