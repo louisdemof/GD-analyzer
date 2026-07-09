@@ -34,7 +34,7 @@ export function ProjectEditor() {
   const DEMO_IDS = new Set([
     'belo-alimentos-demo', 'copasul-cs3-demo', 'copel-demo', 'copel-demo-2', 'copel-demo-3',
     'copel-demo-4', 'superfrio-cwbii-acl', 'superfrio-pr-portfolio', 'superfrio-pr-frontload',
-    'superfrio-pr-5y', 'superfrio-cgd-ms', 'superfrio-gyn-go', 'case-ems-demo',
+    'superfrio-pr-5y', 'superfrio-cgd-ms', 'superfrio-gyn-go', 'superfrio-ssa-ba', 'case-ems-demo',
   ]);
   const isDemo = !!project && DEMO_IDS.has(project.id);
   const saveDemoAsProject = () => {

@@ -16,6 +16,7 @@ import superfrioFrontloadData from '../../reference/SUPERFRIO_PR_FRONTLOAD_DEMO.
 import superfrio5yData from '../../reference/SUPERFRIO_PR_5Y_DEMO.json';
 import superfrioCgdMsData from '../../reference/SUPERFRIO_CGD_MS_DEMO.json';
 import superfrioGynGoData from '../../reference/SUPERFRIO_GYN_GO_DEMO.json';
+import superfrioSsaBaData from '../../reference/SUPERFRIO_SSA_BA_DEMO.json';
 import { saveProjectToDB, deleteProjectFromDB, loadAllProjectsFromDB, migrateFromLocalStorage, saveFolderToDB, loadAllFoldersFromDB, deleteFolderFromDB, putProjectLocalOnly, putFolderLocalOnly, type ClientFolder } from '../storage/projectDB';
 import { cloudPullProjects, cloudPullFolders, cloudUpsertProject, cloudUpsertFolder } from '../storage/cloudSync';
 
@@ -69,6 +70,7 @@ interface ProjectStore {
   loadSuperfrio5yDemo: () => void;
   loadSuperfrioCgdMsDemo: () => void;
   loadSuperfrioGynGoDemo: () => void;
+  loadSuperfrioSsaBaDemo: () => void;
   loadCaseEmsDemo: () => void;
 
   // Export/Import
@@ -743,6 +745,37 @@ export const useProjectStore = create<ProjectStore>()(
         project.rateio = createDefaultRateio(project);
         set(state => {
           const withoutDemo = state.projects.filter(p => p.id !== 'superfrio-gyn-go');
+          return { projects: [...withoutDemo, project], currentProjectId: project.id };
+        });
+        saveProjectToDB(project).catch(() => {});
+      },
+
+      // SUPERFRIO SSA — Simões Filho/BA (Coelba). Perfil real 12m, 6,9% ponta.
+      // ACL Cemig I5 (R$192,37/MWh) → GD autoconsumo remoto. Usina dim. p/ ~108% do consumo.
+      // NB: consumo caiu ~50% desde mai/2025; demo usa o nível atual (últimos 12m ~139 MWh/mês).
+      loadSuperfrioSsaBaDemo: () => {
+        const demo = superfrioSsaBaData.project;
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: 'superfrio-ssa-ba',
+          clientName: demo.clientName,
+          marketType: demo.marketType as Project['marketType'],
+          aclBaseline: demo.aclBaseline as Project['aclBaseline'],
+          distributor: demo.distributor as Distributor,
+          plant: demo.plant as Plant,
+          simulationMonths: demo.simulationMonths,
+          ucs: demo.ucs as ConsumptionUnit[],
+          scenarios: demo.scenarios,
+          growthRate: demo.growthRate,
+          generationDegradation: demo.generationDegradation,
+          performanceFactor: demo.performanceFactor,
+          rateio: { periods: [], isOptimised: false },
+          createdAt: now,
+          updatedAt: now,
+        };
+        project.rateio = createDefaultRateio(project);
+        set(state => {
+          const withoutDemo = state.projects.filter(p => p.id !== 'superfrio-ssa-ba');
           return { projects: [...withoutDemo, project], currentProjectId: project.id };
         });
         saveProjectToDB(project).catch(() => {});

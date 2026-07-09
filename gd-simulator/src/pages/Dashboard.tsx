@@ -11,7 +11,7 @@ import { ShareDialog } from '../components/ShareDialog';
 const FOLDER_COLORS = ['#004B70', '#2F927B', '#C6DA38', '#f97316', '#8b5cf6', '#ef4444', '#6b7280', '#92400e'];
 
 export function Dashboard() {
-  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, loadSuperfrioCgdMsDemo, loadSuperfrioGynGoDemo, loadCaseEmsDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject, deleteProject } = useProjectStore();
+  const { projects, folders, setCurrentProject, loadDemoProject, loadBeloAlimentosDemo, loadCopelDemo, loadCopelDemo2, loadCopelDemo3, loadCopelDemo4, loadSuperfrioCwbiiDemo, loadSuperfrioPortfolioDemo, loadSuperfrioFrontloadDemo, loadSuperfrio5yDemo, loadSuperfrioCgdMsDemo, loadSuperfrioGynGoDemo, loadSuperfrioSsaBaDemo, loadCaseEmsDemo, duplicateProject, importProject, createFolder, deleteFolder, moveProjectToFolder, updateFolder, updateProject, deleteProject } = useProjectStore();
   const navigate = useNavigate();
   const { cloudEnabled, user } = useAuth();
   const firstName = (() => {
@@ -392,6 +392,7 @@ export function Dashboard() {
                   { label: 'SUPERFRIO PR — 5 anos · TE travado', fn: loadSuperfrio5yDemo, route: 'superfrio-pr-5y' },
                   { label: 'SUPERFRIO CGD — Campo Grande/MS (A4 Verde · 1,3% ponta)', fn: loadSuperfrioCgdMsDemo, route: 'superfrio-cgd-ms' },
                   { label: 'SUPERFRIO GYN — Aparecida de Goiânia/GO (A4 Verde · 5,8% ponta)', fn: loadSuperfrioGynGoDemo, route: 'superfrio-gyn-go' },
+                  { label: 'SUPERFRIO SSA — Simões Filho/BA (A4 Verde · 6,9% ponta)', fn: loadSuperfrioSsaBaDemo, route: 'superfrio-ssa-ba' },
                   { label: 'Case EMS — Cassilândia 2 (A4 Verde · match 95%)', fn: loadCaseEmsDemo, route: 'case-ems-demo' },
                 ] as const).map(d => (
                   <button

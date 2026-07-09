@@ -1,0 +1,163 @@
+{
+  "project": {
+    "id": "superfrio-ssa-ba",
+    "clientName": "SUPERFRIO SSA — Simões Filho/BA (ACL Cemig I5 → GD autoconsumo)",
+    "marketType": "ACL",
+    "aclBaseline": {
+      "energyPriceSemImp": 0.19237,
+      "energyIndexation": "FIXO",
+      "energyPisCofinsPct": 0.0925,
+      "tusdDiscountConsumo": 0.5,
+      "tusdDiscountConsumoPT": 0.5,
+      "tusdDiscountDemanda": 0.5,
+      "energyIcms": true,
+      "energyPisCofins": true
+    },
+    "distributor": {
+      "id": "COELBA",
+      "name": "Coelba (Neoenergia BA)",
+      "state": "BA",
+      "resolution": "Res. ANEEL 3.443/2025",
+      "tariffs": {
+        "B_TUSD": 0.56048,
+        "B_TE": 0.27724,
+        "A_FP_TUSD_TE": 0.3639,
+        "A_PT_TUSD_TE": 3.1038,
+        "A_TE_FP": 0.26248,
+        "A_TE_PT": 0.42776,
+        "A_FP_DEMANDA": 38.61
+      },
+      "taxes": {
+        "ICMS": 0.19,
+        "PIS": 0.0153,
+        "COFINS": 0.0703
+      }
+    },
+    "plant": {
+      "id": "superfrio-ssa-ba-gd",
+      "name": "Usina GD BA (autoconsumo remoto · dim. p/ SSA)",
+      "capacityKWac": 1150,
+      "distributor": "COELBA",
+      "p50Profile": [
+        174379,
+        156447,
+        172350,
+        141204,
+        129799,
+        112988,
+        123521,
+        142603,
+        153664,
+        169559,
+        154689,
+        165223,
+        174379,
+        156447,
+        172350,
+        141204,
+        129799,
+        112988,
+        123521,
+        142603,
+        153664,
+        169559,
+        154689,
+        165223
+      ],
+      "useActual": false,
+      "ppaRateRsBRLkWh": 0.42,
+      "contractStartMonth": "2028-01",
+      "contractMonths": 24
+    },
+    "simulationMonths": 24,
+    "ucs": [
+      {
+        "id": "ssa",
+        "name": "SSA — Simões Filho/BA (A4 Verde · 6,9% ponta)",
+        "tariffGroup": "A4_VERDE",
+        "isGrupoA": true,
+        "consumptionFP": [
+          120242,
+          110038,
+          109698,
+          114180,
+          111711,
+          117523,
+          116085,
+          123082,
+          127010,
+          136129,
+          165559,
+          165951,
+          120242,
+          110038,
+          109698,
+          114180,
+          111711,
+          117523,
+          116085,
+          123082,
+          127010,
+          136129,
+          165559,
+          165951
+        ],
+        "consumptionPT": [
+          11210,
+          10459,
+          11004,
+          10779,
+          11928,
+          12378,
+          10628,
+          12299,
+          12116,
+          13817,
+          14749,
+          14783,
+          11210,
+          10459,
+          11004,
+          10779,
+          11928,
+          12378,
+          10628,
+          12299,
+          12116,
+          13817,
+          14749,
+          14783
+        ],
+        "openingBank": 0,
+        "demandaContratadaFP": 1260,
+        "demandaFaturadaFP": 1260,
+        "demandaMedidaMensal": [
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071,
+          1071
+        ]
+      }
+    ],
+    "scenarios": {
+      "icmsExempt": true,
+      "competitorDiscount": 0,
+      "useActualGeneration": false
+    },
+    "growthRate": 0.02,
+    "generationDegradation": 0.005,
+    "performanceFactor": 0.95,
+    "rateio": {
+      "periods": [],
+      "isOptimised": false
+    }
+  }
+}
