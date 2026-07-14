@@ -67,15 +67,33 @@ export function RecebimentoHelexiaPanel({ project, result }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plants, months, useActual, perf, degr, escPPA]);
 
-  // Monthly aggregation across all plants.
+  // Faturamento por COMPENSAÇÃO: o PPA é cobrado sobre os kWh efetivamente compensados no mês
+  // (do motor), não sobre a injeção por usina — créditos são fungíveis, então o recebimento é
+  // consolidado (não decomposto por usina). Intermediação: média ponderada por capacidade.
+  const billOnCompensation = project.scenarios.ppaBillingBasis === 'compensation';
+  const blendedIntermPct = totalCapacity > 0
+    ? plants.reduce((s, p) => s + (p.intermediationFeePct ?? 0) * (p.capacityKWac || 0), 0) / totalCapacity
+    : (plants[0]?.intermediationFeePct ?? 0);
+  const compByMonth = useMemo(() => {
+    if (!billOnCompensation) return null;
+    const ppa: number[] = [], kwh: number[] = [];
+    const ucIds = Object.keys(result.ucDetailsCOM ?? {});
+    for (let m = 0; m < months; m++) {
+      ppa.push(result.months[m]?.ppaCost ?? 0);
+      kwh.push(ucIds.reduce((k, id) => k + (result.ucDetailsCOM?.[id]?.[m]?.compensatedKWh ?? 0), 0));
+    }
+    return { ppa, kwh };
+  }, [billOnCompensation, result, months]);
+
+  // Monthly aggregation across all plants (or the compensation series when billing on compensation).
   const monthly = useMemo(() => {
     const rows: { month: string; ppa: number; interm: number; net: number; ppaAcum: number; intermAcum: number; netAcum: number; gen: number }[] = [];
     let ppaAcum = 0, intermAcum = 0, netAcum = 0;
     for (let m = 0; m < months; m++) {
-      const ppa = series.reduce((s, p) => s + (p.ppaGross[m] || 0), 0);
-      const interm = series.reduce((s, p) => s + (p.interm[m] || 0), 0);
-      const net = series.reduce((s, p) => s + (p.helexiaNet[m] || 0), 0);
-      const gen = series.reduce((s, p) => s + (p.gen[m] || 0), 0);
+      const ppa = compByMonth ? (compByMonth.ppa[m] || 0) : series.reduce((s, p) => s + (p.ppaGross[m] || 0), 0);
+      const interm = compByMonth ? ppa * blendedIntermPct : series.reduce((s, p) => s + (p.interm[m] || 0), 0);
+      const net = ppa - interm;
+      const gen = compByMonth ? (compByMonth.kwh[m] || 0) : series.reduce((s, p) => s + (p.gen[m] || 0), 0);
       ppaAcum += ppa; intermAcum += interm; netAcum += net;
       rows.push({
         month: labels[m] ?? `M${m + 1}`,
@@ -85,7 +103,24 @@ export function RecebimentoHelexiaPanel({ project, result }: Props) {
       });
     }
     return rows;
-  }, [series, months, labels]);
+  }, [series, months, labels, compByMonth, blendedIntermPct]);
+
+  // Rows for the per-usina table. Under compensation billing the receipt is pooled (not per-usina),
+  // so show a single consolidated row instead of one per plant.
+  const tableRows = billOnCompensation
+    ? [{
+        name: plants.length > 1 ? `Compensação (${plants.length} usinas)` : (plants[0]?.name ?? 'Usina'),
+        ppaRate: plants[0]?.ppaRateRsBRLkWh ?? 0, intermPct: blendedIntermPct, contractMonths: months,
+        gen: monthly.reduce((s, r) => s + r.gen, 0),
+        gross: monthly.reduce((s, r) => s + r.ppa, 0),
+        interm: monthly.reduce((s, r) => s + r.interm, 0),
+        net: monthly.reduce((s, r) => s + r.net, 0),
+      }]
+    : series.map(p => ({
+        name: p.name, ppaRate: p.ppaRate, intermPct: p.intermPct, contractMonths: p.contractMonths,
+        gen: p.gen.reduce((a, b) => a + b, 0), gross: p.ppaGross.reduce((a, b) => a + b, 0),
+        interm: p.interm.reduce((a, b) => a + b, 0), net: p.helexiaNet.reduce((a, b) => a + b, 0),
+      }));
 
   const totalPPA = monthly.reduce((s, r) => s + r.ppa, 0);
   const totalInterm = monthly.reduce((s, r) => s + r.interm, 0);
@@ -104,10 +139,17 @@ export function RecebimentoHelexiaPanel({ project, result }: Props) {
       <div>
         <h3 className="text-base font-semibold text-slate-800 mb-1">Recebimento Helexia (PPA)</h3>
         <p className="text-xs text-slate-500">
-          Receita mensal e acumulada da Helexia neste projeto (PPA paga pelo cliente sobre o kWh injetado), por usina e total.
+          Receita mensal e acumulada da Helexia neste projeto (PPA paga pelo cliente sobre o kWh {billOnCompensation ? 'compensado' : 'injetado'}), por usina e total.
           {plants.length > 1 && ` Inclui ${plants.length} usinas (${totalCapacity.toLocaleString('pt-BR')} kWac total).`}
         </p>
       </div>
+      {billOnCompensation && (
+        <div className="rounded-lg border border-teal-300 bg-teal-50 px-3 py-2 text-xs text-teal-900">
+          <strong>Faturamento por compensação:</strong> a Helexia cobra o PPA sobre os kWh <strong>efetivamente compensados</strong> a cada mês
+          (consumo abatido, incluindo saques do banco), não sobre a injeção. A receita segue o uso dos créditos ao longo do horizonte —
+          por isso o recebimento é <strong>consolidado</strong> (não decomposto por usina, já que os créditos são fungíveis).
+        </div>
+      )}
 
       {/* KPI cards */}
       <div className={`grid gap-3 ${hasInterm ? 'grid-cols-5' : 'grid-cols-4'}`}>
@@ -153,7 +195,7 @@ export function RecebimentoHelexiaPanel({ project, result }: Props) {
               <th className="text-right px-3 py-2 font-medium">PPA cliente (R$/kWh)</th>
               <th className="text-right px-3 py-2 font-medium">Taxa interm.</th>
               <th className="text-right px-3 py-2 font-medium">Prazo PPA</th>
-              <th className="text-right px-3 py-2 font-medium">Geração faturada (kWh)</th>
+              <th className="text-right px-3 py-2 font-medium">{billOnCompensation ? 'kWh compensados (faturados)' : 'Geração faturada (kWh)'}</th>
               <th className="text-right px-3 py-2 font-medium">PPA bruto (R$)</th>
               {hasInterm && <th className="text-right px-3 py-2 font-medium">Intermediário</th>}
               <th className="text-right px-3 py-2 font-medium">Helexia líq. (R$)</th>
@@ -161,25 +203,19 @@ export function RecebimentoHelexiaPanel({ project, result }: Props) {
             </tr>
           </thead>
           <tbody>
-            {series.map((p, i) => {
-              const gen = p.gen.reduce((a, b) => a + b, 0);
-              const gross = p.ppaGross.reduce((a, b) => a + b, 0);
-              const interm = p.interm.reduce((a, b) => a + b, 0);
-              const net = p.helexiaNet.reduce((a, b) => a + b, 0);
-              return (
+            {tableRows.map((p, i) => (
                 <tr key={i} className="border-b border-slate-100">
                   <td className="px-3 py-2">{p.name}</td>
                   <td className="px-3 py-2 text-right font-mono">R$ {p.ppaRate.toFixed(4)}</td>
                   <td className="px-3 py-2 text-right font-mono">{p.intermPct > 0 ? `${(p.intermPct * 100).toFixed(1)}%` : '—'}</td>
                   <td className="px-3 py-2 text-right font-mono">{p.contractMonths}m</td>
-                  <td className="px-3 py-2 text-right font-mono">{Math.round(gen).toLocaleString('pt-BR')}</td>
-                  <td className="px-3 py-2 text-right font-mono text-slate-700">{brl(gross)}</td>
-                  {hasInterm && <td className="px-3 py-2 text-right font-mono text-amber-700">{interm > 0 ? `−${brl(interm)}` : '—'}</td>}
-                  <td className="px-3 py-2 text-right font-mono font-semibold text-teal-800">{brl(net)}</td>
-                  <td className="px-3 py-2 text-right font-mono">{totalNet > 0 ? (net / totalNet * 100).toFixed(1) : '—'}%</td>
+                  <td className="px-3 py-2 text-right font-mono">{Math.round(p.gen).toLocaleString('pt-BR')}</td>
+                  <td className="px-3 py-2 text-right font-mono text-slate-700">{brl(p.gross)}</td>
+                  {hasInterm && <td className="px-3 py-2 text-right font-mono text-amber-700">{p.interm > 0 ? `−${brl(p.interm)}` : '—'}</td>}
+                  <td className="px-3 py-2 text-right font-mono font-semibold text-teal-800">{brl(p.net)}</td>
+                  <td className="px-3 py-2 text-right font-mono">{totalNet > 0 ? (p.net / totalNet * 100).toFixed(1) : '—'}%</td>
                 </tr>
-              );
-            })}
+            ))}
             <tr className="border-t-2 border-slate-300 font-bold bg-emerald-50/30">
               <td className="px-3 py-2">TOTAL</td>
               <td /><td /><td />
