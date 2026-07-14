@@ -537,9 +537,16 @@ export async function parseCemigFatura(file: File, password?: string): Promise<P
 // "Histórico dos últimos meses" (page 2): bare PT months (descending) with columns
 // Demanda(Ponta,FP,reativo) · Consumo(Ponta,FP,reativo) · HR(consumo,reativo). Years are
 // inferred from the "Leitura Atual" date (most-recent row = billing month).
+// Anchor on the razão social ("EQUATORIAL <UF> DISTRIBUIDORA") that every bill
+// carries, with capital-city fallbacks. ORDER MATTERS: PA is LAST and strict
+// (Belém/CELPA/"Equatorial Pará") — the old bare /Par[áa]/ matched the preposition
+// "para" ("energia elétrica PARA não contribuinte"), so a Goiás bill was mislabeled PA.
 const EQ_STATE_SIG: [RegExp, string][] = [
-  [/Par[áa]/i, 'EQUATORIAL PA'], [/Piau[íi]/i, 'EQUATORIAL PI'], [/Maranh[ãa]o/i, 'EQUATORIAL MA'],
-  [/Goi[áa]s/i, 'EQUATORIAL GO'], [/Alagoas/i, 'EQUATORIAL AL'],
+  [/Goi[áa]s|Goi[âa]nia|\bGO[\s|]+BRASIL/i, 'EQUATORIAL GO'],
+  [/Piau[íi]|Teresina|\bPI[\s|]+BRASIL/i, 'EQUATORIAL PI'],
+  [/Maranh[ãa]o|S[ãa]o\s*Lu[íi]s|\bMA[\s|]+BRASIL/i, 'EQUATORIAL MA'],
+  [/Alagoas|Macei[óo]|\bAL[\s|]+BRASIL/i, 'EQUATORIAL AL'],
+  [/Equatorial\s*Par[áa]|Bel[ée]m|\bCELPA\b|\bPA[\s|]+BRASIL/i, 'EQUATORIAL PA'],
 ];
 const PT_MONTHS3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
