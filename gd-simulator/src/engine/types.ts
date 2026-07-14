@@ -225,6 +225,12 @@ export interface Project {
     // Quando false (ex.: COPEL não aplica operacionalmente), créditos fora-ponta compensam
     // ponta 1:1 → mais ponta compensada → economia maior. Força FA=1 na simulação.
     applyFatorAjuste?: boolean;
+    // Base de faturamento do PPA. 'injection' (default): cobra a energia INJETADA/gerada no mês
+    // (Σ geração × PPA). 'compensation': cobra apenas os kWh efetivamente COMPENSADOS no mês
+    // (consumo abatido por créditos, incluindo saques do banco). Útil p/ Grupo B quando a usina
+    // injeta em poucos meses mas os créditos são consumidos ao longo de anos — evita um "pico"
+    // de custo no início (o cliente só paga pelo que de fato abateu a conta).
+    ppaBillingBasis?: 'injection' | 'compensation';
   };
   // Rateio: allocated by the optimiser or manually set
   rateio: RateioAllocation;
@@ -351,6 +357,8 @@ export interface UCMonthlyDetail {
   creditsFPApplied: number;
   creditsPTApplied: number;
   creditsRSVApplied?: number;  // only populated when UC has consumptionReservado
+  compensatedKWh?: number;     // total consumo abatido por créditos no mês (consumo − residual;
+                               // inclui saques do banco) — base do faturamento PPA por compensação
   bankStart: number;
   bankDraw: number;
   bankEnd: number;

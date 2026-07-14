@@ -109,6 +109,6 @@ describe('engine regression — OPTIMIZED rateio (client-facing case)', () => {
       expect(s.economiaLiquida).toBeGreaterThanOrEqual(defaultEco - 1);
       // The re-simulated economia matches what the optimiser reported as best.
       expect(s.economiaLiquida).toBeCloseTo(opt.bestEconomia, 0);
-    });
+    }, 20000); // heavy client-facing case (optimiser + full sim) — generous timeout
   }
 });

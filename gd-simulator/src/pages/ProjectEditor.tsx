@@ -602,6 +602,29 @@ export function ProjectEditor() {
               </div>
             </div>
 
+            <div className="border border-slate-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Faturamento do PPA — injeção × compensação</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-2xl">
+                    <strong>Injeção</strong> (padrão): o cliente paga o PPA sobre a energia <strong>gerada/injetada</strong> no mês.{' '}
+                    <strong>Compensação</strong>: paga só sobre os kWh <strong>efetivamente compensados</strong> (consumo abatido, incluindo saques do banco).
+                    Recomendado no <strong>Grupo B</strong> quando a usina injeta em poucos meses mas os créditos são usados ao longo de anos —
+                    evita um <strong>pico de custo no início</strong> (o cliente só paga pelo que abateu a conta).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateProject(project.id, { scenarios: { ...project.scenarios, ppaBillingBasis: project.scenarios.ppaBillingBasis === 'compensation' ? 'injection' : 'compensation' } })}
+                  className={`px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap ${
+                    project.scenarios.ppaBillingBasis === 'compensation' ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-300 bg-white text-slate-700'
+                  }`}
+                >
+                  {project.scenarios.ppaBillingBasis === 'compensation' ? 'Sobre compensação ✓' : 'Sobre injeção (padrão) — clique p/ mudar'}
+                </button>
+              </div>
+            </div>
+
             <DistributorForm
               distributor={project.distributor}
               onChange={d => updateDistributor(project.id, d)}

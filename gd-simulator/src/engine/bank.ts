@@ -421,6 +421,10 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     }
 
     const hasRSVReport = (uc.consumptionReservado?.[m] ?? 0) > 0;
+    // Total kWh compensados no mês = consumo − residual (inclui saques do banco). Base do
+    // faturamento PPA por compensação (Grupo A e B).
+    const consMonth = (uc.consumptionFP?.[m] ?? 0) + (uc.consumptionPT?.[m] ?? 0) + (uc.consumptionReservado?.[m] ?? 0);
+    const compensatedKWh = Math.max(0, consMonth - (monthlyResidualFP + monthlyResidualPT + monthlyResidualRSV));
     monthlyDetails.push({
       ucId: uc.id,
       monthIndex: m,
@@ -428,6 +432,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       creditsFPApplied,
       creditsPTApplied,
       ...(hasRSVReport ? { creditsRSVApplied } : {}),
+      compensatedKWh,
       bankStart,
       bankDraw,
       bankEnd: bank,

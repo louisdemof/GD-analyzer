@@ -355,15 +355,23 @@ export function runSimulation(project: Project): SimulationResult {
   const months: MonthlyResult[] = [];
   let economiaAcum = 0;
   const ppaEscalation = project.tariffEscalationPPA ?? 0;
+  // Base de faturamento do PPA: 'compensation' cobra os kWh compensados no mês (evita pico de
+  // custo quando a usina injeta em poucos meses e os créditos são usados ao longo de anos).
+  const billOnCompensation = project.scenarios.ppaBillingBasis === 'compensation';
 
   for (let m = 0; m < contractMonths; m++) {
     const gen = generation[m];
     const yearIdx = Math.floor(m / 12);
     const escFactor = Math.pow(1 + ppaEscalation, yearIdx);
-    // PPA cost uses each usina's own rate: Σ plantGen[m] × plant.ppaRate × escalation.
-    const ppaCost = plantGenSeries.reduce(
-      (sum, s, i) => sum + (s[m] ?? 0) * allPlants[i].ppaRateRsBRLkWh * escFactor, 0,
-    );
+    // Injeção (default): Σ geração_usina[m] × ppaRate. Compensação: Σ kWh compensados[m] × ppaRate
+    // (consumo abatido no mês, inclui saques do banco) — o cliente só paga pelo que abateu a conta.
+    const compensatedKWh = billOnCompensation
+      ? extendedProject.ucs.reduce((sum, uc) => uc.id === 'bat' ? sum
+          : sum + (comResults[uc.id]?.monthlyDetails[m]?.compensatedKWh ?? 0), 0)
+      : 0;
+    const ppaCost = billOnCompensation
+      ? compensatedKWh * ppaRate * escFactor
+      : plantGenSeries.reduce((sum, s, i) => sum + (s[m] ?? 0) * allPlants[i].ppaRateRsBRLkWh * escFactor, 0);
 
     let semTotalCost = 0;
     let semTusdPtCost = 0;
@@ -455,7 +463,11 @@ export function runSimulation(project: Project): SimulationResult {
 
   // --- Summary ---
   const totalGeneration = generation.reduce((a, b) => a + b, 0);
-  const totalPPACost = totalGeneration * ppaRate;
+  // Compensation billing: total PPA = Σ dos custos mensais (só o compensado, c/ escalação).
+  // Injeção (default): mantém geração × ppaRate (comportamento existente).
+  const totalPPACost = billOnCompensation
+    ? months.reduce((acc, m) => acc + m.ppaCost, 0)
+    : totalGeneration * ppaRate;
   const baselineSEM = months.reduce((acc, m) => acc + m.sem.totalCost, 0);
   const economiaLiquida = months.reduce((acc, m) => acc + m.economia, 0);
   const bancoResidualKWh = bankPerUC.reduce((acc, b) => acc + b.finalBankCOM, 0);
