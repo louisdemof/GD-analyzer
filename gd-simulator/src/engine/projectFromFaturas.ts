@@ -182,14 +182,18 @@ function dedupByUC(parsedList: ParsedFatura[]): ParsedFatura[] {
   const byKey = new Map<string, ParsedFatura>();
   for (const p of parsedList) {
     if (!p.ok) continue;
-    // Key is the UC number (digits before first hyphen in matrícula, or ucNumero)
-    const key = p.ucNumero || (p.ucMatricula?.split('-')[0] || `unknown-${Math.random()}`);
+    // Dedup key: installation ADDRESS first (stable when the UC number changes across bills,
+    // e.g. REN 1095/24 renumbering — same UC bills March/April carry different numbers), then
+    // the UC number / matrícula. Random fallback = never dedups (kept for un-identifiable bills).
+    const key = p.ucEndereco || p.ucNumero || (p.ucMatricula?.split('-')[0] || `unknown-${Math.random()}`);
     const existing = byKey.get(key);
-    // Prefer the parsed fatura with the most history rows; tiebreak by refMes.
-    const score = (q: ParsedFatura) => q.history.length * 1000 + (q.refMes ? 1 : 0);
-    if (!existing || score(p) > score(existing)) {
-      byKey.set(key, p);
-    }
+    // Prefer the most RECENT bill (its history already covers the older months, and it carries
+    // the latest UC number + freshest reading); tiebreak by the fuller history.
+    const recency = (q: ParsedFatura) => q.history.reduce((mx, h) => (h.monthIso > mx ? h.monthIso : mx), '');
+    const better = !existing
+      || recency(p) > recency(existing)
+      || (recency(p) === recency(existing) && p.history.length > existing.history.length);
+    if (better) byKey.set(key, p);
   }
   return [...byKey.values()];
 }

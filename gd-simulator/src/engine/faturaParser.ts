@@ -42,6 +42,8 @@ export interface ParsedFatura {
   // Identification
   ucMatricula?: string;        // raw e.g. "0001935906-2026-03-3"
   ucNumero?: string;           // canonical e.g. "1935906-6"
+  ucEndereco?: string;         // installation address (normalized) — stable dedup key when the UC
+                               // number changes across bills (e.g. REN 1095/24 renumbering)
   classificacao?: string;      // e.g. "MTV-MOD.TARIFÁRIA VERDE / A3A RURAL / PROD.RURAL COM INSC.ESTADUAL"
   cnpj?: string;
   refMes?: string;             // e.g. "Março / 2026"
@@ -578,6 +580,15 @@ export async function parseEquatorialFatura(file: File, password?: string): Prom
   const isACL = /\bLV/.test(codeStr) || /livre/i.test(allText);
   result.classificacao = [grpStr, isAzul ? 'AZUL' : isVerde ? 'VERDE' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
     .filter(Boolean).join(' — ') || undefined;
+
+  // UC number (nova numeração padronizada REN 1095/24, formato pontuado) → nome/id da UC.
+  const ucm = allText.match(/\d\.\d{3}\.\d{3}\.\d{3}-\d{2}/);
+  if (ucm) result.ucNumero = ucm[0];
+  // Endereço de instalação: chave de dedup ESTÁVEL entre faturas de meses diferentes — o
+  // número da UC muda na padronização, o endereço não. Rua + CEP, normalizado.
+  const rua = allText.match(/\b(?:RUA|AVENIDA|AV|ROD(?:OVIA)?|TRAVESSA|PRA[ÇC]A|ALAMEDA|ESTRADA)\b[^|\n]{3,60}/i);
+  const cep = allText.match(/CEP:\s*(\d{8})/i);
+  if (rua) result.ucEndereco = `${rua[0]}${cep ? ' ' + cep[1] : ''}`.replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
 
   // Anchor month = "Leitura Atual" date (2nd dd/mm/yyyy in the leitura block; dates may be
   // pipe-separated in extraction).
