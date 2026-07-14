@@ -725,9 +725,11 @@ function PremissasPage({ project }: { project: Project }) {
     blocks.push(premGroup('Descontos & regras'));
     blocks.push(premRow('r-acl2', [
       premCard('c-dcons', 'Desconto TUSD consumo', `FP ${((a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}% · PT ${((a.tusdDiscountConsumoPT ?? a.tusdDiscountConsumo ?? 0) * 100).toFixed(0)}%`, 'fonte incentivada'),
-      premCard('c-ddem', 'Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(2)}%`, 'perdido ao migrar p/ GD cativo'),
-      premCard('c-fa', 'Fator de Ajuste (FA)', project.scenarios.applyFatorAjuste === false ? 'Desativado' : 'Aplicado', project.scenarios.applyFatorAjuste === false ? '1:1 (COPEL não aplica)' : 'REN 1000'),
-    ]));
+      // Demanda só existe no Grupo A — omitir o card para carteira 100% Grupo B.
+      nA > 0 ? premCard('c-ddem', 'Desconto TUSD demanda', `${((a.tusdDiscountDemanda ?? 0) * 100).toFixed(2)}%`, 'perdido ao migrar p/ GD cativo') : null,
+      // Fator de Ajuste é regra de cross-posto (Grupo A). Grupo B compensa 1:1 sem FA.
+      nA > 0 ? premCard('c-fa', 'Fator de Ajuste (FA)', project.scenarios.applyFatorAjuste === false ? 'Desativado' : 'Aplicado', project.scenarios.applyFatorAjuste === false ? '1:1 (COPEL não aplica)' : 'REN 1000') : null,
+    ].filter(Boolean)));
   }
 
   // ── Distribuidora & tributos
@@ -765,7 +767,7 @@ function PremissasPage({ project }: { project: Project }) {
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'Premissas da Simulação'),
     React.createElement(Text, { style: { ...s.noteText, marginBottom: 4 } },
-      `${project.clientName} · ${project.ucs.length} UC${project.ucs.length > 1 ? 's' : ''} (${nA} Grupo A${nB > 0 ? `, ${nB} Grupo B` : ''})${allGroups ? ` · ${allGroups}` : ''}${isACL ? ' · Mercado Livre (ACL)' : ' · Mercado Cativo'}`),
+      `${project.clientName} · ${project.ucs.length} UC${project.ucs.length > 1 ? 's' : ''} (${[nA ? `${nA} Grupo A` : null, nB ? `${nB} Grupo B` : null].filter(Boolean).join(', ')})${allGroups ? ` · ${allGroups}` : ''}${isACL ? ' · Mercado Livre (ACL)' : ' · Mercado Cativo'}`),
     ...blocks,
   );
 }
@@ -927,15 +929,18 @@ function ConsumptionPage({ project }: { project: Project }) {
   const total = totalFP + totalPT + totalRSV;
   const hasRSV = totalRSV > 0;
   const hasPT = totalPT > 0;
+  // Grupo B (baixa tensão): posto único — o consumo fica todo em "FP"; rotular "Consumo".
+  const allGrupoB = project.ucs.filter(u => u.id !== 'bat').every(u => !u.isGrupoA);
+  const fpLabel = allGrupoB ? 'Consumo' : 'Fora Ponta';
 
   const series: StackedChartSeries[] = [
-    { key: 'FP', data: agg.fp, color: TEAL, label: 'Fora Ponta' },
+    { key: 'FP', data: agg.fp, color: TEAL, label: fpLabel },
   ];
   if (hasPT) series.push({ key: 'PT', data: agg.pt, color: NAVY, label: 'Ponta' });
   if (hasRSV) series.push({ key: 'RSV', data: agg.rsv, color: '#f59e0b', label: 'Reservado' });
 
   const postoRows: { label: string; val: number; color: string; show: boolean }[] = [
-    { label: 'Fora Ponta', val: totalFP, color: TEAL, show: true },
+    { label: fpLabel, val: totalFP, color: TEAL, show: true },
     { label: 'Ponta', val: totalPT, color: NAVY, show: hasPT },
     { label: 'Reservado (rural irrigante)', val: totalRSV, color: '#f59e0b', show: hasRSV },
   ];
