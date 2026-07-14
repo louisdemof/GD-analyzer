@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { parseEnergisaFatura, type ParsedFatura } from '../../engine/faturaParser';
+import { parseAnyFatura, type ParsedFatura } from '../../engine/faturaParser';
 import { buildProjectFromFaturas } from '../../engine/projectFromFaturas';
 import type { Project } from '../../engine/types';
 
@@ -31,7 +31,9 @@ export function BulkFaturaUpload({ onCreate, onCancel }: Props) {
     const results: ParsedItem[] = [];
     for (const file of arr) {
       try {
-        const parsed = await parseEnergisaFatura(file);
+        // Auto-detect distributor (COPEL/CEMIG/Equatorial/Light/Enel/Energisa) instead of
+        // assuming Energisa — otherwise Equatorial/Enel Grupo B faturas parse to empty consumo.
+        const parsed = await parseAnyFatura(file);
         results.push({ fileName: file.name, ok: parsed.ok, parsed, error: parsed.errors.join('; ') || undefined });
       } catch (e) {
         results.push({ fileName: file.name, ok: false, error: e instanceof Error ? e.message : 'Erro' });

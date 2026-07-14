@@ -607,6 +607,34 @@ export async function parseEquatorialFatura(file: File, password?: string): Prom
     });
     i++;
   }
+  // ── Grupo B fallback (baixa tensão) ───────────────────────────────────────
+  // Grupo B Equatorial não tem posto nem demanda, e a coluna MÊS/ANO do histórico
+  // sai VAZIA na extração — só "CONSUMO FATURADO(kWh) | DIAS | TIPO" (mais recente
+  // primeiro). O loop Grupo A acima acha 0 linhas → o consumo não aparecia. Aqui
+  // ancoramos a 1ª linha (com tipo de faturamento) no mês de referência e voltamos
+  // um mês por linha. Validado nas 12 faturas Fleury (Equatorial GO, B1 e B3).
+  // NB: consumo pode vir sem separador de milhar ("6693,00") → regex \d[\d.]*,\d{2}.
+  if (result.history.length === 0 && anchor != null && /\bB[123]\b/.test(allText)) {
+    const tipoRe = /\b(LIDA|LEITURA|ESTIMAD\w*|CALCULAD\w*|REVISAD\w*|PROPORCIONAL|M[ÉE]DIA)\b/i;
+    let idx = 0;
+    for (const line of lines) { // lines já ordenadas topo→base = recente→antigo
+      if (!tipoRe.test(line.text)) continue;
+      const cons = (line.text.match(/\d[\d.]*,\d{2}/g) || []).map(brNum).find(n => n >= 30 && n < 500000);
+      if (cons == null) continue;
+      const abs = anchor - idx;
+      result.history.push({
+        monthIso: `${Math.floor(abs / 12)}-${String((abs % 12) + 1).padStart(2, '0')}`,
+        monthLabel: `${String((abs % 12) + 1).padStart(2, '0')}/${String(Math.floor(abs / 12)).slice(2)}`,
+        consumoForaPonta: Math.round(cons), consumoPonta: 0, consumoReservado: 0, demandaPonta: 0, demandaForaPonta: 0,
+      });
+      idx++;
+    }
+    if (result.history.length > 0) {
+      const clsB = allText.match(/\bB[123]\b[^\n|]{0,30}/i);
+      result.classificacao = (clsB ? clsB[0].replace(/\s*\|.*/, '').trim() : 'B3') + ' — Grupo B';
+    }
+  }
+
   result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
 
   if (result.demandaContratadaFP == null && result.history.length > 0) {
