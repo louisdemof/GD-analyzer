@@ -157,6 +157,8 @@ export interface Project {
   id: string;
   clientName: string;
   clientLogo?: string;          // PNG/JPEG do logo do cliente (data URL) — exibido no PDF
+  importWarnings?: string[];    // avisos da importação de faturas (consolidação de UCs, renumeração
+                                // REN 1095/24, etc.) — mostrados no editor para ficar documentado
   distributor: Distributor;
   // Ambiente de contratação do cliente hoje. Default 'CATIVO' (retrocompat).
   marketType?: MarketType;

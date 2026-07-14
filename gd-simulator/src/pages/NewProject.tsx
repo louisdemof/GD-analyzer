@@ -169,11 +169,13 @@ export function NewProject() {
     // Path A: faturas dropped → auto-build from parsed data
     if (hasFaturas) {
       try {
-        const { project: built } = buildProjectFromFaturas(
+        const { project: built, warnings } = buildProjectFromFaturas(
           successItems.map(i => i.parsed!),
           clientName.trim(),
         );
-        const project = { ...built, ...marketPatch };
+        // Persist the import warnings (UC consolidation, REN 1095/24 renumbering) on the
+        // project so they stay documented inside the editor, not just at upload time.
+        const project = { ...built, ...marketPatch, importWarnings: warnings.length ? warnings : undefined };
         useProjectStore.setState(state => ({
           projects: [...state.projects, project],
           currentProjectId: project.id,
