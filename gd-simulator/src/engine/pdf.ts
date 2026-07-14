@@ -127,7 +127,9 @@ function StackedBarChart({ months, series, width = 515, height = 130, showValues
   const maxTotal = supportNegative ? Math.max(1, ...totals.map(Math.abs)) : Math.max(1, ...totals);
   const abbr = (v: number): string =>
     Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `${Math.round(v / 1e3)}k` : `${Math.round(v)}`;
-  const labelStep = n > 18 ? 2 : 1;
+  // Show only as many x-axis labels as fit without overlap (a "jan/28" label needs ~26px).
+  // Without this a 60-month chart smears ~60 labels into an unreadable band.
+  const labelStep = Math.max(1, Math.ceil(26 / (barWidth + 2)));
   const showTopValues = showValues && barWidth >= 10;
 
   const topValues = showTopValues ? months.map((_, i) =>
@@ -196,7 +198,7 @@ function StackedBarChart({ months, series, width = 515, height = 130, showValues
     React.createElement(Text, {
       key: i,
       style: { width: barWidth, marginRight: i === n - 1 ? 0 : 2, fontSize: 5, textAlign: 'center', color: '#64748b' },
-    }, label)
+    }, (i % labelStep === 0 || i === n - 1) ? label : '')
   );
 
   const legend = React.createElement(View, {
@@ -441,7 +443,7 @@ function BankAreaChart({ labels, com, sem }: { labels: string[]; com: number[]; 
   const comArea = `0,${H} ${comLine} ${plotW.toFixed(1)},${H}`;
   const semLine = sem.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ');
   const hasSem = sem.some(v => v > 0);
-  const step = n > 18 ? 3 : n > 12 ? 2 : 1;
+  const step = Math.max(1, Math.ceil(26 / Math.max(1, plotW / n)));
   const legendItem = (color: string, dashed: boolean, label: string) =>
     React.createElement(View, { key: label, style: { flexDirection: 'row', alignItems: 'center', gap: 3, marginRight: 14 } },
       React.createElement(View, { style: { width: 10, height: 0, borderTopWidth: 2, borderTopColor: color, borderStyle: dashed ? 'dashed' : 'solid' } }),
@@ -1192,7 +1194,7 @@ function CumulativeEconomyPage({ project, result }: { project: Project; result: 
       const cnt = labels2.length;
       const groupGap = Math.max(0, cnt - 1) * 3;
       const barW = Math.max(3, (515 - (cnt * 1 + groupGap)) / (cnt * 2));
-      const labelStep = cnt > 18 ? 2 : 1;
+      const labelStep = Math.max(1, Math.ceil(26 / (barW * 2 + 4)));
       const abbr = (v: number) => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : `${Math.round(v)}`;
       const chartH = 140;
       return React.createElement(View, null,
