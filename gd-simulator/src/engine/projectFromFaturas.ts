@@ -174,28 +174,68 @@ function defaultRateio(): RateioAllocation {
   };
 }
 
+// Dedup key for a fatura: installation ADDRESS first (stable when the UC number changes across
+// bills — e.g. REN 1095/24 renumbering: the same UC's March and April bills carry DIFFERENT
+// numbers), then the UC number / matrícula. Random fallback = never dedups (un-identifiable bills).
+export function faturaDedupKey(p: ParsedFatura): string {
+  return p.ucEndereco || p.ucNumero || (p.ucMatricula?.split('-')[0] || `unknown-${Math.random()}`);
+}
+const latestMonth = (q: ParsedFatura) => q.history.reduce((mx, h) => (h.monthIso > mx ? h.monthIso : mx), '');
+const shortAddr = (a?: string) => (a || '').replace(/\s+\d{8}$/, '').slice(0, 40).trim();
+
 /**
- * Group N parsed faturas by matrícula's UC number, keeping the most recent
- * fatura per UC.
+ * Group N parsed faturas by installation address, keeping the most recent fatura per UC.
  */
 function dedupByUC(parsedList: ParsedFatura[]): ParsedFatura[] {
   const byKey = new Map<string, ParsedFatura>();
   for (const p of parsedList) {
     if (!p.ok) continue;
-    // Dedup key: installation ADDRESS first (stable when the UC number changes across bills,
-    // e.g. REN 1095/24 renumbering — same UC bills March/April carry different numbers), then
-    // the UC number / matrícula. Random fallback = never dedups (kept for un-identifiable bills).
-    const key = p.ucEndereco || p.ucNumero || (p.ucMatricula?.split('-')[0] || `unknown-${Math.random()}`);
+    const key = faturaDedupKey(p);
     const existing = byKey.get(key);
     // Prefer the most RECENT bill (its history already covers the older months, and it carries
     // the latest UC number + freshest reading); tiebreak by the fuller history.
-    const recency = (q: ParsedFatura) => q.history.reduce((mx, h) => (h.monthIso > mx ? h.monthIso : mx), '');
     const better = !existing
-      || recency(p) > recency(existing)
-      || (recency(p) === recency(existing) && p.history.length > existing.history.length);
+      || latestMonth(p) > latestMonth(existing)
+      || (latestMonth(p) === latestMonth(existing) && p.history.length > existing.history.length);
     if (better) byKey.set(key, p);
   }
   return [...byKey.values()];
+}
+
+export interface FaturaSetAnalysis {
+  ucCount: number;      // distinct UCs after dedup
+  warnings: string[];   // consolidation + REN 1095/24 renumbering notices
+}
+
+/**
+ * Preview how a set of parsed faturas collapses into UCs, and explain consolidations —
+ * in particular UC renumbering (REN 1095/24): same installation address, different UC numbers
+ * across bills. Used both by the New Project screen (live preview) and buildProjectFromFaturas.
+ */
+export function analyzeFaturaSet(parsedList: ParsedFatura[]): FaturaSetAnalysis {
+  const ok = parsedList.filter(p => p.ok);
+  const groups = new Map<string, ParsedFatura[]>();
+  for (const p of ok) {
+    const k = faturaDedupKey(p);
+    const g = groups.get(k) ?? [];
+    g.push(p);
+    groups.set(k, g);
+  }
+  const warnings: string[] = [];
+  if (ok.length > groups.size) {
+    warnings.push(`${ok.length} faturas → ${groups.size} UCs: faturas do mesmo ponto de consumo foram consolidadas (mantida a mais recente por UC).`);
+  }
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    // Distinct UC numbers within the same address (missing number = old/legacy layout).
+    const nums = new Set(g.map(x => x.ucNumero || '(legado)'));
+    if (nums.size > 1) {
+      const kept = g.reduce((a, b) => (latestMonth(b) > latestMonth(a) ? b : a));
+      const meses = g.map(x => x.refMes).filter(Boolean).join(' + ') || `${g.length} faturas`;
+      warnings.push(`🔄 UC renumerada — REN 1095/24 (${shortAddr(kept.ucEndereco)}): o nº da UC mudou entre as faturas (${meses}); consolidadas em 1 UC — nº atual ${kept.ucNumero || '—'}.`);
+    }
+  }
+  return { ucCount: groups.size, warnings };
 }
 
 export interface ProjectBuildResult {
@@ -204,13 +244,10 @@ export interface ProjectBuildResult {
 }
 
 export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: string): ProjectBuildResult {
-  const warnings: string[] = [];
+  const warnings: string[] = analyzeFaturaSet(parsedList).warnings;
   const dedup = dedupByUC(parsedList);
   if (dedup.length === 0) {
     throw new Error('Nenhuma fatura válida foi parseada com sucesso.');
-  }
-  if (dedup.length < parsedList.length) {
-    warnings.push(`${parsedList.length - dedup.length} faturas duplicadas (mesma UC) — mantendo apenas a mais recente por UC.`);
   }
 
   // Pick an A-class fatura as the base for distribuidora (richer tariff data); fall back to first.

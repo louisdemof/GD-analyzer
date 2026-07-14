@@ -4,7 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
 import { parseAnyFatura, faturaHealth, type ParsedFatura } from '../engine/faturaParser';
-import { buildProjectFromFaturas } from '../engine/projectFromFaturas';
+import { buildProjectFromFaturas, analyzeFaturaSet } from '../engine/projectFromFaturas';
 import type { Distributor } from '../engine/types';
 
 interface ParsedItem {
@@ -84,10 +84,10 @@ export function NewProject() {
   );
 
   const successItems = useMemo(() => items.filter(i => i.ok && i.parsed), [items]);
-  const uniqueUCs = useMemo(
-    () => new Set(successItems.map(i => i.parsed!.ucNumero || i.parsed!.ucMatricula)).size,
-    [successItems]
-  );
+  // Dedup preview: collapses same-UC bills by installation address (survives REN 1095/24
+  // renumbering) and explains consolidations/renumberings before the project is created.
+  const faturaAnalysis = useMemo(() => analyzeFaturaSet(successItems.map(i => i.parsed!)), [successItems]);
+  const uniqueUCs = faturaAnalysis.ucCount;
   const hasFaturas = successItems.length > 0;
 
   const processFiles = async (files: FileList | File[]) => {
@@ -360,6 +360,13 @@ export function NewProject() {
                   <strong>{items.length}</strong> faturas processadas — <strong className="text-emerald-700">{uniqueUCs} UCs únicas</strong>
                 </p>
               </div>
+              {faturaAnalysis.warnings.length > 0 && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 space-y-1">
+                  {faturaAnalysis.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-900 leading-snug">{w}</p>
+                  ))}
+                </div>
+              )}
               <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg bg-white">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-100 sticky top-0">
