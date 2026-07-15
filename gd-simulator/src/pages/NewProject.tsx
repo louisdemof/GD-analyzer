@@ -5,7 +5,9 @@ import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
 import { parseAnyFatura, faturaHealth, type ParsedFatura } from '../engine/faturaParser';
 import { buildProjectFromFaturas, analyzeFaturaSet } from '../engine/projectFromFaturas';
-import { optimiseRateio } from '../engine/optimiser';
+import type { OptimiserProgress } from '../engine/optimiser';
+import type { RateioAllocation } from '../engine/types';
+import OptimiserWorker from '../engine/optimiser.worker?worker';
 import { computeDerivedTariffs } from '../engine/tariff';
 import type { Distributor } from '../engine/types';
 
@@ -30,6 +32,7 @@ export function NewProject() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [parsing, setParsing] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
+  const [optimizeProgress, setOptimizeProgress] = useState<OptimiserProgress | null>(null);
   const [items, setItems] = useState<ParsedItem[]>([]);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [dragActive, setDragActive] = useState(false);
@@ -184,21 +187,27 @@ export function NewProject() {
           import('../storage/projectDB').then(m => m.saveProjectToDB(proj).catch(() => {}));
           navigate(`/project/${proj.id}`);
         };
-        // Auto-otimiza o rateio na criação (maximiza a economia) quando há 2+ UCs. Limitado a
-        // projetos de tamanho razoável (≤ 12 UCs) para não travar a tela — acima disso, o usuário
-        // roda a otimização (não-bloqueante) na aba Rateio. Uma UC = rateio trivial (100%).
+        // Auto-otimiza o rateio na criação (maximiza a economia) quando há 2+ UCs, em BACKGROUND
+        // (worker) → não trava a tela, sem limite de UCs. 1 UC = rateio trivial (100%).
         const nUCs = project.ucs.filter(u => u.id !== 'bat').length;
-        if (nUCs >= 2 && nUCs <= 12) {
+        if (nUCs >= 2) {
           setOptimizing(true);
-          setTimeout(() => {
-            try {
-              const withDerived = { ...project, distributor: computeDerivedTariffs(project.distributor) };
-              const opt = optimiseRateio(withDerived);
-              finish({ ...withDerived, rateio: opt.allocation });
-            } catch {
-              finish(project); // falhou a otimização → segue com o rateio padrão
-            }
-          }, 30);
+          const withDerived = { ...project, distributor: computeDerivedTariffs(project.distributor) };
+          const worker = new OptimiserWorker();
+          const done = (rateio?: RateioAllocation) => {
+            worker.terminate();
+            setOptimizing(false); setOptimizeProgress(null);
+            finish(rateio ? { ...withDerived, rateio } : project);
+          };
+          // Fallback adaptativo: projetos grandes podem levar minutos → limite generoso; se estourar,
+          // segue com o rateio padrão (o usuário reotimiza na aba Rateio).
+          const to = setTimeout(() => done(), nUCs > 8 ? 300_000 : 90_000);
+          worker.onmessage = (e: MessageEvent) => {
+            if (e.data.type === 'progress') setOptimizeProgress(e.data as OptimiserProgress);
+            else if (e.data.type === 'done') { clearTimeout(to); done(e.data.result.allocation as RateioAllocation); }
+          };
+          worker.onerror = () => { clearTimeout(to); done(); };
+          worker.postMessage({ project: withDerived });
         } else {
           finish(project);
         }
@@ -540,11 +549,14 @@ export function NewProject() {
 
       {optimizing && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-xl px-6 py-5 flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
-            <div>
+          <div className="bg-white rounded-xl shadow-xl px-6 py-5 w-[340px]">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
               <p className="text-sm font-semibold text-slate-800">Otimizando o rateio das UCs…</p>
-              <p className="text-xs text-slate-500">Distribuindo os créditos para maximizar a economia do cliente.</p>
+            </div>
+            <p className="text-xs text-slate-500">{optimizeProgress?.message ?? 'Distribuindo os créditos para maximizar a economia do cliente.'}</p>
+            <div className="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-full bg-teal-500 transition-all" style={{ width: `${Math.max(3, Math.min(100, optimizeProgress?.pct ?? 8))}%` }} />
             </div>
           </div>
         </div>
