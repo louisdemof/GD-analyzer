@@ -97,7 +97,7 @@ export function GoalSeekPPAPanel({ project }: Props) {
                 const h = ((p.economiaLiquida - minEcon) / Math.max(1, maxEcon - minEcon)) * 100;
                 const isBest = p.ppaMonths === res.best.ppaMonths;
                 return (
-                  <div key={i} className="flex-1 flex flex-col justify-end items-center" title={`${p.ppaMonths}m: ${brl(p.economiaLiquida)}`}>
+                  <div key={i} className="flex-1 h-full flex flex-col justify-end items-center" title={`${p.ppaMonths}m: ${brl(p.economiaLiquida)}`}>
                     <div className={`w-full rounded-t ${isBest ? 'bg-teal-600' : 'bg-slate-300'}`} style={{ height: `${Math.max(1, h)}%` }} />
                   </div>
                 );
