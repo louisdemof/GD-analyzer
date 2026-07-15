@@ -403,6 +403,7 @@ export function NewProject() {
                   <thead className="bg-slate-100 sticky top-0">
                     <tr>
                       <th className="text-left py-1.5 px-2 w-6">✓</th>
+                      <th className="text-left py-1.5 px-2">Distribuidora</th>
                       <th className="text-left py-1.5 px-2">Matrícula</th>
                       <th className="text-left py-1.5 px-2">Classificação</th>
                       <th className="text-right py-1.5 px-2">Histórico</th>
@@ -419,6 +420,7 @@ export function NewProject() {
                                   : <span className="text-emerald-600">✓</span>)
                               : <span className="text-red-600" title={it.error}>✗</span>}
                           </td>
+                          <td className="py-1 px-2 text-slate-600" title="Confira se bate com a distribuidora real da fatura">{it.parsed?.distributorSig || '—'}</td>
                           <td className="py-1 px-2 font-mono">{it.parsed?.ucNumero || it.parsed?.ucMatricula || '—'}</td>
                           <td className="py-1 px-2 truncate max-w-xs">{(it.parsed?.classificacao || '').slice(0, 40)}</td>
                           <td className="py-1 px-2 text-right">{it.parsed?.history.length ?? 0}m</td>
@@ -426,7 +428,7 @@ export function NewProject() {
                         {it.ok && it.health && it.health.length > 0 && (
                           <tr>
                             <td></td>
-                            <td colSpan={3} className="px-2 pb-1 text-[10px] text-amber-700">
+                            <td colSpan={4} className="px-2 pb-1 text-[10px] text-amber-700">
                               {it.health.map((h, j) => <div key={j}>⚠ {h}</div>)}
                             </td>
                           </tr>

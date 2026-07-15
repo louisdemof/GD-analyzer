@@ -550,6 +550,12 @@ const EQ_STATE_SIG: [RegExp, string][] = [
   [/Alagoas|Macei[óo]|\bAL[\s|]+BRASIL/i, 'EQUATORIAL AL'],
   [/Equatorial\s*Par[áa]|Bel[ée]m|\bCELPA\b|\bPA[\s|]+BRASIL/i, 'EQUATORIAL PA'],
 ];
+// Detecta o estado da Equatorial pelo texto. Retorna a sig e se foi por padrão (baixa confiança).
+// PA é o último e ESTRITO (a regex ingênua /Par[áa]/ pegava a preposição "para").
+export function detectEquatorialSig(allText: string): { sig: string; matched: boolean } {
+  const hit = EQ_STATE_SIG.find(([re]) => re.test(allText));
+  return hit ? { sig: hit[1], matched: true } : { sig: 'EQUATORIAL PA', matched: false };
+}
 const PT_MONTHS3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
 export async function parseEquatorialFatura(file: File, password?: string): Promise<ParsedFatura> {
@@ -569,7 +575,10 @@ export async function parseEquatorialFatura(file: File, password?: string): Prom
     result.errors.push('Não parece ser uma fatura Equatorial.');
     return result;
   }
-  result.distributorSig = (EQ_STATE_SIG.find(([re]) => re.test(allText)) || [, 'EQUATORIAL PA'])[1] as string;
+  const eqDet = detectEquatorialSig(allText);
+  result.distributorSig = eqDet.sig;
+  // Confiança baixa: caiu no default PA sem sinal claro do estado → avisa (evita erro silencioso).
+  if (!eqDet.matched) (result.warnings ??= []).push('Estado da Equatorial não identificado com clareza — assumido PA. Confirme a distribuidora.');
 
   // Tariff group + modalidade. "Tipo de Tarifa: A4_LVAZ" → A4, Livre, Azul.
   const code = allText.match(/Tipo\s+de\s+Tarifa[\s:|]+A(\d)_?(\w+)/i);
@@ -973,9 +982,10 @@ export async function parseEdpSpFatura(file: File, password?: string): Promise<P
 // errors, missing months, zero consumption, missing demand) so the user can verify
 // before trusting the import. Returns human-readable warnings (empty = looks healthy).
 export function faturaHealth(p: ParsedFatura): string[] {
-  const w: string[] = [];
+  // Inclui os avisos do próprio parser (ex.: estado da Equatorial em baixa confiança).
+  const w: string[] = [...(p.warnings ?? [])];
   const h = p.history ?? [];
-  if (h.length === 0) return ['Nenhum mês de histórico reconhecido — confira a fatura.'];
+  if (h.length === 0) return [...w, 'Nenhum mês de histórico reconhecido — confira a fatura.'];
   if (h.length < 6) w.push(`Apenas ${h.length} mês(es) de histórico — o ideal são 12. Verifique a leitura da tabela.`);
 
   const fp = h.map(r => r.consumoForaPonta || 0);
@@ -988,6 +998,17 @@ export function faturaHealth(p: ParsedFatura): string[] {
     if (fp.some(v => v > median * 5)) w.push('Um mês tem consumo muito acima do padrão (possível erro de escala na leitura) — confira os valores.');
     if (fp.some(v => v > 0 && v < median / 5)) w.push('Um mês tem consumo muito abaixo do padrão — confira.');
     if (fp.some(v => v === 0)) w.push('Há mês(es) com consumo fora-ponta zero — confira se é real.');
+    // Queda/salto estrutural: média da 1ª metade vs 2ª metade (pega casos tipo SSA −50%).
+    if (h.length >= 6) {
+      const half = Math.floor(fp.length / 2);
+      const avg = (a: number[]) => a.reduce((s, v) => s + v, 0) / Math.max(1, a.length);
+      const older = avg(fp.slice(0, half)), recent = avg(fp.slice(half));
+      if (older > 0 && recent > 0) {
+        const ch = (recent - older) / older;
+        if (ch <= -0.3) w.push(`Consumo caiu ~${Math.round(-ch * 100)}% na metade mais recente — mudança estrutural? Use os meses recentes para dimensionar.`);
+        else if (ch >= 0.4) w.push(`Consumo subiu ~${Math.round(ch * 100)}% na metade mais recente — confirme se é tendência real.`);
+      }
+    }
   }
 
   // Grupo A should have a contracted/billed demand.
