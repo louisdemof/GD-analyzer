@@ -132,12 +132,18 @@ function buildData(project: Project, result: SimulationResult) {
   const hasDemanda = mavg.demandaAcl > 0.5 || mavg.demCom > 0.5;
   const billOnCompensation = project.scenarios.ppaBillingBasis === 'compensation';
 
-  // 12-month series for the chart: client consumption (FP/PT) + plant generation (kWh).
+  // 12-month series for the chart: client consumption (FP/PT) + geração OU energia compensada.
+  // Ao faturar por compensação, a usina GD1 injeta concentrado (poucos meses) mas os créditos se
+  // espalham pelo contrato — mostrar a geração injetada faz parecer 5× o consumo. Então, no modo
+  // compensação, o gráfico usa a ENERGIA COMPENSADA (bate com o consumo), não a injetada.
   const n12 = Math.min(12, result.months.length);
+  const ucIdsC = Object.keys(result.ucDetailsCOM ?? {});
   const labels: string[] = [], gen: number[] = [], cFP: number[] = [], cPT: number[] = [];
   for (let m = 0; m < n12; m++) {
     labels.push(result.months[m].label);
-    gen.push(result.months[m].generation);
+    gen.push(billOnCompensation
+      ? ucIdsC.reduce((k, id) => k + (result.ucDetailsCOM?.[id]?.[m]?.compensatedKWh ?? 0), 0)
+      : result.months[m].generation);
     let f = 0, p = 0;
     for (const uc of project.ucs) { f += uc.consumptionFP?.[m] ?? 0; p += uc.consumptionPT?.[m] ?? 0; }
     cFP.push(f); cPT.push(p);
@@ -224,7 +230,7 @@ function MonthlyChart(d: ReturnType<typeof buildData>) {
   const barW = Math.max(6, gw * 0.32);
   const mwh = (v: number) => Math.round(v / 1000).toLocaleString('pt-BR'); // MWh label
   return React.createElement(View, { wrap: false, style: { marginTop: 4 } },
-    React.createElement(Text, { style: s.h2 }, d.allGrupoB ? 'Consumo mensal vs Geração — 12 meses · MWh' : 'Consumo mensal (Fora Ponta + Ponta) vs Geração — 12 meses · MWh'),
+    React.createElement(Text, { style: s.h2 }, `${d.allGrupoB ? 'Consumo mensal' : 'Consumo mensal (Fora Ponta + Ponta)'} vs ${d.billOnCompensation ? 'Energia compensada' : 'Geração'} — 12 meses · MWh`),
     React.createElement(View, { style: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 2 } },
       ...Array.from({ length: d.n12 }, (_, m) => React.createElement(View, { key: m, style: { width: gw, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 1.5 } },
         // consumption bar (stacked FP+PT) with value label on top
@@ -244,13 +250,15 @@ function MonthlyChart(d: ReturnType<typeof buildData>) {
       ...d.labels.map((lb, m) => React.createElement(Text, { key: m, style: { width: gw, fontSize: 5, color: '#94a3b8', textAlign: 'center' } }, lb)),
     ),
     React.createElement(View, { style: { flexDirection: 'row', gap: 12, marginTop: 4 } },
-      ...((d.allGrupoB ? [['Consumo', NAVY], ['Geração estimada', LIME]] : [['Consumo Fora Ponta', NAVY], ['Consumo Ponta', '#6692A8'], ['Geração estimada', LIME]]) as [string, string][]).map(([lab, c], i) =>
+      ...((d.allGrupoB ? [['Consumo', NAVY], [d.billOnCompensation ? 'Energia compensada' : 'Geração estimada', LIME]] : [['Consumo Fora Ponta', NAVY], ['Consumo Ponta', '#6692A8'], [d.billOnCompensation ? 'Energia compensada' : 'Geração estimada', LIME]]) as [string, string][]).map(([lab, c], i) =>
         React.createElement(View, { key: i, style: { flexDirection: 'row', alignItems: 'center', marginRight: 10 } },
           React.createElement(View, { style: { width: 7, height: 7, backgroundColor: c, marginRight: 3 } }),
           React.createElement(Text, { style: { fontSize: 6.5, color: '#475569' } }, lab))),
     ),
     React.createElement(Text, { style: { fontSize: 6, color: '#94a3b8', marginTop: 2 } },
-      `Valores em MWh · base das faturas do cliente (consumo) e geração estimada da usina — para conferência da premissa.`),
+      d.billOnCompensation
+        ? 'Valores em MWh · consumo (faturas) e energia compensada mês a mês (créditos que abatem a conta). A usina GD1 injeta concentrada e os créditos se distribuem pelo contrato.'
+        : 'Valores em MWh · base das faturas do cliente (consumo) e geração estimada da usina — para conferência da premissa.'),
   );
 }
 
@@ -315,6 +323,10 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
   const u = usinaBits(d);
   const coverage = d.consTot > 0 ? (sm.totalGeneration / (d.consTot * n)) * 100 : 0;
   const ecoPos = sm.economiaLiquida >= 0;
+  const isGD1 = /GD1/i.test(tipoGd);
+  const escPPApct = (project.tariffEscalationPPA ?? 0) * 100;
+  const reajusteStr = escPPApct > 0.05 ? `reajuste ~${escPPApct.toFixed(1)}%/ano` : 'preço travado no contrato';
+  const faturamento = d.billOnCompensation ? 'faturamento mensal sobre a energia compensada' : 'faturamento mensal (take-or-pay)';
 
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
@@ -343,7 +355,19 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
       ))
     ),
     React.createElement(Text, { style: s.valueLine },
-      `Preço fixo Helexia (PPA): R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — custo previsível, sem bandeiras, sem investimento e sem obra. Energia 100% renovável.`),
+      `${d.allGrupoB ? `Desconto de ${fmtPct(sm.economiaPct)} na sua conta · ` : ''}PPA fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh — PPA sem bandeiras, sem investimento e sem obra. Energia 100% renovável.`),
+    // Condições comerciais
+    React.createElement(View, { style: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 } },
+      ...[
+        [`Prazo: ${n} meses`], [`PPA: R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh`],
+        [`Reajuste: ${reajusteStr}`], [faturamento.charAt(0).toUpperCase() + faturamento.slice(1)],
+      ].map(([t], i) => React.createElement(Text, { key: i, style: { fontSize: 7, color: '#334155', backgroundColor: LIGHT, borderRadius: 4, paddingVertical: 2, paddingHorizontal: 6 } }, t)),
+    ),
+    // Selo GD1 — 100% de compensação garantida (direito adquirido)
+    isGD1 ? React.createElement(View, { style: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: TEAL, borderRadius: 6, padding: 7, marginBottom: 9 } },
+      React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY } }, '✓ Usina GD1 — 100% de compensação garantida'),
+      React.createElement(Text, { style: { fontSize: 7.5, color: '#334155', marginTop: 1 } }, 'Cada kWh injetado abate a tarifa cheia, sem bandeiras no PPA — vantagem preservada até 2045 (Lei 14.300/2022, direito adquirido).'),
+    ) : null,
     // Valor total (economia + banco)
     React.createElement(View, { style: s.vtBox },
       React.createElement(View, { style: s.lineItem },
