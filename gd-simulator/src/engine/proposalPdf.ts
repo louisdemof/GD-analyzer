@@ -130,6 +130,7 @@ function buildData(project: Project, result: SimulationResult) {
   // não deve mostrar linhas de Demanda nem rótulos "Fora Ponta"/"Ponta".
   const allGrupoB = project.ucs.filter(u => u.id !== 'bat').every(u => !u.isGrupoA);
   const hasDemanda = mavg.demandaAcl > 0.5 || mavg.demCom > 0.5;
+  const billOnCompensation = project.scenarios.ppaBillingBasis === 'compensation';
 
   // 12-month series for the chart: client consumption (FP/PT) + plant generation (kWh).
   const n12 = Math.min(12, result.months.length);
@@ -147,7 +148,7 @@ function buildData(project: Project, result: SimulationResult) {
     sm, n, plants, ppaTotal, rede, pcAdd, fp, pt, consTot, modalidade, ppaMWh, pontaTarifa,
     custoCom: sm.baselineSEM - sm.economiaLiquida,
     capacidade: plants.reduce((a, p) => a + (p.capacityKWac ?? 0), 0),
-    isACL, distName, mavg, energiaResidual, comTotalAvg, allGrupoB, hasDemanda,
+    isACL, distName, mavg, energiaResidual, comTotalAvg, allGrupoB, hasDemanda, billOnCompensation,
     labels, gen, cFP, cPT, maxBar, n12,
   };
 }
@@ -206,7 +207,7 @@ function DetailedInvoices(project: Project, d: ReturnType<typeof buildData>) {
     invDiv(),
     invRow(`Subtotal ${distName}`, mavg.rede),
     invSec('Helexia'),
-    invRow('PPA (geração × tarifa)', mavg.ppa),
+    invRow(d.billOnCompensation ? 'PPA (compensação × tarifa)' : 'PPA (geração × tarifa)', mavg.ppa),
     invDiv(),
     invRow('Total COM Helexia', d.comTotalAvg, undefined, true),
     React.createElement(View, { style: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 3 } },
@@ -371,7 +372,7 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
     // A solução (textual, condensed — the diagram above covers the flow visually)
     React.createElement(Text, { style: { ...s.h2, marginTop: 8 } }, 'A solução Helexia — Autoconsumo Remoto'),
     React.createElement(Text, { style: s.p },
-      `A Helexia constrói, é proprietária e opera ${u.phrase} (Contrato de Locação da Usina + O&M) — o cliente não investe, não instala nada e não cuida da manutenção. A energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades; o cliente paga apenas a energia gerada, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh (take-or-pay). O rateio é notificado à distribuidora (NDU); créditos garantidos pela Lei 14.300/2022.`),
+      `A Helexia constrói, é proprietária e opera ${u.phrase} (Contrato de Locação da Usina + O&M) — o cliente não investe, não instala nada e não cuida da manutenção. A energia gerada é injetada na rede da ${project.distributor.name} e os créditos compensam o consumo das unidades; o cliente paga apenas a energia ${d.billOnCompensation ? 'compensada (o kWh que efetivamente abateu a conta)' : 'gerada'}, a um preço fixo de R$ ${Math.round(d.ppaMWh).toLocaleString('pt-BR')}/MWh${d.billOnCompensation ? '' : ' (take-or-pay)'}. O rateio é notificado à distribuidora (NDU); créditos garantidos pela Lei 14.300/2022.`),
     React.createElement(Text, { style: { ...s.p, color: GREY } },
       `${u.multi ? 'Usinas' : 'Usina'}: ${u.list} · geração estimada de ${fmtMWh(sm.totalGeneration)} no contrato (média ${fmtMWh(sm.totalGeneration / n)}/mês), cobrindo ~${coverage.toFixed(0)}% do consumo.`),
   );

@@ -734,6 +734,15 @@ function PremissasPage({ project }: { project: Project }) {
     ].filter(Boolean)));
   }
 
+  // ── Faturamento do PPA (só quando não for o padrão de injeção)
+  if (project.scenarios.ppaBillingBasis === 'compensation') {
+    blocks.push(premGroup('Faturamento do PPA'));
+    blocks.push(premRow('r-bill', [
+      premCard('c-bill', 'Base de faturamento', 'Sobre compensação',
+        'cliente paga o PPA só sobre o kWh compensado no mês (não sobre a injeção) — sem pico de custo no início', 'hl'),
+    ]));
+  }
+
   // ── Distribuidora & tributos
   blocks.push(premGroup('Distribuidora & tributos'));
   blocks.push(premRow('r-dist', [
