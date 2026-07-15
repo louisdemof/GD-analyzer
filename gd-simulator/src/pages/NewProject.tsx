@@ -5,6 +5,8 @@ import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
 import { parseAnyFatura, faturaHealth, type ParsedFatura } from '../engine/faturaParser';
 import { buildProjectFromFaturas, analyzeFaturaSet } from '../engine/projectFromFaturas';
+import { optimiseRateio } from '../engine/optimiser';
+import { computeDerivedTariffs } from '../engine/tariff';
 import type { Distributor } from '../engine/types';
 
 interface ParsedItem {
@@ -27,6 +29,7 @@ export function NewProject() {
   // Fatura import state
   const fileInput = useRef<HTMLInputElement>(null);
   const [parsing, setParsing] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
   const [items, setItems] = useState<ParsedItem[]>([]);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [dragActive, setDragActive] = useState(false);
@@ -176,12 +179,29 @@ export function NewProject() {
         // Persist the import warnings (UC consolidation, REN 1095/24 renumbering) on the
         // project so they stay documented inside the editor, not just at upload time.
         const project = { ...built, ...marketPatch, importWarnings: warnings.length ? warnings : undefined };
-        useProjectStore.setState(state => ({
-          projects: [...state.projects, project],
-          currentProjectId: project.id,
-        }));
-        import('../storage/projectDB').then(m => m.saveProjectToDB(project).catch(() => {}));
-        navigate(`/project/${project.id}`);
+        const finish = (proj: typeof project) => {
+          useProjectStore.setState(state => ({ projects: [...state.projects, proj], currentProjectId: proj.id }));
+          import('../storage/projectDB').then(m => m.saveProjectToDB(proj).catch(() => {}));
+          navigate(`/project/${proj.id}`);
+        };
+        // Auto-otimiza o rateio na criação (maximiza a economia) quando há 2+ UCs. Limitado a
+        // projetos de tamanho razoável (≤ 12 UCs) para não travar a tela — acima disso, o usuário
+        // roda a otimização (não-bloqueante) na aba Rateio. Uma UC = rateio trivial (100%).
+        const nUCs = project.ucs.filter(u => u.id !== 'bat').length;
+        if (nUCs >= 2 && nUCs <= 12) {
+          setOptimizing(true);
+          setTimeout(() => {
+            try {
+              const withDerived = { ...project, distributor: computeDerivedTariffs(project.distributor) };
+              const opt = optimiseRateio(withDerived);
+              finish({ ...withDerived, rateio: opt.allocation });
+            } catch {
+              finish(project); // falhou a otimização → segue com o rateio padrão
+            }
+          }, 30);
+        } else {
+          finish(project);
+        }
         return;
       } catch (e) {
         alert(e instanceof Error ? e.message : 'Erro ao construir projeto a partir das faturas');
@@ -517,6 +537,18 @@ export function NewProject() {
           </button>
         </div>
       </div>
+
+      {optimizing && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-xl px-6 py-5 flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Otimizando o rateio das UCs…</p>
+              <p className="text-xs text-slate-500">Distribuindo os créditos para maximizar a economia do cliente.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
