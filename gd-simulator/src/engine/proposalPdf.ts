@@ -430,7 +430,9 @@ function Page2(project: Project, _result: SimulationResult, meta: ProposalMeta, 
       : React.createElement(Text, { style: { ...s.p, marginTop: 8 } },
           `Banco de créditos residual ao fim do contrato: ${fmtMWh(sm.bancoResidualKWh)} (${fmtBRL(sm.bancoResidualValue)} ao PPA), válidos por até 60 meses (Lei 14.300/2022) — crédito que continua do cliente.`),
     React.createElement(Text, { style: s.quote },
-      '"Com o modelo da Helexia, o cliente paga menos pela energia fora e dentro da ponta, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'),
+      d.allGrupoB
+        ? '"Com o modelo da Helexia, o cliente paga menos pela energia que consome, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'
+        : '"Com o modelo da Helexia, o cliente paga menos pela energia fora e dentro da ponta, trava um custo fixo e previsível, e ainda torna sua operação mais sustentável."'),
     React.createElement(Text, { style: s.cta }, 'Próximos passos'),
     ...[
       'Validação das premissas de consumo e rateio — concluída neste estudo.',
