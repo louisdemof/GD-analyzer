@@ -23,7 +23,7 @@ interface Props {
   ppaRate: number;
   rateio: RateioAllocation;
   generation: number[];
-  contractStartMonth?: string; // "2026-10" — para datar injeção/expiração das safras
+  contractStartMonth?: string; // "2026-10" — para datar injeção/validade dos créditos
 }
 
 function fmtKWh(v: number) { return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' kWh'; }
@@ -50,7 +50,7 @@ function getRateioFraction(rateio: RateioAllocation, ucId: string, monthIndex: n
 
 export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation, contractStartMonth }: Props) {
   const [showVintages, setShowVintages] = useState(false);
-  // Safras de crédito restantes ao fim do contrato (com data de injeção e de expiração = injeção+60m).
+  // Créditos restantes ao fim do contrato, por mês de injeção (com data de injeção e de expiração = injeção+60m).
   const vintageRows = useMemo(() => {
     const horizon = months.length;
     const rows: { ucName: string; injMonth: number; kWh: number; expMonth: number }[] = [];
@@ -360,7 +360,7 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation,
         </div>
       </div>
 
-      {/* Créditos restantes por safra (injeção + expiração) */}
+      {/* Créditos restantes por mês de injeção (validade 60m) */}
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         <button
           type="button"
@@ -369,9 +369,9 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation,
         >
           <span className="text-sm font-semibold text-slate-800">
             <span className="inline-block w-3 text-slate-400">{showVintages ? '▾' : '▸'}</span>{' '}
-            Créditos restantes por safra ({fmtKWh(vintageTotal)})
+            Créditos restantes por mês de injeção ({fmtKWh(vintageTotal)})
           </span>
-          <span className="text-xs text-slate-500">{vintageRows.length} safra{vintageRows.length === 1 ? '' : 's'} · clique p/ ver injeção e expiração</span>
+          <span className="text-xs text-slate-500">{vintageRows.length} lançamento{vintageRows.length === 1 ? '' : 's'} · clique p/ ver injeção e validade</span>
         </button>
         {showVintages && (
           <div className="border-t border-slate-100">
@@ -407,7 +407,7 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation,
               </table>
             )}
             <p className="px-4 py-2 text-[11px] text-slate-400">
-              Cada crédito injetado vale 60 meses (Lei 14.300 Art. 5º). Safras destacadas expiram em ≤ 6 meses — o cliente deve usá-las antes.
+              Cada crédito injetado vale 60 meses a partir do mês de injeção (Lei 14.300 Art. 5º). Créditos destacados expiram em ≤ 6 meses — o cliente deve usá-los antes.
             </p>
           </div>
         )}
