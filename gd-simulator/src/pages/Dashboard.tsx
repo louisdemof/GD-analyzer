@@ -68,7 +68,22 @@ export function Dashboard() {
   // cenário/UC (— · / ( …). Ex.: "SUPERFRIO CGD — …" e "SUPERFRIO GYN — …" contam como 1 cliente.
   const baseClient = (name?: string) => (name || '').trim().split(/\s+|[—–·(|/]/)[0].toLowerCase();
   const kpiClientes = new Set(active.map(p => baseClient(p.clientName)).filter(Boolean)).size;
-  const kpiMWp = (active.reduce((s, p) => s + (p.plant?.capacityKWac || 0) + (p.additionalPlants || []).reduce((a, x) => a + (x.capacityKWac || 0), 0), 0) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  // Potência (MWac): potência AC das usinas Helexia engajadas em projetos — deduplicada por usina
+  // (a mesma usina em vários projetos conta 1×) e EXCLUINDO rascunhos (só o funil real: análise →
+  // proposta → negociação → ganho/perdido). Representa o volume de usina que está sendo trabalhado.
+  const kpiMWacNum = (() => {
+    const seen = new Map<string, number>(); // usina → maior kWac visto
+    for (const p of active) {
+      if (statusOf(p.status) === 'rascunho') continue; // rascunho não é deal → não conta
+      for (const pl of [p.plant, ...(p.additionalPlants || [])]) {
+        const key = (pl?.name || pl?.id || '').trim().toLowerCase();
+        if (!key) continue;
+        seen.set(key, Math.max(seen.get(key) ?? 0, pl?.capacityKWac || 0));
+      }
+    }
+    return [...seen.values()].reduce((a, b) => a + b, 0) / 1000;
+  })();
+  const kpiMWac = kpiMWacNum.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   const kpiNeg = active.filter(p => ['negociacao', 'proposta'].includes(statusOf(p.status))).length;
   const kpiGanho = active.filter(p => statusOf(p.status) === 'ganho').length;
   const sharingActive = sharedCount > 0;
@@ -440,12 +455,24 @@ export function Dashboard() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {([
-          { label: 'Clientes', value: kpiClientes, icon: '🏢', accent: '#004B70' },
-          { label: 'Potência total', value: `${kpiMWp} MWp`, icon: '⚡', accent: '#2F927B' },
-          { label: 'Em negociação', value: kpiNeg, icon: '🤝', accent: '#f59e0b' },
-          { label: 'Ganhos', value: kpiGanho, icon: '✅', accent: '#10b981' },
-        ]).map(k => (
-          <div key={k.label} className="relative rounded-xl border border-slate-200 bg-white p-3 overflow-hidden shadow-sm">
+          { label: 'Clientes', value: kpiClientes, icon: '🏢', accent: '#004B70',
+            hint: 'ver todos por cliente',
+            onClick: () => { setSelectedFolder(null); setStatusFilter(null); setSortBy('name'); setView('table'); } },
+          { label: 'Potência (MWac)', value: `${kpiMWac} MWac`, icon: '⚡', accent: '#2F927B',
+            hint: 'usinas distintas · exclui rascunho' },
+          { label: 'Em negociação', value: kpiNeg, icon: '🤝', accent: '#f59e0b',
+            onClick: () => setStatusFilter(statusFilter === 'negociacao' ? null : 'negociacao'),
+            active: statusFilter === 'negociacao' },
+          { label: 'Ganhos', value: kpiGanho, icon: '✅', accent: '#10b981',
+            onClick: () => setStatusFilter(statusFilter === 'ganho' ? null : 'ganho'),
+            active: statusFilter === 'ganho' },
+        ] as { label: string; value: string | number; icon: string; accent: string; hint?: string; onClick?: () => void; active?: boolean }[]).map(k => (
+          <div
+            key={k.label}
+            onClick={k.onClick}
+            title={k.hint}
+            className={`relative rounded-xl border bg-white p-3 overflow-hidden shadow-sm transition-all ${k.onClick ? 'cursor-pointer hover:shadow-md hover:border-teal-300' : ''} ${k.active ? 'ring-2 ring-teal-400 border-teal-300' : 'border-slate-200'}`}
+          >
             <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: k.accent }} />
             <div className="flex items-center justify-between"><p className="text-xs text-slate-500">{k.label}</p><span className="opacity-70">{k.icon}</span></div>
             <p className="text-xl font-bold text-slate-800 mt-0.5">{k.value}</p>
