@@ -282,6 +282,14 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
   const sm = result.summary;
   const cm = computeSimulationMonths(project);
   const barScale = 300 / (Math.max(sm.baselineSEM, sm.totalPPACost + (sm.baselineSEM - sm.economiaLiquida - sm.totalPPACost)) || 1);
+  // Faturamento por compensação: a energia relevante (faturada) é a COMPENSADA, não a injetada.
+  // Trocamos rótulo + valor para ficarem coerentes com a base de faturamento.
+  const billComp = project.scenarios.ppaBillingBasis === 'compensation';
+  const ucIds = Object.keys(result.ucDetailsCOM ?? {});
+  const compByMonth = result.months.map((_, m) => ucIds.reduce((s, id) => s + (result.ucDetailsCOM?.[id]?.[m]?.compensatedKWh ?? 0), 0));
+  const energyLabel = billComp ? 'Energia compensada' : 'Geração';
+  const energyTotal = billComp ? compByMonth.reduce((a, b) => a + b, 0) : sm.totalGeneration;
+  const energySub = billComp ? 'compensada no horizonte' : 'P50 injetado';
 
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
@@ -289,7 +297,7 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
     // KPIs
     React.createElement(View, { style: s.kpiRow },
       ...[
-        { label: `Geração ${durationLabel(cm)}`, value: fmtKWh(sm.totalGeneration), sub: 'P50 injetado' },
+        { label: `${energyLabel} ${durationLabel(cm)}`, value: fmtKWh(energyTotal), sub: energySub },
         { label: 'Economia Liquida', value: fmtBRL(sm.economiaLiquida), sub: fmtPct(sm.economiaPct) + ' reducao' },
         { label: 'Banco Residual', value: fmtBRL(sm.bancoResidualValue), sub: fmtKWh(sm.bancoResidualKWh) },
         { label: 'VALOR TOTAL', value: fmtBRL(sm.valorTotal), sub: 'Economia + Banco' },
@@ -385,7 +393,7 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
     React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY, marginBottom: 8, marginTop: 16 } }, `Resumo por Ano (${durationLabel(cm)})`),
     React.createElement(View, { style: s.table },
       React.createElement(View, { style: s.tableHeader },
-        ...['Período', 'Consumo', 'Geração', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
+        ...['Período', 'Consumo', billComp ? 'Compensada' : 'Geração', 'SEM (R$)', 'COM (R$)', 'Economia', 'Eco. Acum.'].map((h, i) =>
           React.createElement(Text, { key: i, style: { ...s.tableHeaderCell, width: i === 0 ? '12%' : '14.66%', textAlign: i === 0 ? 'left' : 'right' } }, h)
         )
       ),
@@ -407,7 +415,9 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
           const yearMonths = result.months.slice(start, end);
           let consumo = 0;
           for (let mi = start; mi < end; mi++) consumo += consumoForMonth(mi);
-          const gen = yearMonths.reduce((s, m) => s + m.generation, 0);
+          const gen = billComp
+            ? compByMonth.slice(start, end).reduce((a, b) => a + b, 0)
+            : yearMonths.reduce((s, m) => s + m.generation, 0);
           const sem = yearMonths.reduce((s, m) => s + m.sem.totalCost, 0);
           const com = yearMonths.reduce((s, m) => s + m.com.totalCost, 0);
           const eco = yearMonths.reduce((s, m) => s + m.economia, 0);
