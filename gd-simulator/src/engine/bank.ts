@@ -154,13 +154,24 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     tusdComImp - disc * (tusdComImp / tusdGrossUp);
 
   const monthlyDetails: UCMonthlyDetail[] = [];
-  let bank = includeOpeningBank ? uc.openingBank : 0;
+  // Banco por SAFRAS (vintages, FIFO): o crédito injetado vale 60 meses (Lei 14.300 Art. 5º).
+  // Para horizonte ≤ 60 meses nada expira → resultado idêntico ao banco escalar. O openingBank
+  // entra como safra do mês 0 (idade desconhecida → conservador: expira em 60m).
+  const bankVintages: { m: number; kWh: number }[] = includeOpeningBank && uc.openingBank > 0
+    ? [{ m: 0, kWh: uc.openingBank }] : [];
+  let bank = 0;
+  let totalExpiredKWh = 0;
   let totalCostRede = 0;
   let totalIcmsAdditional = 0;
   let totalPisCofinsAdditional = 0;
 
   for (let m = 0; m < contractMonths; m++) {
-    const bankStart = bank;
+    // Expira safras com 60+ meses de idade (crédito não usado após 60 meses caduca).
+    while (bankVintages.length && m - bankVintages[0].m >= 60) {
+      totalExpiredKWh += bankVintages[0].kWh;
+      bankVintages.shift();
+    }
+    const bankStart = bankVintages.reduce((sum, v) => sum + v.kWh, 0);
 
     // Per-year tariff escalation: year 0 = base, year 1 = base × (1+r), etc.
     const yearIdx = Math.floor(m / 12);
@@ -392,6 +403,20 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       monthlyResidualFP = residualFP;
       monthlyResidualRSV = residualRSV;
       // PT not applicable for Grupo B
+    }
+
+    // Reconcilia as safras com o banco final do mês: net-add vira safra do mês m; net-draw sai das
+    // safras mais VELHAS primeiro (FIFO), para que as prestes a expirar sejam usadas antes.
+    const bankDelta = bank - bankStart;
+    if (bankDelta > 1e-9) {
+      bankVintages.push({ m, kWh: bankDelta });
+    } else if (bankDelta < -1e-9) {
+      let draw = -bankDelta;
+      while (draw > 1e-9 && bankVintages.length) {
+        const v = bankVintages[0];
+        if (v.kWh <= draw + 1e-9) { draw -= v.kWh; bankVintages.shift(); }
+        else { v.kWh -= draw; draw = 0; }
+      }
     }
 
     // Demanda contratada — charged every month regardless of SEM/COM (not compensated by SCEE).
