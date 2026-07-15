@@ -159,6 +159,10 @@ export interface Project {
   clientLogo?: string;          // PNG/JPEG do logo do cliente (data URL) — exibido no PDF
   importWarnings?: string[];    // avisos da importação de faturas (consolidação de UCs, renumeração
                                 // REN 1095/24, etc.) — mostrados no editor para ficar documentado
+  // Grupo B: forma de precificar. 'ppa' (default) = PPA fixo em R$/kWh (campo da usina).
+  // 'desconto' = desconto % sobre a tarifa B (TE+TUSD), sem ou com impostos → deriva o PPA
+  // automaticamente. As duas opções ficam disponíveis; guardamos o modo escolhido + os parâmetros.
+  grupoBPricing?: { mode: 'ppa' | 'desconto'; pct?: number; base?: 'sem' | 'com' };
   distributor: Distributor;
   // Ambiente de contratação do cliente hoje. Default 'CATIVO' (retrocompat).
   marketType?: MarketType;

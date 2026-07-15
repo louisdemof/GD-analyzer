@@ -83,6 +83,22 @@ export function ProjectEditor() {
     return () => { alive = false; clearInterval(iv); };
   }, [cloudEnabled, id, localUpdatedAt]);
 
+  // Grupo B: quando o modo de preço é "desconto", mantém o PPA da usina em sincronia com a tarifa
+  // B (TE+TUSD) × (1 − desconto). Recalcula se as tarifas/impostos/desconto mudarem. Guard evita loop.
+  useEffect(() => {
+    const p = projects.find(x => x.id === id);
+    const gp = p?.grupoBPricing;
+    if (!p || !gp || gp.mode !== 'desconto') return;
+    const sem = (p.distributor.tariffs.B_TUSD || 0) + (p.distributor.tariffs.B_TE || 0);
+    const pc = p.distributor.taxes.PIS + p.distributor.taxes.COFINS;
+    const icms = p.distributor.taxes.ICMS;
+    const baseT = gp.base === 'sem' ? sem : sem / Math.max(0.01, 1 - pc) / Math.max(0.01, 1 - icms);
+    const ppa = +(baseT * (1 - (gp.pct ?? 20) / 100)).toFixed(5);
+    if (Math.abs((p.plant.ppaRateRsBRLkWh || 0) - ppa) > 1e-6) {
+      updatePlant(p.id, { ...p.plant, ppaRateRsBRLkWh: ppa });
+    }
+  }, [id, projects, updatePlant]);
+
   // Carrega o logo do cliente (PNG/JPEG) como data URL para exibir no PDF.
   const handleLogoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -634,6 +650,60 @@ export function ProjectEditor() {
 
         {tab === 'plant' && (
           <div className="space-y-6">
+            {project.ucs.filter(u => u.id !== 'bat').every(u => !u.isGrupoA) && (() => {
+              const semT = (project.distributor.tariffs.B_TUSD || 0) + (project.distributor.tariffs.B_TE || 0);
+              const pc = project.distributor.taxes.PIS + project.distributor.taxes.COFINS;
+              const icms = project.distributor.taxes.ICMS;
+              const allinT = semT / Math.max(0.01, 1 - pc) / Math.max(0.01, 1 - icms);
+              const gp = project.grupoBPricing ?? { mode: 'ppa' as const };
+              const mode = gp.mode ?? 'ppa';
+              const pct = gp.pct ?? 20;
+              const base = gp.base ?? 'com';
+              const baseT = base === 'com' ? allinT : semT;
+              const derivedPPA = baseT * (1 - pct / 100);
+              const setGB = (patch: Partial<NonNullable<typeof project.grupoBPricing>>) =>
+                updateProject(project.id, { grupoBPricing: { mode, pct, base, ...patch } });
+              const btn = (on: boolean) => `px-3 py-1.5 text-sm rounded-lg border font-medium ${on ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`;
+              return (
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-slate-700">Precificação (Grupo B)</h3>
+                  <p className="text-xs text-slate-500 mt-1 mb-3">
+                    Escolha como precificar: <strong>PPA fixo</strong> (R$/kWh) ou um <strong>desconto</strong> sobre a tarifa B (TE+TUSD) —
+                    o desconto deriva o PPA automaticamente. As duas opções ficam disponíveis.
+                  </p>
+                  <div className="flex gap-2 mb-3">
+                    <button type="button" onClick={() => setGB({ mode: 'ppa' })} className={btn(mode === 'ppa')}>PPA fixo (R$/kWh)</button>
+                    <button type="button" onClick={() => setGB({ mode: 'desconto' })} className={btn(mode === 'desconto')}>Desconto sobre tarifa</button>
+                  </div>
+                  {mode === 'desconto' ? (
+                    <div className="space-y-3">
+                      <div className="flex items-end gap-4 flex-wrap">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Desconto (%)</label>
+                          <input type="number" step="0.5" min={0} max={100} value={pct}
+                            onChange={e => setGB({ pct: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                            className="w-28 px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Base do desconto</label>
+                          <div className="flex gap-1">
+                            <button type="button" onClick={() => setGB({ base: 'sem' })} className={btn(base === 'sem')}>Sem impostos</button>
+                            <button type="button" onClick={() => setGB({ base: 'com' })} className={btn(base === 'com')}>Com impostos</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm text-slate-700">
+                        Tarifa B ({base === 'com' ? 'com' : 'sem'} impostos): <strong>R$ {baseT.toFixed(4)}/kWh</strong> · desconto {pct}% →{' '}
+                        <strong className="text-teal-800">PPA derivado: R$ {derivedPPA.toFixed(4)}/kWh (R$ {Math.round(derivedPPA * 1000).toLocaleString('pt-BR')}/MWh)</strong>
+                        <div className="text-[11px] text-slate-500 mt-1">O campo "PPA" da usina abaixo é preenchido automaticamente com este valor.</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Defina o PPA em R$/kWh diretamente no campo <strong>"PPA"</strong> da usina, abaixo.</p>
+                  )}
+                </div>
+              );
+            })()}
             <PlantForm
               plant={project.plant}
               onChange={p => updatePlant(project.id, p)}
