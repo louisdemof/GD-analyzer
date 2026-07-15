@@ -253,9 +253,17 @@ export function PlantForm({
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
             />
             <span className="text-sm text-slate-500">%</span>
+            <button
+              type="button"
+              onClick={() => onProjectFieldChange?.({ tariffEscalationPPA: 0.04 })}
+              title="Preenche com a projeção do IPCA (Focus/BCB ~4%/ano)"
+              className="px-2 py-1 text-xs rounded-lg border border-teal-300 text-teal-700 hover:bg-teal-50 whitespace-nowrap"
+            >
+              IPCA projetado (4,0%)
+            </button>
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
-            Composto Y2+. Tipicamente IGPM/IPCA (3-5%/ano).
+            Composto Y2+. Tipicamente IGPM/IPCA. O botão usa a projeção do IPCA (Focus/BCB ~4%/ano).
           </p>
         </div>
         <div>

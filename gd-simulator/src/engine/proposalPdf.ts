@@ -365,9 +365,11 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
     ),
     // Selo GD1 — 100% de compensação garantida (direito adquirido)
     isGD1 ? React.createElement(View, { style: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: TEAL, borderRadius: 6, padding: 7, marginBottom: 9 } },
-      React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY } }, '✓ Usina GD1 — 100% de compensação garantida'),
-      React.createElement(Text, { style: { fontSize: 7.5, color: '#334155', marginTop: 1 } }, 'Cada kWh injetado abate a tarifa cheia, sem bandeiras no PPA — vantagem preservada até 2045 (Lei 14.300/2022, direito adquirido).'),
+      React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY } }, '✓ Usina GD1 — 100% de compensação garantida (direito adquirido)'),
+      React.createElement(Text, { style: { fontSize: 7.5, color: '#334155', marginTop: 1 } }, 'A usina compensa 100% da tarifa cheia, sem bandeiras no PPA — regime preservado até 2045 (Lei 14.300/2022). Cada crédito gerado tem validade de 60 meses.'),
     ) : null,
+    project.grupoBPricing?.base === 'garantido' ? React.createElement(Text, { style: { fontSize: 7, color: GREY, fontStyle: 'italic', marginBottom: 6 } },
+      `Desconto é a média do contrato (${n} meses). Como a tarifa da distribuidora reajusta e o PPA é fixo, o desconto tende a ser menor no início e maior ao longo do tempo.`) : null,
     // Valor total (economia + banco)
     React.createElement(View, { style: s.vtBox },
       React.createElement(View, { style: s.lineItem },
