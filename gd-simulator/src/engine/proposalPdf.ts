@@ -267,12 +267,12 @@ function usinaBits(d: ReturnType<typeof buildData>) {
   };
 }
 
-function ComoFunciona(project: Project) {
+function ComoFunciona(project: Project, d: ReturnType<typeof buildData>) {
   const steps: [string, string][] = [
     ['1. Usina solar Helexia', 'Helexia constrói e opera (sem custo p/ o cliente)'],
-    [`2. Rede ${project.distributor.name}`, 'A energia gerada é injetada na rede'],
+    [`2. Rede ${project.distributor.name}`, 'A energia gerada é injetada na rede → vira crédito (SCEE)'],
     ['3. Suas unidades', 'Os créditos compensam o consumo das UCs'],
-    ['4. Você paga o PPA', 'Preço fixo, abaixo da tarifa = economia'],
+    ['4. Você paga o PPA', d.billOnCompensation ? 'Só sobre a energia compensada — preço fixo abaixo da tarifa' : 'Preço fixo, abaixo da tarifa = economia'],
   ];
   return React.createElement(View, { wrap: false, style: { marginTop: 8 } },
     React.createElement(Text, { style: s.h2 }, 'Como funciona — Autoconsumo Remoto'),
@@ -290,8 +290,10 @@ function ComoFunciona(project: Project) {
   );
 }
 
-function RiskBox() {
-  const items = ['Sem investimento — CAPEX zero, sem obra na sua planta', 'O&M e disponibilidade da usina por conta da Helexia', 'Modelo take-or-pay protege ambos os lados', 'Energia 100% renovável e rastreável (ESG)'];
+function RiskBox(d: ReturnType<typeof buildData>) {
+  const items = ['Sem investimento — CAPEX zero, sem obra na sua planta', 'O&M e disponibilidade da usina por conta da Helexia',
+    d.billOnCompensation ? 'Você paga só a energia compensada — nunca crédito não usado' : 'Modelo take-or-pay protege ambos os lados',
+    'Energia 100% renovável e rastreável (ESG)'];
   return React.createElement(View, { wrap: false, style: { marginTop: 8, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, padding: 8, backgroundColor: LIGHT } },
     React.createElement(Text, { style: { fontSize: 9, fontWeight: 'bold', color: NAVY, marginBottom: 3 } }, 'Por que é seguro para o cliente'),
     React.createElement(View, { style: { flexDirection: 'row', flexWrap: 'wrap' } },
@@ -368,7 +370,7 @@ function Page1(project: Project, _result: SimulationResult, meta: ProposalMeta, 
     !d.allGrupoB && d.pontaTarifa > 0 && React.createElement(Text, { style: { ...s.p, marginBottom: 2 } },
       `O consumo em ponta (tarifa evitada ~R$ ${Math.round(d.pontaTarifa).toLocaleString('pt-BR')}/MWh) é o que mais encarece a fatura — é onde a GD gera mais economia.`),
     MonthlyChart(d),
-    ComoFunciona(project),
+    ComoFunciona(project, d),
     // A solução (textual, condensed — the diagram above covers the flow visually)
     React.createElement(Text, { style: { ...s.h2, marginTop: 8 } }, 'A solução Helexia — Autoconsumo Remoto'),
     React.createElement(Text, { style: s.p },
@@ -394,7 +396,7 @@ function Page2(project: Project, _result: SimulationResult, meta: ProposalMeta, 
           `Economia acumulada de ${fmtBRL(sm.economiaLiquida)} em ${n} meses (média do contrato).`)
       : React.createElement(Text, { style: { fontSize: 8, color: '#dc2626', marginTop: 6 } },
           `Neste cenário o custo COM supera o SEM em ${fmtBRL(Math.abs(sm.economiaLiquida))} — revise PPA, tarifa-base ou rateio.`),
-    RiskBox(),
+    RiskBox(d),
     // Banco — emphasis scales with materiality
     bancoMaterial
       ? React.createElement(View, { wrap: false },
