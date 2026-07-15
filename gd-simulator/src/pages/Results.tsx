@@ -16,6 +16,7 @@ import { RecebimentoHelexiaPanel } from '../components/results/RecebimentoHelexi
 import { GenerationAggregator } from '../components/results/GenerationAggregator';
 import { TaxBreakdownPanel } from '../components/results/TaxBreakdownPanel';
 import { GoalSeekTEPanel } from '../components/results/GoalSeekTEPanel';
+import { GoalSeekPPAPanel } from '../components/results/GoalSeekPPAPanel';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
@@ -472,6 +473,9 @@ export function Results() {
         )}
         {tab === 'sensibilidades' && project.marketType === 'ACL' && (
           <div className="mb-6"><GoalSeekTEPanel project={project} /></div>
+        )}
+        {tab === 'sensibilidades' && (
+          <div className="mb-6"><GoalSeekPPAPanel project={project} /></div>
         )}
         {tab === 'sensibilidades' && (
           <ScenarioPanel
