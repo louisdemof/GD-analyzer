@@ -23,9 +23,19 @@ interface Props {
   ppaRate: number;
   rateio: RateioAllocation;
   generation: number[];
+  contractStartMonth?: string; // "2026-10" — para datar injeção/expiração das safras
 }
 
 function fmtKWh(v: number) { return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' kWh'; }
+const MES_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+// contractStartMonth "2026-10" + offset meses → "out/26"
+function monthLabelFrom(start: string | undefined, offset: number): string {
+  if (!start) return `M${offset + 1}`;
+  const [y, mo] = start.split('-').map(Number);
+  if (!y || !mo) return `M${offset + 1}`;
+  const total = (y * 12 + (mo - 1)) + offset;
+  return `${MES_ABBR[total % 12]}/${String(Math.floor(total / 12)).slice(2)}`;
+}
 function fmtBRL(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }); }
 
 function getRateioFraction(rateio: RateioAllocation, ucId: string, monthIndex: number): number {
@@ -38,7 +48,22 @@ function getRateioFraction(rateio: RateioAllocation, ucId: string, monthIndex: n
   return 0;
 }
 
-export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation }: Props) {
+export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation, contractStartMonth }: Props) {
+  const [showVintages, setShowVintages] = useState(false);
+  // Safras de crédito restantes ao fim do contrato (com data de injeção e de expiração = injeção+60m).
+  const vintageRows = useMemo(() => {
+    const horizon = months.length;
+    const rows: { ucName: string; injMonth: number; kWh: number; expMonth: number }[] = [];
+    for (const b of result.bankPerUC) {
+      for (const v of b.vintages ?? []) {
+        if (v.kWh < 0.5) continue;
+        rows.push({ ucName: b.name, injMonth: v.m, kWh: v.kWh, expMonth: v.m + 60 });
+      }
+    }
+    return rows.sort((a, b) => a.expMonth - b.expMonth || a.injMonth - b.injMonth)
+      .map(r => ({ ...r, mesesRestantes: Math.max(0, r.expMonth - horizon) }));
+  }, [result.bankPerUC, months.length]);
+  const vintageTotal = vintageRows.reduce((s, r) => s + r.kWh, 0);
   const activeUCs = ucs.filter(uc => uc.id !== 'bat');
   // '__all__' = aggregated view (all UCs' banks summed)
   const [selectedUC, setSelectedUC] = useState('__all__');
@@ -333,6 +358,59 @@ export function BankDynamics({ result, ucs, months, ppaRate, rateio, generation 
             </tfoot>
           </table>
         </div>
+      </div>
+
+      {/* Créditos restantes por safra (injeção + expiração) */}
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowVintages(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50"
+        >
+          <span className="text-sm font-semibold text-slate-800">
+            <span className="inline-block w-3 text-slate-400">{showVintages ? '▾' : '▸'}</span>{' '}
+            Créditos restantes por safra ({fmtKWh(vintageTotal)})
+          </span>
+          <span className="text-xs text-slate-500">{vintageRows.length} safra{vintageRows.length === 1 ? '' : 's'} · clique p/ ver injeção e expiração</span>
+        </button>
+        {showVintages && (
+          <div className="border-t border-slate-100">
+            {vintageRows.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-slate-500 text-center">Sem crédito residual ao fim do contrato (tudo compensado ou expirado).</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium">UC</th>
+                    <th className="text-left px-3 py-2 font-medium">Injeção</th>
+                    <th className="text-right px-3 py-2 font-medium">kWh</th>
+                    <th className="text-left px-3 py-2 font-medium">Expira em</th>
+                    <th className="text-right px-3 py-2 font-medium">Meses p/ usar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vintageRows.map((r, i) => (
+                    <tr key={i} className={`border-b border-slate-100 ${r.mesesRestantes > 0 && r.mesesRestantes <= 6 ? 'bg-amber-50/60' : ''}`}>
+                      <td className="px-4 py-1.5 text-slate-800">{r.ucName}</td>
+                      <td className="px-3 py-1.5 text-slate-600">{monthLabelFrom(contractStartMonth, r.injMonth)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{Math.round(r.kWh).toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-1.5 text-slate-600">{monthLabelFrom(contractStartMonth, r.expMonth)}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{r.mesesRestantes > 0 ? r.mesesRestantes : '—'}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-slate-300 font-semibold bg-slate-50/60">
+                    <td className="px-4 py-2" colSpan={2}>TOTAL</td>
+                    <td className="px-3 py-2 text-right font-mono">{Math.round(vintageTotal).toLocaleString('pt-BR')}</td>
+                    <td className="px-3 py-2 text-slate-400" colSpan={2}>@ PPA {fmtBRL(vintageTotal * ppaRate)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            <p className="px-4 py-2 text-[11px] text-slate-400">
+              Cada crédito injetado vale 60 meses (Lei 14.300 Art. 5º). Safras destacadas expiram em ≤ 6 meses — o cliente deve usá-las antes.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

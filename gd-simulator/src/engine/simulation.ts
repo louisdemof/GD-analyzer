@@ -447,6 +447,7 @@ export function runSimulation(project: Project): SimulationResult {
         finalBankCOM: comBank,
         finalBankSEM: semBank,
         valueAtPPA: (comBank - semBank) * ppaRate,
+        vintages: comResults[uc.id]?.finalVintages ?? [],
       };
     });
 
@@ -459,6 +460,7 @@ export function runSimulation(project: Project): SimulationResult {
       finalBankCOM: batSimCOM.finalBank,
       finalBankSEM: batSimSEM.finalBank,
       valueAtPPA: (batSimCOM.finalBank - batSimSEM.finalBank) * ppaRate,
+      vintages: [],
     });
   }
 

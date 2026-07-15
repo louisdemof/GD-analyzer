@@ -263,7 +263,7 @@ export interface SimulationResult {
   projectId: string;
   months: MonthlyResult[];
   summary: SimulationSummary;
-  bankPerUC: { ucId: string; name: string; finalBankCOM: number; finalBankSEM: number; valueAtPPA: number }[];
+  bankPerUC: { ucId: string; name: string; finalBankCOM: number; finalBankSEM: number; valueAtPPA: number; vintages?: { m: number; kWh: number }[] }[];
   // Detailed per-UC monthly data for bank dynamics view
   ucDetailsCOM: Record<string, UCMonthlyDetail[]>;
   ucDetailsSEM: Record<string, UCMonthlyDetail[]>;

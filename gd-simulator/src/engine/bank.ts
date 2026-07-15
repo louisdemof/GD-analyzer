@@ -36,6 +36,8 @@ interface BankSimParams {
 export interface BankSimResult {
   monthlyDetails: UCMonthlyDetail[];
   finalBank: number;
+  // Safras de crédito restantes ao fim do contrato: mês de injeção + kWh. Expiram em m+60.
+  finalVintages: { m: number; kWh: number }[];
   totalCostRede: number;
   totalIcmsAdditional: number;
   totalPisCofinsAdditional: number;
@@ -492,6 +494,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
   return {
     monthlyDetails,
     finalBank: bank,
+    finalVintages: bankVintages.map(v => ({ m: v.m, kWh: v.kWh })),
     totalCostRede,
     totalIcmsAdditional,
     totalPisCofinsAdditional,

@@ -404,6 +404,7 @@ export function Results() {
             ppaRate={project.plant.ppaRateRsBRLkWh}
             rateio={project.rateio}
             generation={result.months.map(m => m.generation)}
+            contractStartMonth={project.plant.contractStartMonth}
           />
         )}
         {tab === 'rateio' && (
