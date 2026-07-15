@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useProjectStore } from '../store/projectStore';
+import { goalSeekPPAForEconomiaPct } from '../engine/ppaLengthOptimiser';
 import { useAuth } from '../auth/AuthContext';
 import { cloudMyRole, cloudProjectOwnerEmail, cloudProjectUpdatedAt, type MyRole } from '../storage/cloudSync';
 import { ShareDialog } from '../components/ShareDialog';
@@ -47,6 +48,8 @@ export function ProjectEditor() {
   };
   const [tab, setTab] = useState<Tab>('distributor');
   const [toast, setToast] = useState<string | null>(null);
+  const [gbSeeking, setGbSeeking] = useState(false);
+  const [gbSeekResult, setGbSeekResult] = useState<{ ppa: number; pct: number } | null>(null);
   const [importModal, setImportModal] = useState<{ type: 'confirm' | 'error'; result: ImportResult } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +91,7 @@ export function ProjectEditor() {
   useEffect(() => {
     const p = projects.find(x => x.id === id);
     const gp = p?.grupoBPricing;
-    if (!p || !gp || gp.mode !== 'desconto') return;
+    if (!p || !gp || gp.mode !== 'desconto' || gp.base === 'garantido') return; // 'garantido' = PPA vem do goal-seek
     const sem = (p.distributor.tariffs.B_TUSD || 0) + (p.distributor.tariffs.B_TE || 0);
     const pc = p.distributor.taxes.PIS + p.distributor.taxes.COFINS;
     const icms = p.distributor.taxes.ICMS;
@@ -679,24 +682,39 @@ export function ProjectEditor() {
                     <div className="space-y-3">
                       <div className="flex items-end gap-4 flex-wrap">
                         <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Desconto (%)</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">{base === 'garantido' ? 'Economia-alvo na conta (%)' : 'Desconto (%)'}</label>
                           <input type="number" step="0.5" min={0} max={100} value={pct}
-                            onChange={e => setGB({ pct: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                            onChange={e => { setGbSeekResult(null); setGB({ pct: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) }); }}
                             className="w-28 px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Base do desconto</label>
-                          <div className="flex gap-1">
-                            <button type="button" onClick={() => setGB({ base: 'sem' })} className={btn(base === 'sem')}>Sem impostos</button>
-                            <button type="button" onClick={() => setGB({ base: 'com' })} className={btn(base === 'com')}>Com impostos</button>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Como aplicar</label>
+                          <div className="flex gap-1 flex-wrap">
+                            <button type="button" onClick={() => { setGbSeekResult(null); setGB({ base: 'sem' }); }} className={btn(base === 'sem')}>Sem impostos</button>
+                            <button type="button" onClick={() => { setGbSeekResult(null); setGB({ base: 'com' }); }} className={btn(base === 'com')}>Com impostos</button>
+                            <button type="button" onClick={() => { setGbSeekResult(null); setGB({ base: 'garantido' }); }} className={btn(base === 'garantido')}>Garantir na conta</button>
                           </div>
                         </div>
                       </div>
-                      <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm text-slate-700">
-                        Tarifa B ({base === 'com' ? 'com' : 'sem'} impostos): <strong>R$ {baseT.toFixed(4)}/kWh</strong> · desconto {pct}% →{' '}
-                        <strong className="text-teal-800">PPA derivado: R$ {derivedPPA.toFixed(4)}/kWh (R$ {Math.round(derivedPPA * 1000).toLocaleString('pt-BR')}/MWh)</strong>
-                        <div className="text-[11px] text-slate-500 mt-1">O campo "PPA" da usina abaixo é preenchido automaticamente com este valor.</div>
-                      </div>
+                      {base === 'garantido' ? (
+                        <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm text-slate-700 space-y-2">
+                          <div>Ajusta o PPA por busca (goal-seek) até a <strong>economia real na conta</strong> = <strong>{pct}%</strong> (já contando fio residual, impostos e custo de disponibilidade).</div>
+                          <button type="button" disabled={gbSeeking}
+                            onClick={() => { setGbSeeking(true); setTimeout(() => { const r = goalSeekPPAForEconomiaPct(project, pct / 100); updateProject(project.id, { plant: { ...project.plant, ppaRateRsBRLkWh: r.ppa }, additionalPlants: project.additionalPlants?.map(x => ({ ...x, ppaRateRsBRLkWh: r.ppa })) }); setGbSeekResult({ ppa: r.ppa, pct: r.economiaPct * 100 }); setGbSeeking(false); }, 20); }}
+                            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50">
+                            {gbSeeking ? 'Calculando…' : 'Calcular PPA p/ garantir'}
+                          </button>
+                          {gbSeekResult && (
+                            <div className="text-teal-900"><strong>PPA calculado: R$ {gbSeekResult.ppa.toFixed(4)}/kWh (R$ {Math.round(gbSeekResult.ppa * 1000).toLocaleString('pt-BR')}/MWh)</strong> · economia real ≈ {gbSeekResult.pct.toFixed(1)}% — já aplicado à usina.</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-sm text-slate-700">
+                          Tarifa B ({base === 'com' ? 'com' : 'sem'} impostos): <strong>R$ {baseT.toFixed(4)}/kWh</strong> · desconto {pct}% →{' '}
+                          <strong className="text-teal-800">PPA derivado: R$ {derivedPPA.toFixed(4)}/kWh (R$ {Math.round(derivedPPA * 1000).toLocaleString('pt-BR')}/MWh)</strong>
+                          <div className="text-[11px] text-slate-500 mt-1">O campo "PPA" da usina abaixo é preenchido automaticamente com este valor.</div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500">Defina o PPA em R$/kWh diretamente no campo <strong>"PPA"</strong> da usina, abaixo.</p>

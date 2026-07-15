@@ -53,3 +53,25 @@ export function goalSeekPPALength(project: Project, opts?: { min?: number; step?
 
   return { horizon, currentPPAMonths, points, best, maxEconomia };
 }
+
+// Goal-seek o PPA (R$/kWh, aplicado a todas as usinas) tal que a economia LÍQUIDA real na conta
+// atinja o alvo em % (economiaPct). Útil para "desconto garantido na conta" no Grupo B: o cliente
+// promete X% de economia e derivamos o PPA que realmente entrega X% (já contando fio residual,
+// impostos, custo de disponibilidade). Economia é monótona decrescente no PPA → busca binária.
+export function goalSeekPPAForEconomiaPct(project: Project, targetPct: number): { ppa: number; economiaPct: number } {
+  const econAt = (ppa: number): number => {
+    const p: Project = {
+      ...project,
+      plant: { ...project.plant, ppaRateRsBRLkWh: ppa },
+      additionalPlants: project.additionalPlants?.map(x => ({ ...x, ppaRateRsBRLkWh: ppa })),
+    };
+    return runSimulation(p).summary.economiaPct;
+  };
+  let lo = 0, hi = 5; // R$/kWh — economia máxima em ppa=0, muito negativa em ppa=5
+  for (let i = 0; i < 44; i++) {
+    const mid = (lo + hi) / 2;
+    if (econAt(mid) > targetPct) lo = mid; else hi = mid;
+  }
+  const ppa = (lo + hi) / 2;
+  return { ppa: +ppa.toFixed(5), economiaPct: econAt(ppa) };
+}
