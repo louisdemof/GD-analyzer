@@ -744,14 +744,14 @@ function PremissasPage({ project }: { project: Project }) {
     ].filter(Boolean)));
   }
 
-  // ── Faturamento do PPA (só quando não for o padrão de injeção)
-  if (project.scenarios.ppaBillingBasis === 'compensation') {
-    blocks.push(premGroup('Faturamento do PPA'));
-    blocks.push(premRow('r-bill', [
-      premCard('c-bill', 'Base de faturamento', 'Sobre compensação',
-        'cliente paga o PPA só sobre o kWh compensado no mês (não sobre a injeção) — sem pico de custo no início', 'hl'),
-    ]));
-  }
+  // ── Condições comerciais (espelha a proposta)
+  blocks.push(premGroup('Condições comerciais'));
+  blocks.push(premRow('r-cond', [
+    premCard('c-prazo', 'Prazo do contrato', `${computeSimulationMonths(project)} meses`, null),
+    premCard('c-ppa', 'PPA', `R$ ${ppaMWh.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/MWh`, `R$ ${project.plant.ppaRateRsBRLkWh.toFixed(4)}/kWh`),
+    premCard('c-reajppa', 'Reajuste do PPA', ppaEsc > 0.0005 ? `~${(ppaEsc * 100).toFixed(1)}%/ano` : 'travado no contrato', null),
+    premCard('c-fat', 'Faturamento', project.scenarios.ppaBillingBasis === 'compensation' ? 'Sobre compensação' : 'Sobre injeção (take-or-pay)', null),
+  ]));
 
   // ── Distribuidora & tributos
   blocks.push(premGroup('Distribuidora & tributos'));
@@ -797,6 +797,10 @@ function NotesPage({ project }: { project: Project }) {
   return React.createElement(Page, { size: 'A4', style: s.page },
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'Notas Regulatorias'),
+    React.createElement(View, { style: { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#2F927B', borderRadius: 6, padding: 8, marginBottom: 10 } },
+      React.createElement(Text, { style: { fontSize: 10, fontWeight: 'bold', color: NAVY } }, '✓ Usina GD1 — 100% de compensação garantida'),
+      React.createElement(Text, { style: { ...s.noteText, marginTop: 1 } }, 'Cada kWh injetado abate a tarifa cheia, sem bandeiras no PPA — vantagem preservada até 2045 (Lei 14.300/2022, direito adquirido).'),
+    ),
     React.createElement(Text, { style: s.noteTitle }, 'Lei 14.300/2022 — SCEE Autoconsumo Remoto'),
     React.createElement(Text, { style: s.noteText }, 'O Sistema de Compensacao de Energia Elétrica (SCEE) permite que a energia injetada pela usina solar gere créditos que compensam o consumo das Unidades Consumidoras (UCs) do cliente, mesmo que em enderecos diferentes, dentro da mesma area de concessao.'),
     React.createElement(Text, { style: s.noteTitle }, 'Rateio Fixo por Periodos'),
@@ -1356,7 +1360,9 @@ function TaxesPage({ project, result }: { project: Project; result: SimulationRe
     React.createElement(Header, { clientName: project.clientName, plantName: project.plant.name }),
     React.createElement(Text, { style: s.sectionTitle }, 'Como a economia se forma — decomposição da fatura'),
     React.createElement(Text, { style: { ...s.noteText, marginBottom: 6 } },
-      'Cada componente é decomposto em energia (s/ imp.) + PIS/COFINS + ICMS, separando TE e TUSD. SEM Helexia = fatura ACL atual; Rede COM = residual com a distribuidora após compensação; PPA Helexia substitui a energia compensada. O Benefício incentivada reconcilia ao mercado livre real (energia ACL + descontos de TUSD/demanda).'
+      project.marketType === 'ACL'
+        ? 'Cada componente é decomposto em energia (s/ imp.) + PIS/COFINS + ICMS, separando TE e TUSD. SEM Helexia = fatura ACL atual; Rede COM = residual com a distribuidora após compensação; PPA Helexia substitui a energia compensada. O Benefício incentivada reconcilia ao mercado livre real (energia ACL + descontos de TUSD/demanda).'
+        : 'Cada componente é decomposto em energia (s/ imp.) + PIS/COFINS + ICMS, separando TE e TUSD. SEM Helexia = fatura da distribuidora (cativo); Rede COM = residual com a distribuidora após compensação; PPA Helexia substitui a energia compensada.'
     ),
     React.createElement(View, { style: { padding: 6, backgroundColor: '#f8fafc', borderRadius: 4, marginBottom: 10 } },
       React.createElement(Text, { style: { fontSize: 8, fontWeight: 'bold', color: NAVY, marginBottom: 2 } }, 'Configuração ativa'),

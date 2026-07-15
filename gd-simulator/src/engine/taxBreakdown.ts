@@ -43,7 +43,7 @@ export interface TaxBreakdownLine {
 }
 
 export interface TaxBreakdownPostoBlock {
-  posto: 'FP' | 'PT' | 'RSV';
+  posto: string;  // 'FP' | 'PT' | 'RSV' no Grupo A; 'Consumo' no Grupo B
   consumoSEM: number;     // residual kWh paid in SEM (after own gen/BAT credits)
   consumoCOM: number;     // residual kWh paid in COM (after plant credits + bank draws)
   compensadoCOM: number;  // kWh compensated by the project's plant in COM (potential leak base)
@@ -236,8 +236,11 @@ export function computeTaxBreakdown(
       const semTUSD = aclPosto
         ? decomposeCost(p.name === 'FP' ? storedSemAt('tusdFpCost') : storedSemAt('tusdPtCost'), discConsFor(p.name), PCd, taxes.ICMS)
         : taxBreakdown(p.semK, p.tusdRate, taxes);
-      const teLbl = aclPosto ? `Energia ACL ${p.name} (Comercializadora)` : `TE ${p.name} (sem impostos)`;
-      const teTaxLbl = aclPosto ? `energia ACL ${p.name}` : `TE ${p.name}`;
+      // Grupo B não tem posto → rótulos sem sufixo "FP"/"PT"; o bloco vira "Consumo".
+      const pSfx = uc.isGrupoA ? ` ${p.name}` : '';
+      const postoTitle = uc.isGrupoA ? p.name : 'Consumo';
+      const teLbl = aclPosto ? `Energia ACL${pSfx} (Comercializadora)` : `TE${pSfx} (sem impostos)`;
+      const teTaxLbl = aclPosto ? `energia ACL${pSfx}` : `TE${pSfx}`;
       const comResTE = taxBreakdown(p.comK, p.teRate, taxes);
       const comResTUSD = taxBreakdown(p.comK, p.tusdRate, taxes);
       const compTE_leak = taxBreakdown(p.compK, p.teRate, taxes);
@@ -262,21 +265,21 @@ export function computeTaxBreakdown(
         });
       }
       const tusdLbl = aclPosto && p.name === 'PT' && dptDisc > 0
-        ? `TUSD ${p.name} (sem impostos, c/ desc. incentivada)` : `TUSD ${p.name} (sem impostos)`;
+        ? `TUSD${pSfx} (sem impostos, c/ desc. incentivada)` : `TUSD${pSfx} (sem impostos)`;
       const lines: TaxBreakdownLine[] = [
         { label: teLbl, sem: semTE.semImpostos, com: comResTE.semImpostos, delta: semTE.semImpostos - comResTE.semImpostos },
         { label: tusdLbl, sem: semTUSD.semImpostos, com: comResTUSD.semImpostos, delta: semTUSD.semImpostos - comResTUSD.semImpostos },
         { label: `PIS+COFINS sobre ${teTaxLbl}`, sem: semTE.pisCofins, com: comResTE.pisCofins + pcLeakTE, delta: semTE.pisCofins - (comResTE.pisCofins + pcLeakTE) },
-        { label: `PIS+COFINS sobre TUSD ${p.name}`, sem: semTUSD.pisCofins, com: comResTUSD.pisCofins + pcLeakTUSD, delta: semTUSD.pisCofins - (comResTUSD.pisCofins + pcLeakTUSD) },
+        { label: `PIS+COFINS sobre TUSD${pSfx}`, sem: semTUSD.pisCofins, com: comResTUSD.pisCofins + pcLeakTUSD, delta: semTUSD.pisCofins - (comResTUSD.pisCofins + pcLeakTUSD) },
         { label: `ICMS sobre ${teTaxLbl}`, sem: semTE.icms, com: comResTE.icms + icmsLeakTE, delta: semTE.icms - (comResTE.icms + icmsLeakTE) },
-        { label: `ICMS sobre TUSD ${p.name}`, sem: semTUSD.icms, com: comResTUSD.icms + icmsLeakTUSD, delta: semTUSD.icms - (comResTUSD.icms + icmsLeakTUSD) },
+        { label: `ICMS sobre TUSD${pSfx}`, sem: semTUSD.icms, com: comResTUSD.icms + icmsLeakTUSD, delta: semTUSD.icms - (comResTUSD.icms + icmsLeakTUSD) },
       ];
       const subtotalSEM = semTE.total + semTUSD.total;
       const subtotalCOM = comResTE.total + comResTUSD.total + icmsLeakTE + icmsLeakTUSD + pcLeakTE + pcLeakTUSD;
       totalSEM += subtotalSEM;
       totalCOM += subtotalCOM;
       postos.push({
-        posto: p.name,
+        posto: postoTitle,
         consumoSEM: p.semK,
         consumoCOM: p.comK,
         compensadoCOM: p.compK,
