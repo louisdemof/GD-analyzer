@@ -704,6 +704,28 @@ export function ProjectEditor() {
                 </div>
               );
             })()}
+            {project.ucs.filter(u => u.id !== 'bat').every(u => !u.isGrupoA) && (() => {
+              const cur = project.scenarios.custoDisponibilidadeKWh ?? 0;
+              const btn = (on: boolean) => `px-3 py-1.5 text-sm rounded-lg border font-medium ${on ? 'border-teal-500 bg-teal-50 text-teal-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`;
+              const opt = (label: string, kWh: number) => (
+                <button key={kWh} type="button" onClick={() => updateProject(project.id, { scenarios: { ...project.scenarios, custoDisponibilidadeKWh: kWh } })} className={btn(cur === kWh)}>{label}</button>
+              );
+              return (
+                <div className="border border-slate-200 rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-slate-700">Custo de disponibilidade (Grupo B)</h3>
+                  <p className="text-xs text-slate-500 mt-1 mb-3">
+                    Mínimo faturável <strong>não compensável</strong> por créditos (Lei 14.300 / REN 1000). Mesmo com 100% de compensação,
+                    a UC paga este piso × tarifa. Escolha pela ligação da UC.
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {opt('Desativado', 0)}
+                    {opt('Monofásico (30 kWh)', 30)}
+                    {opt('Bifásico (50 kWh)', 50)}
+                    {opt('Trifásico (100 kWh)', 100)}
+                  </div>
+                </div>
+              );
+            })()}
             <PlantForm
               plant={project.plant}
               onChange={p => updatePlant(project.id, p)}

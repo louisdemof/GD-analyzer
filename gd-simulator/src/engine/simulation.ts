@@ -346,6 +346,7 @@ export function runSimulation(project: Project): SimulationResult {
       pisCofinsExempt,
       competitorDiscount: project.scenarios.competitorDiscount,
       isSEM: false,
+      custoDisponibilidadeKWh: project.scenarios.custoDisponibilidadeKWh ?? 0,
       contractMonths,
       tariffEscalationDistributor: tariffEsc,
     });

@@ -235,6 +235,9 @@ export interface Project {
     // injeta em poucos meses mas os créditos são consumidos ao longo de anos — evita um "pico"
     // de custo no início (o cliente só paga pelo que de fato abateu a conta).
     ppaBillingBasis?: 'injection' | 'compensation';
+    // Custo de disponibilidade (Grupo B): mínimo faturável não-compensável, em kWh por UC
+    // (30 mono / 50 bi / 100 tri). 0/undefined = desativado. Aplica só ao cenário COM.
+    custoDisponibilidadeKWh?: number;
   };
   // Rateio: allocated by the optimiser or manually set
   rateio: RateioAllocation;

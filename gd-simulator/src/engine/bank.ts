@@ -12,6 +12,10 @@ interface BankSimParams {
   pisCofinsExempt: boolean;
   competitorDiscount: number; // only affects Grupo B SEM scenario
   isSEM: boolean;
+  // Custo de disponibilidade (Grupo B): mínimo faturável NÃO compensável por créditos, em kWh
+  // (30 mono / 50 bi / 100 tri). Aplica-se só no cenário COM (com GD) — o consumo faturado nunca
+  // cai abaixo desse piso. 0/undefined = desativado. Lei 14.300 / REN 1000.
+  custoDisponibilidadeKWh?: number;
   // ACL baseline (Cliente Livre) for this UC — already resolved (UC override ?? project).
   // When present, it changes ONLY the SEM scenario: energy is priced at the ACL R$/MWh and
   // TUSD (Fio B) carries the incentivada discount; demand gets the demand discount. COM is
@@ -84,6 +88,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     uc, distributor, generation, rateio,
     includeCS3Credits, batCreditsPerMonth,
     icmsExempt, pisCofinsExempt, competitorDiscount, isSEM,
+    custoDisponibilidadeKWh = 0,
     aclBaseline,
     contractMonths,
     tariffEscalationDistributor = 0,
@@ -344,6 +349,14 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
         : T_BRSV * (1 - discount);
 
       costRede = residualFP * effectiveT_B + residualRSV * effectiveT_BRSV;
+
+      // Custo de disponibilidade (Grupo B, só no cenário COM): o consumo faturado nunca cai abaixo
+      // do mínimo não-compensável (30/50/100 kWh). Se os créditos zeraram a conta, cobra o piso.
+      if (!isSEM && custoDisponibilidadeKWh > 0) {
+        const faturado = residualFP + residualRSV;
+        const pisoExtra = Math.max(0, custoDisponibilidadeKWh - faturado);
+        if (pisoExtra > 0) costRede += pisoExtra * effectiveT_B;
+      }
 
       // ICMS additional (scope-aware, same logic as Grupo A)
       if (creditsApplied > 0) {
