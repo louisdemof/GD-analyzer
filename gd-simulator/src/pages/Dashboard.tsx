@@ -36,6 +36,7 @@ export function Dashboard() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'created'>('updated');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | null>(null);
+  const [showUsinas, setShowUsinas] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const startRename = (id: string, current: string) => { setEditingId(id); setNameDraft(current); };
@@ -68,21 +69,25 @@ export function Dashboard() {
   // cenário/UC (— · / ( …). Ex.: "SUPERFRIO CGD — …" e "SUPERFRIO GYN — …" contam como 1 cliente.
   const baseClient = (name?: string) => (name || '').trim().split(/\s+|[—–·(|/]/)[0].toLowerCase();
   const kpiClientes = new Set(active.map(p => baseClient(p.clientName)).filter(Boolean)).size;
-  // Potência (MWac): potência AC das usinas Helexia engajadas em projetos — deduplicada por usina
-  // (a mesma usina em vários projetos conta 1×) e EXCLUINDO rascunhos (só o funil real: análise →
-  // proposta → negociação → ganho/perdido). Representa o volume de usina que está sendo trabalhado.
-  const kpiMWacNum = (() => {
-    const seen = new Map<string, number>(); // usina → maior kWac visto
+  // Potência (MWac): potência AC das usinas Helexia engajadas em deals ATIVOS — deduplicada por
+  // usina (a mesma usina em vários projetos conta 1×) e EXCLUINDO rascunho e perdido (só o pipeline
+  // vivo: análise → proposta → negociação → ganho). Representa o volume de usina em jogo.
+  const kpiUsinas = (() => {
+    const seen = new Map<string, { name: string; kWac: number; projetos: Set<string> }>();
     for (const p of active) {
-      if (statusOf(p.status) === 'rascunho') continue; // rascunho não é deal → não conta
+      if (['rascunho', 'perdido'].includes(statusOf(p.status))) continue;
       for (const pl of [p.plant, ...(p.additionalPlants || [])]) {
         const key = (pl?.name || pl?.id || '').trim().toLowerCase();
         if (!key) continue;
-        seen.set(key, Math.max(seen.get(key) ?? 0, pl?.capacityKWac || 0));
+        const e = seen.get(key) ?? { name: pl?.name || pl?.id || key, kWac: 0, projetos: new Set<string>() };
+        e.kWac = Math.max(e.kWac, pl?.capacityKWac || 0);
+        e.projetos.add(p.clientName || 'Projeto');
+        seen.set(key, e);
       }
     }
-    return [...seen.values()].reduce((a, b) => a + b, 0) / 1000;
+    return [...seen.values()].sort((a, b) => b.kWac - a.kWac);
   })();
+  const kpiMWacNum = kpiUsinas.reduce((s, u) => s + u.kWac, 0) / 1000;
   const kpiMWac = kpiMWacNum.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   const kpiNeg = active.filter(p => ['negociacao', 'proposta'].includes(statusOf(p.status))).length;
   const kpiGanho = active.filter(p => statusOf(p.status) === 'ganho').length;
@@ -459,7 +464,8 @@ export function Dashboard() {
             hint: 'ver todos por cliente',
             onClick: () => { setSelectedFolder(null); setStatusFilter(null); setSortBy('name'); setView('table'); } },
           { label: 'Potência (MWac)', value: `${kpiMWac} MWac`, icon: '⚡', accent: '#2F927B',
-            hint: 'usinas distintas · exclui rascunho' },
+            hint: 'usinas distintas · exclui rascunho e perdido · clique p/ ver',
+            onClick: () => setShowUsinas(true) },
           { label: 'Em negociação', value: kpiNeg, icon: '🤝', accent: '#f59e0b',
             onClick: () => setStatusFilter(statusFilter === 'negociacao' ? null : 'negociacao'),
             active: statusFilter === 'negociacao' },
@@ -730,6 +736,49 @@ export function Dashboard() {
 
       {shareTarget && (
         <ShareDialog projectId={shareTarget.id} projectName={shareTarget.name} onClose={() => setShareTarget(null)} />
+      )}
+
+      {showUsinas && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowUsinas(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">Usinas na potência ({kpiMWac} MWac)</h3>
+                <p className="text-[11px] text-slate-500">{kpiUsinas.length} usina{kpiUsinas.length === 1 ? '' : 's'} distinta{kpiUsinas.length === 1 ? '' : 's'} · exclui rascunho e perdido</p>
+              </div>
+              <button onClick={() => setShowUsinas(false)} className="text-slate-400 hover:text-slate-700 text-lg leading-none">✕</button>
+            </div>
+            <div className="overflow-y-auto">
+              {kpiUsinas.length === 0 ? (
+                <p className="px-4 py-6 text-sm text-slate-500 text-center">Nenhuma usina em deal ativo (fora rascunho/perdido).</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium">Usina</th>
+                      <th className="text-right px-3 py-2 font-medium">kWac</th>
+                      <th className="text-left px-3 py-2 font-medium">Projetos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpiUsinas.map((u, i) => (
+                      <tr key={i} className="border-b border-slate-100">
+                        <td className="px-4 py-2 text-slate-800">{u.name}</td>
+                        <td className="px-3 py-2 text-right font-mono">{Math.round(u.kWac).toLocaleString('pt-BR')}</td>
+                        <td className="px-3 py-2 text-slate-500">{[...u.projetos].join(', ')}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-slate-300 font-semibold bg-slate-50/60">
+                      <td className="px-4 py-2">TOTAL</td>
+                      <td className="px-3 py-2 text-right font-mono">{Math.round(kpiMWacNum * 1000).toLocaleString('pt-BR')}</td>
+                      <td className="px-3 py-2 text-slate-400">{kpiMWac} MWac</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
