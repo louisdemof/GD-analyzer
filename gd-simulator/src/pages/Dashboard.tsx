@@ -64,7 +64,10 @@ export function Dashboard() {
   const trashedProjects = projects.filter(p => !!p.deletedAt);
   const sharedCount = active.filter(p => isShared(p.id)).length;
   // Portfolio KPIs
-  const kpiClientes = new Set(active.map(p => (p.clientName || '').trim().toLowerCase()).filter(Boolean)).size;
+  // Clientes distintos (não projetos): agrupa pelo cliente-base — o 1º termo antes de detalhes de
+  // cenário/UC (— · / ( …). Ex.: "SUPERFRIO CGD — …" e "SUPERFRIO GYN — …" contam como 1 cliente.
+  const baseClient = (name?: string) => (name || '').trim().split(/\s+|[—–·(|/]/)[0].toLowerCase();
+  const kpiClientes = new Set(active.map(p => baseClient(p.clientName)).filter(Boolean)).size;
   const kpiMWp = (active.reduce((s, p) => s + (p.plant?.capacityKWac || 0) + (p.additionalPlants || []).reduce((a, x) => a + (x.capacityKWac || 0), 0), 0) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   const kpiNeg = active.filter(p => ['negociacao', 'proposta'].includes(statusOf(p.status))).length;
   const kpiGanho = active.filter(p => statusOf(p.status) === 'ganho').length;

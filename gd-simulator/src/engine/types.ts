@@ -151,7 +151,7 @@ export interface ACLBaseline {
 }
 
 // Commercial pipeline stage of a project (deal tracking on the dashboard).
-export type ProjectStatus = 'rascunho' | 'proposta' | 'negociacao' | 'ganho' | 'perdido';
+export type ProjectStatus = 'rascunho' | 'analise' | 'proposta' | 'negociacao' | 'ganho' | 'perdido';
 
 export interface Project {
   id: string;
