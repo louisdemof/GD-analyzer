@@ -165,15 +165,18 @@ function gatherWideRow(lines: PdfLine[], page: number, y: number, yTol = 8): str
 }
 
 export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
-
   let lines: PdfLine[];
   try {
     lines = await extractLines(file);
   } catch (e) {
-    result.errors.push('Não foi possível ler o PDF: ' + (e instanceof Error ? e.message : 'erro desconhecido'));
-    return result;
+    return { ok: false, errors: ['Não foi possível ler o PDF: ' + (e instanceof Error ? e.message : 'erro desconhecido')], warnings: [], history: [] };
   }
+  return parseEnergisaFromLines(lines);
+}
+
+/** Pure parse of Energisa MS DANF3E lines — testable without pdfjs. */
+export function parseEnergisaFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
 
   // Sanity check — confirm it's an Energisa fatura
   const isEnergisa = lines.some(l => l.text.includes('ENERGISA') || l.text.includes('DANF3E'));
@@ -304,7 +307,15 @@ export async function parseEnergisaFatura(file: File): Promise<ParsedFatura> {
     for (const mm of matches) {
       const monthLabel = `${mm[1]}/${mm[2]}`;
 
-      const wide = gatherWideRow(lines, line.page, line.y, 6);
+      // Each Energisa history row is already a complete single line (extractLines Y_TOL=4
+      // merges ±2px wraps). Parse the line itself — gatherWideRow(yTol=6) merged NEIGHBOUR
+      // rows (Superfrio MS bills space them ~6px apart) and corrupted the values (JUN/26
+      // ended up 0, MAI/26 stole ponta). Only widen when the line yields no consumo (a
+      // genuine wrap). Validated across 13 Energisa MS bills (Superfrio Campo Grande).
+      let wide = line.text;
+      if (!(wide.split(monthLabel)[1] || '').match(/[\d.]+,\d{2}/g)?.some(s => parseBrNumber(s) >= 1000)) {
+        wide = gatherWideRow(lines, line.page, line.y, 3);
+      }
       const afterLabel = wide.split(monthLabel)[1] || '';
       const beforeNextMonth = afterLabel.split(/\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/\d{2}\b/)[0] || '';
       const numStrs = beforeNextMonth.match(/[\d.,]+/g) || [];
@@ -559,15 +570,18 @@ export function detectEquatorialSig(allText: string): { sig: string; matched: bo
 const PT_MONTHS3 = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
 export async function parseEquatorialFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
-
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch {
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseEquatorialFromLines(lines);
+}
+
+/** Pure parse of Equatorial DANF3E lines — testable without pdfjs. */
+export function parseEquatorialFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
 
   const allText = lines.map(l => l.text).join('\n');
   if (!/equatorial/i.test(allText)) {
@@ -619,7 +633,13 @@ export async function parseEquatorialFatura(file: File, password?: string): Prom
     const toks = line.text.split(/[|\s]+/).map(t => t.trim()).filter(Boolean);
     const mi = toks.findIndex(t => monthRe.test(t));
     if (mi < 0) continue;
-    const nums = toks.slice(mi + 1).filter(t => numRe.test(t)).map(brNum);
+    // Equatorial GO Grupo A renders the label as "MON / YY" (3 tokens). Skip the "/ YY"
+    // so the year isn't captured as demandaPonta — that shifted every column and made a
+    // Superfrio GYN armazém bill unreadable. Fleury Grupo B has an empty month column and
+    // uses the fallback below, so it's unaffected.
+    let start = mi + 1;
+    if (toks[mi + 1] === '/' && /^\d{2}$/.test(toks[mi + 2] || '')) start = mi + 3;
+    const nums = toks.slice(start).filter(t => numRe.test(t)).map(brNum);
     if (nums.length < 6) continue; // skip chart-axis month labels (no numbers)
     const abs = anchor != null ? anchor - i : null;
     const iso = abs != null ? `${Math.floor(abs / 12)}-${String((abs % 12) + 1).padStart(2, '0')}` : `row-${i}`;
@@ -849,12 +869,114 @@ export async function parseEnelFatura(file: File, password?: string): Promise<Pa
   return result;
 }
 
+// ── Neoenergia (Coelba BA / Cosern RN / Pernambuco / Elektro SP) — DANFE ─────
+// Neoenergia bills carry NO numeric 12-month history (just a chart) → one PDF = one month.
+// The current month is read from the "DEMONSTRATIVO DE CONSUMO" block (page 2), where each
+// row is "<label> | leituraDe | leituraAté | CONSTANTE(700,00000) | CONSUMO | CONSUMO".
+// The consumption is the token right after the ≥4-decimal medidor constant. Fallback: the
+// billed items "Uso Sistema Encar.NP/FP | kWh | <consumo>". Validated on 26 Coelba bills
+// (Superfrio/Austral, Simões Filho BA — UCs 50003328 and 08301). Encrypted: password is the
+// UC code in the filename. Grupo A (Livre/Cativo) and Grupo B both supported.
+export async function parseNeoenergiaFatura(file: File, password?: string): Promise<ParsedFatura> {
+  let lines: PdfLine[];
+  try {
+    lines = await extractLines(file, password);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    if (/password/i.test(msg)) return { ok: false, errors: ['Fatura protegida por senha.'], warnings: [], history: [], needsPassword: true };
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
+  }
+  return parseNeoenergiaFromLines(lines);
+}
+
+/** Pure parse of Neoenergia DANFE lines — testable without pdfjs. */
+export function parseNeoenergiaFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
+  const allText = lines.map(l => l.text).join('\n');
+  const isNeo = /neoenergia/i.test(allText)
+    || /COMPANHIA DE ELETRICIDADE DO ESTADO DA BAHIA/i.test(allText) || /\bCOELBA\b/i.test(allText)
+    || /\bCOSERN\b/i.test(allText) || /15\.139\.629\/0001-94/.test(allText);
+  if (!isNeo) { result.notThisDistributor = true; result.errors.push('Não parece ser uma fatura Neoenergia.'); return result; }
+
+  // Distributor UF
+  result.distributorSig = /BAHIA|\bCOELBA\b|15\.139\.629/i.test(allText) ? 'COELBA'
+    : /COSERN|RIO GRANDE DO NORTE/i.test(allText) ? 'COSERN'
+    : /PERNAMBUCO|\bCELPE\b/i.test(allText) ? 'Neoenergia PE'
+    : /ELEKTRO/i.test(allText) ? 'ELEKTRO' : 'NEOENERGIA';
+
+  // Classificação → grupo/modalidade/mercado
+  const clsLine = findLineContaining(lines, 'CLASSIFICAÇÃO:') || findLineContaining(lines, 'CLASSIFICACAO:');
+  const clsRaw = clsLine ? clsLine.text.replace(/.*CLASSIFICA[ÇC][ÃA]O:\s*\|?\s*/i, '').split('|')[0].trim() : '';
+  const isACL = /livre/i.test(clsRaw) || /livre/i.test(allText);
+  const grpM = clsRaw.match(/\bA(\d)\b/) || allText.match(/\bA([1-4])\s+(?:Livre|Verde|Azul|Convencional|COMERCIAL)/i);
+  const isGrupoB = !grpM && /\bB[123]\b/.test(clsRaw + ' ' + allText);
+  result.classificacao = clsRaw
+    ? `${clsRaw}${isACL ? ' — Cliente Livre (ACL)' : ''}`
+    : (isGrupoB ? 'Grupo B' : undefined);
+
+  // UC = código da instalação (após "ENDEREÇO: | <num>" no bloco do cliente)
+  const instLine = lines.find(l => /ENDERE[ÇC]O:\s*\|\s*\d{6,}/i.test(l.text));
+  if (instLine) result.ucNumero = instLine.text.match(/(\d{6,})/)?.[1];
+  const rua = allText.match(/\b(?:RUA|R\.|AVENIDA|AV|ROD(?:OVIA)?|TRAVESSA|PRA[ÇC]A|ALAMEDA|ESTRADA|VA)\b[^|\n]{3,55}/i);
+  const cepN = allText.match(/\b(\d{5}-?\d{3})\b/);
+  if (rua) result.ucEndereco = `${rua[0]}${cepN ? ' ' + cepN[1] : ''}`.replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
+
+  // Ref month = LEITURA ATUAL
+  const leit = allText.match(/LEITURA ATUAL\s*\|?\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (leit) result.refMes = `${leit[2]}/${leit[3]}`;
+
+  // Montante de uso contratado → demanda contratada FP
+  const mont = allText.match(/Montante de Uso Contratado\s*\|?\s*(\d[\d.]*)/i);
+  if (mont) result.demandaContratadaFP = parseBrNumber(mont[1]);
+
+  // Value = token right after the medidor constant (≥4 decimals, e.g. "700,00000")
+  const valAfterConst = (re: RegExp): number | null => {
+    const l = lines.find(x => re.test(x.text));
+    if (!l) return null;
+    const toks = l.text.split('|').map(t => t.trim());
+    const ci = toks.findIndex(t => /^\d[\d.]*,\d{4,}$/.test(t));
+    if (ci >= 0 && toks[ci + 1] != null) return parseBrNumber(toks[ci + 1]);
+    return null;
+  };
+  // Fallback for 1-page short bills: billed items "Uso Sistema Encar.NP/FP | kWh | <consumo>"
+  const encItem = (re: RegExp): number | null => {
+    const l = lines.find(x => re.test(x.text));
+    if (!l) return null;
+    const m = l.text.match(/kWh\s*\|\s*([\d.]+,\d{2})/i);
+    return m ? parseBrNumber(m[1]) : null;
+  };
+  let cP = valAfterConst(/Consumo Ativo Na Ponta/i);
+  let cFP = valAfterConst(/Consumo Ativo Fora de Ponta/i);
+  if (cP == null) cP = encItem(/Uso Sistema Encar\.?\s*NP/i);
+  if (cFP == null) cFP = encItem(/Uso Sistema Encar\.?\s*FP/i);
+  const dP = valAfterConst(/Demanda M[áa]xima Na Ponta/i);
+  const dFP = valAfterConst(/Demanda M[áa]xima Fora de Ponta/i);
+
+  if (cP != null || cFP != null) {
+    const [mm, yy] = (result.refMes || '/').split('/');
+    result.history.push({
+      monthLabel: yy ? `${mm}/${yy.slice(2)}` : (result.refMes || '?'),
+      monthIso: yy ? `${yy}-${mm}` : 'atual',
+      consumoPonta: isGrupoB ? 0 : (cP ?? 0),
+      consumoForaPonta: isGrupoB ? (cFP ?? cP ?? 0) : (cFP ?? 0),
+      consumoReservado: 0,
+      demandaPonta: isGrupoB ? 0 : (dP ?? 0),
+      demandaForaPonta: isGrupoB ? 0 : (dFP ?? 0),
+    });
+  }
+  if (result.history.length === 0) {
+    result.errors.push('Consumo não reconhecido na fatura Neoenergia (bloco Demonstrativo/Itens ausente).');
+  }
+  result.ok = result.errors.length === 0;
+  return result;
+}
+
 // ── Unified dispatcher ───────────────────────────────────────────────────────
 // Tries every distributor parser with the same password (so encrypted bills — COPEL,
 // Enel — work once a password is supplied). Returns the first match, or `needsPassword`
 // so the caller can prompt and retry. Energisa is the (unencrypted) last resort.
 export async function parseAnyFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseLightFatura, parseEnelFatura, parseEnelGrupoBFatura, parseEdpSpFatura];
+  const parsers = [parseCopelFatura, parseCemigFatura, parseEquatorialFatura, parseNeoenergiaFatura, parseLightFatura, parseEnelFatura, parseEnelGrupoBFatura, parseEdpSpFatura];
   for (const p of parsers) {
     const r = await p(file, password);
     if (r.needsPassword) return r;        // encrypted — caller must supply the password
