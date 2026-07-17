@@ -386,22 +386,22 @@ export function parseEnergisaFromLines(lines: PdfLine[]): ParsedFatura {
 //   [0] Consumo Ponta · [1] Consumo Fora Ponta · [2] Demanda Ponta ·
 //   [3] Demanda Fora Ponta · [4] Dem.Cont Ponta · [5] Dem.Cont Fora Ponta · …
 export async function parseCopelFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
-
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch (e) {
     const msg = (e as { name?: string; message?: string });
     if (/password/i.test(msg?.name || '') || /password/i.test(msg?.message || '')) {
-      result.needsPassword = true;
-      result.errors.push('PDF protegido por senha.');
-      return result;
+      return { ok: false, errors: ['PDF protegido por senha.'], warnings: [], history: [], needsPassword: true };
     }
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseCopelFromLines(lines);
+}
 
+/** Pure parse of COPEL (Paraná) lines — testable without pdfjs. */
+export function parseCopelFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   const allText = lines.map(l => l.text).join('\n');
   if (!/copel/i.test(allText)) {
     result.notThisDistributor = true;
@@ -409,9 +409,14 @@ export async function parseCopelFatura(file: File, password?: string): Promise<P
     return result;
   }
   result.distributorSig = 'COPEL-DIS';
-  // UC (best-effort, sem fatura de amostra para validar): padrão DANF3E "Instalação".
-  const copelUc = allText.match(/Instala[çc][ãa]o[:\s|]*(\d{6,})/i);
+  // UC: o nº da instalação/medidor encabeça cada linha da tabela de medição
+  // ("0040682723 | CONSUMO kWh | ..."); é estável no mês e distinto por UC. O endereço
+  // ("Endereço: R Henrique Gonzaga...") é a chave de dedup (sobrevive à renumeração).
+  // Validado nas faturas Superfrio PR (CWBII 0040682723 · CWBIII 0040682733).
+  const copelUc = allText.match(/(\d{8,})\s*\|\s*(?:CONSUMO|DEMANDA|EN\.EXCE)/i);
   if (copelUc) result.ucNumero = copelUc[1];
+  const copelEnd = allText.match(/Endere[çc]o:\s*\|?\s*([^|]+?)\s*\|/i);
+  if (copelEnd) result.ucEndereco = copelEnd[1].replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
 
   // Tariff group + modalidade / mercado
   const grp = findFirstMatch(lines, /\bA([1-4])\b[^|]*(Comercial|Industrial|Rural|Trifasico|Monofasico|Bifasico|Armazens)/i);

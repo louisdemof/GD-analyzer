@@ -5,7 +5,8 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: { workerSrc: '' }, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) }));
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
 import { parseEnergisaFromLines, parseEquatorialFromLines, parseNeoenergiaFromLines,
-  parseCemigFromLines, parseEdpSpFromLines, parseLightFromLines, parseEnelFromLines, type ParsedFatura } from './faturaParser';
+  parseCemigFromLines, parseEdpSpFromLines, parseLightFromLines, parseEnelFromLines,
+  parseCopelFromLines, type ParsedFatura } from './faturaParser';
 import { analyzeFaturaSet, dedupByUC } from './projectFromFaturas';
 import energisaCgd from './__fixtures__/energisa_cgd_jun26.json';
 import eqTomadas from './__fixtures__/equatorial_gyn_tomadas.json';
@@ -16,6 +17,8 @@ import cemigBritadora from './__fixtures__/cemig_britadora.json';
 import edpSuzano from './__fixtures__/edp_suzano.json';
 import lightJacarepagua from './__fixtures__/light_jacarepagua.json';
 import enelrjClubmed from './__fixtures__/enelrj_clubmed.json';
+import copelCwb2 from './__fixtures__/copel_cwb2.json';
+import copelCwb3 from './__fixtures__/copel_cwb3.json';
 
 // Fixtures são {page,y,text}. O caminho principal dos parsers usa line.text; items só é
 // usado no fallback gatherWideRow (não disparado em faturas válidas) → items:[] basta.
@@ -166,5 +169,26 @@ describe('UC extraction — CEMIG · EDP SP · Light · Enel RJ (novos)', () => 
     expect(r.distributorSig).toBe('ENEL RJ');
     expect(r.ucEndereco).toMatch(/BR101|MANGARATIBA|23860000/);
     expect(r.ucNumero).toBeUndefined(); // vem embaralhado → cai no endereço
+  });
+});
+
+// COPEL (Paraná) — Superfrio PR, 2 UCs (CWBII · CWBIII). Senha = 0206 (código no nome).
+describe('COPEL — Superfrio PR, 2 UCs distinguidas (CWBII vs CWBIII)', () => {
+  const a = parseCopelFromLines(asLines(copelCwb2));
+  const b = parseCopelFromLines(asLines(copelCwb3));
+  it('reconhece COPEL e extrai o nº da instalação de cada UC', () => {
+    expect(a.distributorSig).toBe('COPEL-DIS');
+    expect(a.ucNumero).toBe('0040682723');
+    expect(b.ucNumero).toBe('0040682733');
+    expect(a.ucNumero).not.toBe(b.ucNumero);
+  });
+  it('endereços de instalação diferentes (Henrique Gonzaga vs Vanderlei Moreno)', () => {
+    expect(a.ucEndereco).toMatch(/HENRIQUE GONZAGA/);
+    expect(b.ucEndereco).toMatch(/VANDERLEI MORENO/);
+    expect(a.ucEndereco).not.toBe(b.ucEndereco);
+  });
+  it('cada fatura traz histórico de consumo', () => {
+    expect(a.history.length).toBeGreaterThan(0);
+    expect(b.history.length).toBeGreaterThan(0);
   });
 });
