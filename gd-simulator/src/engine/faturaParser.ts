@@ -917,9 +917,18 @@ export function parseNeoenergiaFromLines(lines: PdfLine[]): ParsedFatura {
   // UC = código da instalação (após "ENDEREÇO: | <num>" no bloco do cliente)
   const instLine = lines.find(l => /ENDERE[ÇC]O:\s*\|\s*\d{6,}/i.test(l.text));
   if (instLine) result.ucNumero = instLine.text.match(/(\d{6,})/)?.[1];
-  const rua = allText.match(/\b(?:RUA|R\.|AVENIDA|AV|ROD(?:OVIA)?|TRAVESSA|PRA[ÇC]A|ALAMEDA|ESTRADA|VA)\b[^|\n]{3,55}/i);
-  const cepN = allText.match(/\b(\d{5}-?\d{3})\b/);
-  if (rua) result.ucEndereco = `${rua[0]}${cepN ? ' ' + cepN[1] : ''}`.replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
+  // Endereço da INSTALAÇÃO — ancorar no bloco "ENDEREÇO:" para NÃO pegar o endereço da
+  // própria distribuidora (Coelba: "AV.EDGARD SANTOS ... SALVADOR" no topo). Sem isso, TODAS
+  // as UCs colapsavam numa só (a sede da distribuidora virava a chave de dedup).
+  const clientIdx = allText.search(/ENDERE[ÇC]O:/i);
+  const clientText = clientIdx >= 0 ? allText.slice(clientIdx) : allText;
+  const rua = clientText.match(/\b(?:RUA|R\.|AVENIDA|AV|ROD(?:OVIA)?|TRAVESSA|PRA[ÇC]A|ALAMEDA|ESTRADA|VILA|VIA|VA)\b[^|\n]{3,55}/i);
+  const cepN = clientText.match(/\b(\d{5}-?\d{3})\b/);
+  if (rua) {
+    let addr = `${rua[0]}${cepN ? ' ' + cepN[1] : ''}`.replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
+    if (result.ucNumero) addr = addr.replace(new RegExp(`\\b${result.ucNumero}\\b`, 'g'), '').replace(/\s+/g, ' ').trim();
+    result.ucEndereco = addr;
+  }
 
   // Ref month = LEITURA ATUAL
   const leit = allText.match(/LEITURA ATUAL\s*\|?\s*(\d{2})\/(\d{2})\/(\d{4})/i);

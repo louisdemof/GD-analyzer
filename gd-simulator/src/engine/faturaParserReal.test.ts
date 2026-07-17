@@ -4,11 +4,13 @@ import { describe, it, expect, vi } from 'vitest';
 // só para o import não explodir. As fixtures são linhas REAIS extraídas dos PDFs Superfrio.
 vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: { workerSrc: '' }, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) }));
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
-import { parseEnergisaFromLines, parseEquatorialFromLines, parseNeoenergiaFromLines } from './faturaParser';
+import { parseEnergisaFromLines, parseEquatorialFromLines, parseNeoenergiaFromLines, type ParsedFatura } from './faturaParser';
+import { analyzeFaturaSet, dedupByUC } from './projectFromFaturas';
 import energisaCgd from './__fixtures__/energisa_cgd_jun26.json';
 import eqTomadas from './__fixtures__/equatorial_gyn_tomadas.json';
 import eqArm from './__fixtures__/equatorial_gyn_arm.json';
 import coelba13410 from './__fixtures__/neoenergia_coelba_13410.json';
+import coelba08301 from './__fixtures__/neoenergia_coelba_08301.json';
 
 // Fixtures são {page,y,text}. O caminho principal dos parsers usa line.text; items só é
 // usado no fallback gatherWideRow (não disparado em faturas válidas) → items:[] basta.
@@ -86,5 +88,53 @@ describe('Neoenergia Coelba — Superfrio/Austral SSA UC 13410 (Simões Filho, A
   it('captura o número da instalação e o mês de referência', () => {
     expect(r.ucNumero).toBe('50003328');
     expect(r.refMes).toBe('05/2026');
+  });
+  it('endereço é o da INSTALAÇÃO (Simões Filho), não a sede da distribuidora (Salvador)', () => {
+    expect(r.ucEndereco).toMatch(/PENETRACAO/);
+    expect(r.ucEndereco).not.toMatch(/EDGARD SANTOS|SALVADOR/); // bug antigo: pegava a sede da Coelba
+  });
+});
+
+describe('Coelba — as 2 UCs (13410 vs 08301) são distinguidas', () => {
+  const a = parseNeoenergiaFromLines(asLines(coelba13410));
+  const b = parseNeoenergiaFromLines(asLines(coelba08301));
+  it('números de instalação diferentes', () => {
+    expect(a.ucNumero).toBe('50003328');
+    expect(b.ucNumero).toBe('10561510');
+    expect(a.ucNumero).not.toBe(b.ucNumero);
+  });
+  it('endereços de instalação diferentes (999 vs 2222)', () => {
+    expect(a.ucEndereco).not.toBe(b.ucEndereco);
+    expect(a.ucEndereco).toMatch(/999/);
+    expect(b.ucEndereco).toMatch(/2222/);
+  });
+});
+
+// Consolidação: Coelba = 1 fatura por mês. Subir 13 faturas/UC deve virar 1 UC com 13 meses —
+// NÃO 1 UC com 1 mês, e sem falso aviso de renumeração (bug reportado com as 26 faturas SSA).
+describe('Consolidação de faturas mensais (Coelba) — 26 faturas → 2 UCs × 13 meses', () => {
+  const mkMonth = (uc: string, addr: string, iso: string, cP: number, cFP: number): ParsedFatura => ({
+    ok: true, errors: [], warnings: [], distributorSig: 'COELBA', ucNumero: uc, ucEndereco: addr,
+    classificacao: 'A4 Livre - Verde — Cliente Livre (ACL)', refMes: `${iso.slice(5)}/${iso.slice(0, 4)}`,
+    demandaContratadaFP: 1160,
+    history: [{ monthIso: iso, monthLabel: `${iso.slice(5)}/${iso.slice(2, 4)}`, consumoPonta: cP, consumoForaPonta: cFP, consumoReservado: 0, demandaPonta: 0, demandaForaPonta: 200 }],
+  });
+  const months = ['2025-06', '2025-07', '2025-08', '2025-09', '2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'];
+  const list: ParsedFatura[] = [
+    ...months.map((m, i) => mkMonth('50003328', 'VA DE PENETRACAO II 999 GP B 43700000', m, 10000 + i, 100000 + i * 1000)),
+    ...months.map((m, i) => mkMonth('10561510', 'VA DE PENETRACAO II 2222 A 43700000', m, 1400 + i, 14000 + i * 100)),
+  ];
+  it('consolida em exatamente 2 UCs', () => {
+    expect(analyzeFaturaSet(list).ucCount).toBe(2);
+    expect(dedupByUC(list).length).toBe(2);
+  });
+  it('cada UC fica com os 13 meses (não 1)', () => {
+    for (const uc of dedupByUC(list)) expect(uc.history.length).toBe(13);
+  });
+  it('mensagem fala em faturas mensais consolidadas, sem falso aviso de renumeração', () => {
+    const w = analyzeFaturaSet(list).warnings.join(' ');
+    expect(w).toMatch(/faturas mensais.*2 UC/i);
+    expect(w).toMatch(/13 meses/);
+    expect(w).not.toMatch(/renumerada|1095/i); // o bug: emitia REN 1095/24 à toa
   });
 });

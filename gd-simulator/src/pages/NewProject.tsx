@@ -104,26 +104,37 @@ export function NewProject() {
     setParsing(true);
     setProgress({ done: 0, total: arr.length });
     const results: ParsedItem[] = [];
-    let sharedPw: string | undefined; // prompted once for encrypted bills (COPEL/Enel), reused
+    let sharedPw: string | undefined; // prompted once for encrypted bills, reused as last resort
+    // Encrypted bills (COPEL, Coelba/Neoenergia) usam como senha um código numérico do nome do
+    // arquivo — que pode estar em QUALQUER posição ("SSA - 13410 - Jun26.pdf" → 13410, e cada UC
+    // tem a sua). Extraímos os candidatos (3–8 dígitos, sem anos) e testamos um a um.
+    const pwCandidates = (name: string): string[] =>
+      [...new Set(name.match(/\d{3,8}/g) || [])]
+        .filter(g => !/^(19|20)\d{2}$/.test(g)) // descarta anos (2025, 2026…)
+        .sort((a, b) => b.length - a.length);   // mais longo primeiro (código de UC antes de mês)
     for (const file of arr) {
       try {
-        // Auto-detect distributor. Encrypted bills: COPEL password is often the numeric code
-        // in the filename; otherwise prompt once and reuse for the rest of the batch.
-        const fnPw = file.name.match(/_(\d{3,8})(?=\.pdf$|$)/i)?.[1];
-        let parsed = await parseAnyFatura(file, fnPw || sharedPw);
+        let parsed = await parseAnyFatura(file); // 1ª tentativa sem senha (faturas abertas)
+        if (parsed.needsPassword) {
+          // testa os números do nome do arquivo; cada arquivo pode ter senha própria
+          for (const pw of [...pwCandidates(file.name), ...(sharedPw ? [sharedPw] : [])]) {
+            parsed = await parseAnyFatura(file, pw);
+            if (!parsed.needsPassword) break;
+          }
+        }
         if (parsed.needsPassword) {
           if (!sharedPw) {
-            const pw = window.prompt(`"${file.name}" está protegido por senha (COPEL/Enel). Informe a senha (será reutilizada para os demais):`);
+            const pw = window.prompt(`"${file.name}" está protegido por senha. Informe a senha (será reutilizada para os demais):`);
             if (pw) sharedPw = pw;
           }
-          if (sharedPw) parsed = await parseAnyFatura(file, fnPw || sharedPw);
+          if (sharedPw) parsed = await parseAnyFatura(file, sharedPw);
         }
         results.push({
           fileName: file.name,
           ok: parsed.ok,
           parsed,
           error: parsed.needsPassword
-            ? 'PDF protegido — senha não encontrada no nome do arquivo (ex.: NOME_0206.pdf).'
+            ? 'PDF protegido — senha não encontrada no nome do arquivo (ex.: o nº da UC "SSA - 13410 - ...").'
             : (parsed.errors.join('; ') || undefined),
           health: parsed.ok ? faturaHealth(parsed) : undefined,
         });
@@ -357,7 +368,7 @@ export function NewProject() {
                 Arraste e solte os PDFs das faturas — ou clique para selecionar
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Energisa MS, COPEL, CEMIG, Equatorial (PA/PI/MA/GO/AL), Light e Enel (RJ/CE/SP). Faturas protegidas (COPEL/Enel) pedem a senha. Múltiplos arquivos — uma fatura por UC.
+                Energisa MS, COPEL, CEMIG, Equatorial (PA/PI/MA/GO/AL), Neoenergia/Coelba (BA/RN/PE), Light e Enel (RJ/CE/SP). Protegidas (COPEL/Coelba): a senha costuma ser o nº da UC no nome do arquivo. Faturas mensais (Coelba) são consolidadas por UC automaticamente.
               </p>
               <input
                 ref={fileInput}

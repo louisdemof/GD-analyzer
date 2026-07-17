@@ -184,22 +184,48 @@ const latestMonth = (q: ParsedFatura) => q.history.reduce((mx, h) => (h.monthIso
 const shortAddr = (a?: string) => (a || '').replace(/\s+\d{8}$/, '').slice(0, 40).trim();
 
 /**
- * Group N parsed faturas by installation address, keeping the most recent fatura per UC.
+ * "Monthly-snapshot" set: most bills carry a SINGLE month (Coelba/Neoenergia — 1 PDF = 1 mês).
+ * Then the stable UC identity is the código da instalação (ucNumero) and we MERGE the months
+ * across bills. Otherwise each bill carries its own 12-month history (Energisa/Equatorial/COPEL)
+ * → dedup by installation address (survives REN 1095/24 renumbering) and keep the most recent.
  */
-function dedupByUC(parsedList: ParsedFatura[]): ParsedFatura[] {
-  const byKey = new Map<string, ParsedFatura>();
-  for (const p of parsedList) {
-    if (!p.ok) continue;
-    const key = faturaDedupKey(p);
-    const existing = byKey.get(key);
-    // Prefer the most RECENT bill (its history already covers the older months, and it carries
-    // the latest UC number + freshest reading); tiebreak by the fuller history.
-    const better = !existing
-      || latestMonth(p) > latestMonth(existing)
-      || (latestMonth(p) === latestMonth(existing) && p.history.length > existing.history.length);
-    if (better) byKey.set(key, p);
+function isMonthlySnapshotSet(ok: ParsedFatura[]): boolean {
+  return ok.length > 0 && ok.filter(p => p.history.length <= 1).length >= ok.length * 0.6;
+}
+function ucKey(p: ParsedFatura, monthly: boolean): string {
+  const fallback = (p.ucMatricula?.split('-')[0]) || `unknown-${Math.random()}`;
+  return monthly
+    ? (p.ucNumero || p.ucEndereco || fallback)   // por número (código estável) quando 1 fatura = 1 mês
+    : (p.ucEndereco || p.ucNumero || fallback);  // por endereço (sobrevive à renumeração) quando há histórico
+}
+export function faturaGroups(parsedList: ParsedFatura[]): Map<string, ParsedFatura[]> {
+  const ok = parsedList.filter(p => p.ok);
+  const monthly = isMonthlySnapshotSet(ok);
+  const groups = new Map<string, ParsedFatura[]>();
+  for (const p of ok) {
+    const k = ucKey(p, monthly);
+    const g = groups.get(k) ?? [];
+    g.push(p);
+    groups.set(k, g);
   }
-  return [...byKey.values()];
+  return groups;
+}
+/** Merge a UC's bills into ONE fatura whose history is the union of every month seen. */
+function mergeGroup(g: ParsedFatura[]): ParsedFatura {
+  const base = g.reduce((a, b) => (latestMonth(b) > latestMonth(a) ? b : a)); // freshest tariffs/classif
+  const byMonth = new Map<string, ParsedFatura['history'][number]>();
+  const olderFirst = [...g].sort((a, b) => latestMonth(a).localeCompare(latestMonth(b)));
+  for (const f of olderFirst) for (const h of f.history) {
+    if (h.consumoForaPonta > 0 || h.consumoPonta > 0) byMonth.set(h.monthIso, h); // newer overwrites
+  }
+  return { ...base, history: [...byMonth.values()].sort((a, b) => a.monthIso.localeCompare(b.monthIso)) };
+}
+
+/**
+ * Collapse N parsed faturas into one fatura per UC, MERGING month histories across bills.
+ */
+export function dedupByUC(parsedList: ParsedFatura[]): ParsedFatura[] {
+  return [...faturaGroups(parsedList).values()].map(mergeGroup);
 }
 
 export interface FaturaSetAnalysis {
@@ -214,25 +240,30 @@ export interface FaturaSetAnalysis {
  */
 export function analyzeFaturaSet(parsedList: ParsedFatura[]): FaturaSetAnalysis {
   const ok = parsedList.filter(p => p.ok);
-  const groups = new Map<string, ParsedFatura[]>();
-  for (const p of ok) {
-    const k = faturaDedupKey(p);
-    const g = groups.get(k) ?? [];
-    g.push(p);
-    groups.set(k, g);
-  }
+  const monthly = isMonthlySnapshotSet(ok);
+  const groups = faturaGroups(parsedList);
+  const monthsIn = (g: ParsedFatura[]) => new Set(g.flatMap(f => f.history.map(h => h.monthIso))).size;
   const warnings: string[] = [];
   if (ok.length > groups.size) {
-    warnings.push(`${ok.length} faturas → ${groups.size} UCs: faturas do mesmo ponto de consumo foram consolidadas (mantida a mais recente por UC).`);
+    if (monthly) {
+      const maxM = Math.max(...[...groups.values()].map(monthsIn));
+      warnings.push(`${ok.length} faturas mensais → ${groups.size} UC(s): os meses foram consolidados por unidade (até ${maxM} meses de histórico por UC).`);
+    } else {
+      warnings.push(`${ok.length} faturas → ${groups.size} UCs: faturas do mesmo ponto de consumo foram consolidadas (mantida a mais recente por UC).`);
+    }
   }
-  for (const g of groups.values()) {
-    if (g.length < 2) continue;
-    // Distinct UC numbers within the same address (missing number = old/legacy layout).
-    const nums = new Set(g.map(x => x.ucNumero || '(legado)'));
-    if (nums.size > 1) {
-      const kept = g.reduce((a, b) => (latestMonth(b) > latestMonth(a) ? b : a));
-      const meses = g.map(x => x.refMes).filter(Boolean).join(' + ') || `${g.length} faturas`;
-      warnings.push(`🔄 UC renumerada — REN 1095/24 (${shortAddr(kept.ucEndereco)}): o nº da UC mudou entre as faturas (${meses}); consolidadas em 1 UC — nº atual ${kept.ucNumero || '—'}.`);
+  // REN 1095/24 renumbering só faz sentido para faturas COM histórico agrupadas por ENDEREÇO
+  // e com nº de UC distinto. No modo mensal agrupamos por NÚMERO (código estável), então
+  // endereços/nº distintos são só UCs diferentes — não emitir o aviso de renumeração.
+  if (!monthly) {
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      const nums = new Set(g.map(x => x.ucNumero || '(legado)'));
+      if (nums.size > 1) {
+        const kept = g.reduce((a, b) => (latestMonth(b) > latestMonth(a) ? b : a));
+        const meses = g.map(x => x.refMes).filter(Boolean).join(' + ') || `${g.length} faturas`;
+        warnings.push(`🔄 UC renumerada — REN 1095/24 (${shortAddr(kept.ucEndereco)}): o nº da UC mudou entre as faturas (${meses}); consolidadas em 1 UC — nº atual ${kept.ucNumero || '—'}.`);
+      }
     }
   }
   return { ucCount: groups.size, warnings };
