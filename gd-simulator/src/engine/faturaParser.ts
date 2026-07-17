@@ -45,6 +45,7 @@ export interface ParsedFatura {
   ucEndereco?: string;         // installation address (normalized) — stable dedup key when the UC
                                // number changes across bills (e.g. REN 1095/24 renumbering)
   classificacao?: string;      // e.g. "MTV-MOD.TARIFÁRIA VERDE / A3A RURAL / PROD.RURAL COM INSC.ESTADUAL"
+  forcedGroup?: 'A' | 'B';     // override manual do usuário no import (quando a classe está incerta)
   cnpj?: string;
   refMes?: string;             // e.g. "Março / 2026"
   // Contracted demand
@@ -730,6 +731,9 @@ export function parseEquatorialFromLines(lines: PdfLine[]): ParsedFatura {
 // layout + the emitter CNPJ in the access key (60444437 = Light).
 function lightParsePairs(t: string): Record<string, number> {
   const map: Record<string, number> = {};
+  // Valores vêm grudados no rótulo do próximo mês ("144.564JAN/25", "209.042SET/24"), o que
+  // quebra o \b e fazia o mês seguinte sair ZERADO. Insere um espaço entre dígito e MON/AA.
+  t = t.replace(/(\d)(?=(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/\d{2})/gi, '$1 ');
   const re = /\b(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\/(\d{2})[\s|]*(\d[\d.,]*)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(t))) {
@@ -1178,6 +1182,14 @@ export function faturaHealth(p: ParsedFatura): string[] {
   // Inclui os avisos do próprio parser (ex.: estado da Equatorial em baixa confiança).
   const w: string[] = [...(p.warnings ?? [])];
   const h = p.history ?? [];
+  // Classe tarifária sem dica explícita de A/B → baixa confiança; pedir confirmação (usar o
+  // seletor Grupo A/B no import). Não dispara para as distribuidoras já validadas (têm A4/B3).
+  if (!p.forcedGroup) {
+    const cls = (p.classificacao || '').toUpperCase();
+    if (!/\bA[1-4]\b|A[1-4][_ ]|\bB[123]\b|RESIDENCIAL|COMERC|INDUSTR|RURAL|OPTANTE/.test(cls)) {
+      w.push('Classe tarifária não identificada com clareza — confirme se é Grupo A ou B.');
+    }
+  }
   if (h.length === 0) return [...w, 'Nenhum mês de histórico reconhecido — confira a fatura.'];
   if (h.length < 6) w.push(`Apenas ${h.length} mês(es) de histórico — o ideal são 12. Verifique a leitura da tabela.`);
 

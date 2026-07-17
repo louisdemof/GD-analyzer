@@ -197,3 +197,39 @@ describe('COPEL — Superfrio PR, 2 UCs distinguidas (CWBII vs CWBIII)', () => {
     expect(b.history.length).toBeGreaterThan(0);
   });
 });
+
+// P1 — consumo (não só UC) validado contra os PDFs reais para as multi-mês. Golden values do
+// mês mais recente + invariante "nenhum mês com FP zero" (trava o bug de quebra de linha).
+describe('P1 · consumo validado — CEMIG · EDP · Light · Enel', () => {
+  it('CEMIG (Britadora) — MAI/25: ponta 2.345 · FP 181.947 · dem 1.205', () => {
+    const r = parseCemigFromLines(asLines(cemigBritadora));
+    const m = byIso(r.history, '2025-05');
+    expect(round(m.consumoForaPonta)).toBe(181947);
+    expect(round(m.consumoPonta)).toBe(2345);
+    expect(round(m.demandaForaPonta)).toBe(1205);
+    expect(r.history.every(h => h.consumoForaPonta > 0)).toBe(true);
+  });
+  it('EDP SP (Suzano) — SET/25: ponta 14.999 · FP 77.802 · reservado 17.597', () => {
+    const r = parseEdpSpFromLines(asLines(edpSuzano));
+    const m = byIso(r.history, '2025-09');
+    expect(round(m.consumoForaPonta)).toBe(77802);
+    expect(round(m.consumoPonta)).toBe(14999);
+    expect(round(m.consumoReservado)).toBe(17597);
+    expect(r.history.every(h => h.consumoForaPonta > 0)).toBe(true);
+  });
+  it('Light (Jacarepaguá) — AGO/25: ponta 14.409 · FP 103.370; sem mês FP zero (fix quebra de linha)', () => {
+    const r = parseLightFromLines(asLines(lightJacarepagua));
+    const m = byIso(r.history, '2025-08');
+    expect(round(m.consumoForaPonta)).toBe(103370);
+    expect(round(m.consumoPonta)).toBe(14409);
+    expect(r.history.every(h => h.consumoForaPonta > 0)).toBe(true); // era 0 em SET/24 e JAN/25
+    expect(round(byIso(r.history, '2025-01').consumoForaPonta)).toBe(137877);
+  });
+  it('Enel RJ (Club Med) — JAN/25: ponta 56.719 · FP 548.297', () => {
+    const r = parseEnelFromLines(asLines(enelrjClubmed));
+    const m = byIso(r.history, '2025-01');
+    expect(round(m.consumoForaPonta)).toBe(548297);
+    expect(round(m.consumoPonta)).toBe(56719);
+    expect(r.history.every(h => h.consumoForaPonta > 0)).toBe(true);
+  });
+});

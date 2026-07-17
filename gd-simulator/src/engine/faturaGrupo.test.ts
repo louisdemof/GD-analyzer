@@ -47,3 +47,22 @@ describe('Distinção Grupo A × Grupo B — todas as distribuidoras (faturas re
     });
   }
 });
+
+describe('Rede de segurança — grupo inferido quando a classe não vem explícita', () => {
+  it('sem classe MAS com demanda → Grupo A (não cai no default B3), baixa confiança', () => {
+    const r = deriveTariffGroup('', true);
+    expect(r.isGrupoA).toBe(true);
+    expect(r.confident).toBe(false);
+  });
+  it('sem classe e sem demanda → B3, baixa confiança', () => {
+    const r = deriveTariffGroup('', false);
+    expect(r.isGrupoA).toBe(false);
+    expect(r.confident).toBe(false);
+  });
+  it('classe explícita → alta confiança', () => {
+    expect(deriveTariffGroup('A4 VERDE').confident).toBe(true);
+    expect(deriveTariffGroup('B3 COMERCIAL').confident).toBe(true);
+    expect(deriveTariffGroup('A4 VERDE').isGrupoA).toBe(true);
+    expect(deriveTariffGroup('B3 COMERCIAL').isGrupoA).toBe(false);
+  });
+})

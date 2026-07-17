@@ -4,7 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import { DISTRIBUTORS } from '../data/distributors';
 import { fetchANEELTariffs, aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
 import { parseAnyFatura, faturaHealth, type ParsedFatura } from '../engine/faturaParser';
-import { buildProjectFromFaturas, analyzeFaturaSet } from '../engine/projectFromFaturas';
+import { buildProjectFromFaturas, analyzeFaturaSet, deriveTariffGroup } from '../engine/projectFromFaturas';
 import type { OptimiserProgress } from '../engine/optimiser';
 import type { RateioAllocation } from '../engine/types';
 import OptimiserWorker from '../engine/optimiser.worker?worker';
@@ -95,6 +95,29 @@ export function NewProject() {
   const faturaAnalysis = useMemo(() => analyzeFaturaSet(successItems.map(i => i.parsed!)), [successItems]);
   const uniqueUCs = faturaAnalysis.ucCount;
   const hasFaturas = successItems.length > 0;
+
+  // Grupo tarifário exibido no import (detectado ou forçado pelo usuário).
+  const grupoDe = (p?: ParsedFatura): 'A' | 'B' => {
+    if (!p) return 'A';
+    if (p.forcedGroup) return p.forcedGroup;
+    const hasDem = (p.demandaContratadaFP || 0) > 0 || (p.history || []).some(h => (h.demandaForaPonta || 0) > 0);
+    return deriveTariffGroup(p.classificacao || '', hasDem).isGrupoA ? 'A' : 'B';
+  };
+  const ucKeyOf = (p?: ParsedFatura) => p && (p.ucNumero || p.ucEndereco || p.ucMatricula || '');
+  // Override manual: aplica a TODAS as faturas da mesma UC (para o grupo ficar consistente).
+  const forcarGrupo = (idx: number, g: 'A' | 'B') => {
+    setItems(prev => {
+      const uc = ucKeyOf(prev[idx]?.parsed);
+      return prev.map((it, j) => {
+        if (!it.parsed) return it;
+        if (j === idx || (uc && ucKeyOf(it.parsed) === uc)) {
+          const parsed = { ...it.parsed, forcedGroup: g };
+          return { ...it, parsed, health: faturaHealth(parsed) };
+        }
+        return it;
+      });
+    });
+  };
 
   const processFiles = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter(f =>
@@ -456,6 +479,7 @@ export function NewProject() {
                       <th className="text-left py-1.5 px-2">Distribuidora</th>
                       <th className="text-left py-1.5 px-2">Matrícula</th>
                       <th className="text-left py-1.5 px-2">Classificação</th>
+                      <th className="text-center py-1.5 px-2">Grupo</th>
                       <th className="text-right py-1.5 px-2">Histórico</th>
                     </tr>
                   </thead>
@@ -473,12 +497,24 @@ export function NewProject() {
                           <td className="py-1 px-2 text-slate-600" title="Confira se bate com a distribuidora real da fatura">{it.parsed?.distributorSig || '—'}</td>
                           <td className="py-1 px-2 font-mono">{it.parsed?.ucNumero || it.parsed?.ucMatricula || '—'}</td>
                           <td className="py-1 px-2 truncate max-w-xs">{(it.parsed?.classificacao || '').slice(0, 40)}</td>
+                          <td className="py-1 px-2 text-center">
+                            {it.ok && it.parsed ? (
+                              <span className="inline-flex rounded border border-slate-300 overflow-hidden" title={it.parsed.forcedGroup ? 'Grupo definido manualmente' : 'Grupo detectado — clique para corrigir'}>
+                                {(['A', 'B'] as const).map(g => (
+                                  <button key={g} type="button" onClick={() => forcarGrupo(i, g)}
+                                    className={`px-1.5 leading-4 ${grupoDe(it.parsed) === g ? 'bg-teal-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>
+                                    {g}
+                                  </button>
+                                ))}
+                              </span>
+                            ) : '—'}
+                          </td>
                           <td className="py-1 px-2 text-right">{it.parsed?.history.length ?? 0}m</td>
                         </tr>
                         {it.ok && it.health && it.health.length > 0 && (
                           <tr>
                             <td></td>
-                            <td colSpan={4} className="px-2 pb-1 text-[10px] text-amber-700">
+                            <td colSpan={5} className="px-2 pb-1 text-[10px] text-amber-700">
                               {it.health.map((h, j) => <div key={j}>⚠ {h}</div>)}
                             </td>
                           </tr>

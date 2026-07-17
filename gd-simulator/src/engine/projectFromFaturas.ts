@@ -45,22 +45,27 @@ function generateId(): string {
 }
 
 /** Map "MTV-MOD.TARIFÁRIA VERDE / A3A RURAL" → "A3A_VERDE" etc. */
-export function deriveTariffGroup(classificacao: string): { group: TariffGroup; isGrupoA: boolean } {
+// confident=false quando o grupo NÃO veio explícito na classificação e teve de ser inferido.
+// hasDemanda: se a fatura tem demanda contratada/medida → forte sinal de Grupo A (rede de
+// segurança contra o antigo default silencioso "B3").
+export function deriveTariffGroup(classificacao: string, hasDemanda?: boolean): { group: TariffGroup; isGrupoA: boolean; confident: boolean } {
   const c = classificacao.toUpperCase();
   const isVerde = /\bVERDE\b/.test(c);
   const isAzul = /\bAZUL\b/.test(c);
 
-  if (/\bB1\b|RESIDENCIAL/.test(c)) return { group: 'B1', isGrupoA: false };
-  if (/\bB2\b|B.*RURAL|RURAL.*B/.test(c) && !/\bA[1-4]/.test(c)) return { group: 'B2', isGrupoA: false };
-  if (/\bB3\b|COMERC|INDUSTR.*B/.test(c) && !/\bA[1-4]/.test(c)) return { group: 'B3', isGrupoA: false };
+  if (/\bB1\b|RESIDENCIAL/.test(c)) return { group: 'B1', isGrupoA: false, confident: true };
+  if (/\bB2\b|B.*RURAL|RURAL.*B/.test(c) && !/\bA[1-4]/.test(c)) return { group: 'B2', isGrupoA: false, confident: true };
+  if (/\bB3\b|COMERC|INDUSTR.*B/.test(c) && !/\bA[1-4]/.test(c)) return { group: 'B3', isGrupoA: false, confident: true };
 
-  if (/A4\b/.test(c)) return { group: isAzul ? 'A4_AZUL' : 'A4_VERDE', isGrupoA: true };
-  if (/A3A\b/.test(c)) return { group: isAzul ? 'A3A_AZUL' : isVerde ? 'A3A_VERDE' : 'A3A', isGrupoA: true };
-  if (/A3\b/.test(c)) return { group: isAzul ? 'A3_AZUL' : 'A3_VERDE', isGrupoA: true };
-  if (/A2\b/.test(c)) return { group: isAzul ? 'A2_AZUL' : 'A2_VERDE', isGrupoA: true };
-  if (/A1\b/.test(c)) return { group: isAzul ? 'A1_AZUL' : 'A1_VERDE', isGrupoA: true };
-  // Default to B3 if no class hint
-  return { group: 'B3', isGrupoA: false };
+  if (/A4\b/.test(c)) return { group: isAzul ? 'A4_AZUL' : 'A4_VERDE', isGrupoA: true, confident: true };
+  if (/A3A\b/.test(c)) return { group: isAzul ? 'A3A_AZUL' : isVerde ? 'A3A_VERDE' : 'A3A', isGrupoA: true, confident: true };
+  if (/A3\b/.test(c)) return { group: isAzul ? 'A3_AZUL' : 'A3_VERDE', isGrupoA: true, confident: true };
+  if (/A2\b/.test(c)) return { group: isAzul ? 'A2_AZUL' : 'A2_VERDE', isGrupoA: true, confident: true };
+  if (/A1\b/.test(c)) return { group: isAzul ? 'A1_AZUL' : 'A1_VERDE', isGrupoA: true, confident: true };
+
+  // Sem dica explícita de classe → NÃO cair cegamente em B3. Se há demanda, é Grupo A.
+  if (hasDemanda) return { group: 'A4_VERDE', isGrupoA: true, confident: false };
+  return { group: 'B3', isGrupoA: false, confident: false };
 }
 
 /** Convert tariff "com tributos" → "sem tributos" using detected tax rates. */
@@ -104,7 +109,13 @@ function buildDistributorFromFatura(p: ParsedFatura): Distributor {
 
 function buildUCFromFatura(p: ParsedFatura, fallbackId: string): ConsumptionUnit {
   const cls = p.classificacao || '';
-  const { group, isGrupoA } = deriveTariffGroup(cls);
+  const hasDemanda = (p.demandaContratadaFP || 0) > 0 || p.history.some(h => (h.demandaForaPonta || 0) > 0);
+  const derived = deriveTariffGroup(cls, hasDemanda);
+  // Override manual do usuário no import tem prioridade sobre a detecção automática.
+  const isGrupoA = p.forcedGroup ? p.forcedGroup === 'A' : derived.isGrupoA;
+  const group = p.forcedGroup
+    ? (p.forcedGroup === 'A' ? (derived.isGrupoA ? derived.group : 'A4_VERDE') : 'B3')
+    : derived.group;
 
   // Use the LAST 12 months of history (most recent), in chronological order
   const sorted = [...p.history].sort((a, b) => a.monthIso.localeCompare(b.monthIso));
@@ -218,7 +229,11 @@ function mergeGroup(g: ParsedFatura[]): ParsedFatura {
   for (const f of olderFirst) for (const h of f.history) {
     if (h.consumoForaPonta > 0 || h.consumoPonta > 0) byMonth.set(h.monthIso, h); // newer overwrites
   }
-  return { ...base, history: [...byMonth.values()].sort((a, b) => a.monthIso.localeCompare(b.monthIso)) };
+  return {
+    ...base,
+    forcedGroup: g.find(f => f.forcedGroup)?.forcedGroup ?? base.forcedGroup, // override sobrevive à mescla
+    history: [...byMonth.values()].sort((a, b) => a.monthIso.localeCompare(b.monthIso)),
+  };
 }
 
 /**
