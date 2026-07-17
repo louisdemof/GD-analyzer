@@ -381,6 +381,45 @@ export function NewProject() {
             </div>
           )}
 
+          {!hasFaturas && !parsing && (
+            <details className="mt-3 bg-white border border-slate-200 rounded-lg overflow-hidden">
+              <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                ℹ️ Como funciona o parser · distribuidoras suportadas
+              </summary>
+              <div className="px-4 pb-4 pt-1 text-xs text-slate-600 space-y-3 border-t border-slate-100">
+                <p className="mt-2">
+                  O leitor extrai o texto do PDF com suas coordenadas, reconstrói as linhas, detecta a
+                  distribuidora pela assinatura e lê: grupo tarifário (A/B, cativo/ACL), tributos, demanda
+                  contratada e o <strong>histórico de consumo por UC</strong>. Faturas protegidas tentam
+                  automaticamente a senha pelo número no nome do arquivo (ex.: <code>SSA - 13410</code> → 13410).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                  {[
+                    ['Energisa MS', 'MS · A/B/rural', 'Matrícula'],
+                    ['Equatorial', 'PA/PI/MA/GO/AL · A/B', 'Nº + endereço (REN 1095-safe)'],
+                    ['Neoenergia/Coelba', 'BA/RN/PE · A/B', 'Código instalação (1 fatura = 1 mês → mescla)'],
+                    ['COPEL', 'PR · A', 'Nº instalação + endereço'],
+                    ['CEMIG', 'MG · A/B', 'Nº da Instalação'],
+                    ['Light', 'RJ · A', 'Conta Contrato'],
+                    ['EDP SP', 'SP · A', 'Nº da instalação'],
+                    ['Enel', 'SP/RJ/CE · A', 'Endereço da instalação'],
+                  ].map(([nome, area, uc]) => (
+                    <div key={nome} className="flex items-baseline gap-1.5 border-b border-slate-50 py-0.5">
+                      <span className="text-emerald-600">✓</span>
+                      <span className="font-medium text-slate-800">{nome}</span>
+                      <span className="text-slate-400">· {area}</span>
+                      <span className="ml-auto text-slate-500 text-[11px]">UC: {uc}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  UCs distintas são separadas automaticamente; faturas mensais da mesma UC são consolidadas numa
+                  série de 12 meses. Cada parser é validado contra faturas reais com testes de regressão.
+                </p>
+              </div>
+            </details>
+          )}
+
           {parsing && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-800">
