@@ -4,13 +4,18 @@ import { describe, it, expect, vi } from 'vitest';
 // só para o import não explodir. As fixtures são linhas REAIS extraídas dos PDFs Superfrio.
 vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: { workerSrc: '' }, getDocument: () => ({ promise: Promise.resolve({ numPages: 0 }) }) }));
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
-import { parseEnergisaFromLines, parseEquatorialFromLines, parseNeoenergiaFromLines, type ParsedFatura } from './faturaParser';
+import { parseEnergisaFromLines, parseEquatorialFromLines, parseNeoenergiaFromLines,
+  parseCemigFromLines, parseEdpSpFromLines, parseLightFromLines, parseEnelFromLines, type ParsedFatura } from './faturaParser';
 import { analyzeFaturaSet, dedupByUC } from './projectFromFaturas';
 import energisaCgd from './__fixtures__/energisa_cgd_jun26.json';
 import eqTomadas from './__fixtures__/equatorial_gyn_tomadas.json';
 import eqArm from './__fixtures__/equatorial_gyn_arm.json';
 import coelba13410 from './__fixtures__/neoenergia_coelba_13410.json';
 import coelba08301 from './__fixtures__/neoenergia_coelba_08301.json';
+import cemigBritadora from './__fixtures__/cemig_britadora.json';
+import edpSuzano from './__fixtures__/edp_suzano.json';
+import lightJacarepagua from './__fixtures__/light_jacarepagua.json';
+import enelrjClubmed from './__fixtures__/enelrj_clubmed.json';
 
 // Fixtures são {page,y,text}. O caminho principal dos parsers usa line.text; items só é
 // usado no fallback gatherWideRow (não disparado em faturas válidas) → items:[] basta.
@@ -136,5 +141,30 @@ describe('Consolidação de faturas mensais (Coelba) — 26 faturas → 2 UCs ×
     expect(w).toMatch(/faturas mensais.*2 UC/i);
     expect(w).toMatch(/13 meses/);
     expect(w).not.toMatch(/renumerada|1095/i); // o bug: emitia REN 1095/24 à toa
+  });
+});
+
+// UC extraction added to the multi-month parsers (validated against real sample invoices).
+describe('UC extraction — CEMIG · EDP SP · Light · Enel RJ (novos)', () => {
+  it('CEMIG lê o Nº da Instalação como UC', () => {
+    const r = parseCemigFromLines(asLines(cemigBritadora));
+    expect(r.distributorSig).toBe('CEMIG-D');
+    expect(r.ucNumero).toBe('3015051685');
+  });
+  it('EDP SP lê o nº da instalação após o cliente', () => {
+    const r = parseEdpSpFromLines(asLines(edpSuzano));
+    expect(r.distributorSig).toBe('EDP SP');
+    expect(r.ucNumero).toBe('0151372625');
+  });
+  it('Light lê a Conta Contrato como UC', () => {
+    const r = parseLightFromLines(asLines(lightJacarepagua));
+    expect(r.distributorSig).toMatch(/LIGHT/);
+    expect(r.ucNumero).toBe('20007373938');
+  });
+  it('Enel RJ usa o endereço da instalação como UC (nº embaralhado nos glifos)', () => {
+    const r = parseEnelFromLines(asLines(enelrjClubmed));
+    expect(r.distributorSig).toBe('ENEL RJ');
+    expect(r.ucEndereco).toMatch(/BR101|MANGARATIBA|23860000/);
+    expect(r.ucNumero).toBeUndefined(); // vem embaralhado → cai no endereço
   });
 });

@@ -409,6 +409,9 @@ export async function parseCopelFatura(file: File, password?: string): Promise<P
     return result;
   }
   result.distributorSig = 'COPEL-DIS';
+  // UC (best-effort, sem fatura de amostra para validar): padrão DANF3E "Instalação".
+  const copelUc = allText.match(/Instala[çc][ãa]o[:\s|]*(\d{6,})/i);
+  if (copelUc) result.ucNumero = copelUc[1];
 
   // Tariff group + modalidade / mercado
   const grp = findFirstMatch(lines, /\bA([1-4])\b[^|]*(Comercial|Industrial|Rural|Trifasico|Monofasico|Bifasico|Armazens)/i);
@@ -464,22 +467,22 @@ const CEMIG_MONTHS: Record<string, string> = {
 const brNum = (s: string) => Number(s.replace(/\./g, '').replace(',', '.'));
 
 export async function parseCemigFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
-
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch (e) {
     const msg = (e as { name?: string; message?: string });
     if (/password/i.test(msg?.name || '') || /password/i.test(msg?.message || '')) {
-      result.needsPassword = true;
-      result.errors.push('PDF protegido por senha.');
-      return result;
+      return { ok: false, errors: ['PDF protegido por senha.'], warnings: [], history: [], needsPassword: true };
     }
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseCemigFromLines(lines);
+}
 
+/** Pure parse of CEMIG lines — testable without pdfjs. */
+export function parseCemigFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   const allText = lines.map(l => l.text).join('\n');
   if (!/cemig/i.test(allText)) {
     result.notThisDistributor = true;
@@ -487,6 +490,9 @@ export async function parseCemigFatura(file: File, password?: string): Promise<P
     return result;
   }
   result.distributorSig = 'CEMIG-D';
+  // UC = Nº da Instalação ("Instalação: | 3015051685"). Valida a separação de UCs no dedup.
+  const cemigUc = allText.match(/Instala[çc][ãa]o:\s*\|?\s*(\d{6,})/i);
+  if (cemigUc) result.ucNumero = cemigUc[1];
   const cemigDisc = allText.match(/desconto de\s*([\d.,]+)\s*%/i);
   if (cemigDisc) result.incentivadaLevelPct = brNum(cemigDisc[1]) / 100;
 
@@ -711,16 +717,18 @@ function lightParsePairs(t: string): Record<string, number> {
 }
 
 export async function parseLightFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
-
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch {
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseLightFromLines(lines);
+}
 
+/** Pure parse of Light / Enel RJ lines — testable without pdfjs. */
+export function parseLightFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   const allText = lines.map(l => l.text).join('\n');
   // Signature: the metric-row history "Consumo Fora Ponta MON/YY …" (unique to this layout).
   if (!/Consumo\s+Fora\s+Ponta[\s|]+[A-Z]{3}\/\d{2}/i.test(allText)) {
@@ -743,6 +751,17 @@ export async function parseLightFatura(file: File, password?: string): Promise<P
     result.notThisDistributor = true;
     result.errors.push('Distribuidora do Rio não identificada (CNPJ desconhecido).');
     return result;
+  }
+  // UC: Light usa "Conta Contrato: 20007373938". As faturas Enel RJ caem neste mesmo parser
+  // (layout metric-row) e têm o nº da UC embaralhado (glifos) → cai no endereço da instalação.
+  const lightUc = allText.match(/Conta\s*Contrato:\s*\|?\s*(\d{6,})/i);
+  if (lightUc) result.ucNumero = lightUc[1];
+  if (!result.ucNumero) {
+    const idx = allText.search(/INSTALA[ÇC][ÃA]O\s*\/\s*UNID/i);
+    const inst = idx >= 0 ? allText.slice(idx) : allText;
+    const r = inst.match(/\b(?:RUA|R\.|AVENIDA|AV|ROD(?:OVIA)?|BR-?\d|TRAVESSA|PRA[ÇC]A|ALAMEDA|ESTRADA|EST)\b[^|\n]{3,55}/i);
+    const c = inst.match(/CEP:?\s*(\d{5}-?\d{3})/i);
+    if (r) result.ucEndereco = `${r[0]}${c ? ' ' + c[1] : ''}`.replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
   }
 
   const lightDisc = allText.match(/Percentual de Desconto[^%\d]*([\d.,]+)\s*%/i);
@@ -794,22 +813,22 @@ export async function parseLightFatura(file: File, password?: string): Promise<P
 // ── Enel (RJ/CE/SP) — DANF3E with "HISTÓRICO DO FATURAMENTO" table ────────────
 // Often password-protected. Table: MÊS/ANO | Demanda(Ponta,FP) | Consumo(Ponta,FP) | Nº dias.
 export async function parseEnelFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
-
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch (e) {
     const msg = (e as { name?: string; message?: string });
     if (/password/i.test(msg?.name || '') || /password/i.test(msg?.message || '')) {
-      result.needsPassword = true;
-      result.errors.push('PDF protegido por senha.');
-      return result;
+      return { ok: false, errors: ['PDF protegido por senha.'], warnings: [], history: [], needsPassword: true };
     }
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseEnelFromLines(lines);
+}
 
+/** Pure parse of Enel (RJ/SP/CE Grupo A) lines — testable without pdfjs. */
+export function parseEnelFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   const allText = lines.map(l => l.text).join('\n');
   if (!/HIST[ÓO]RICO\s+DO\s+FATURAMENTO/i.test(allText)) {
     result.notThisDistributor = true;
@@ -820,6 +839,13 @@ export async function parseEnelFatura(file: File, password?: string): Promise<Pa
   result.distributorSig = /CEAR[ÁA]|FORTALEZA/i.test(allText) ? 'ENEL CE'
     : /S[ÃA]O\s+PAULO/i.test(allText) ? 'ENEL SP'
     : 'ENEL RJ';
+  // O nº da UC da Enel vem embaralhado (glifos não-Unicode) → usa o endereço da INSTALAÇÃO
+  // como chave estável de UC (rua + CEP legíveis logo após "INSTALAÇÃO / UNID. CONSUMIDORA").
+  const enelIdx = allText.search(/INSTALA[ÇC][ÃA]O\s*\/\s*UNID/i);
+  const enelInst = enelIdx >= 0 ? allText.slice(enelIdx) : allText;
+  const enelRua = enelInst.match(/\b(?:RUA|R\.|AVENIDA|AV|ROD(?:OVIA)?|BR-?\d|TRAVESSA|PRA[ÇC]A|ALAMEDA|ESTRADA|EST)\b[^|\n]{3,55}/i);
+  const enelCep = enelInst.match(/CEP:?\s*(\d{5}-?\d{3})/i);
+  if (enelRua) result.ucEndereco = `${enelRua[0]}${enelCep ? ' ' + enelCep[1] : ''}`.replace(/\s+/g, ' ').replace(/[.,\-/]/g, '').toUpperCase().trim();
   const enelBen = allText.match(/Benef[íi]cio\s+Tarif[áa]rio\s+L[íi]quido[\s|]*([\d.,]+)/i);
   if (enelBen) result.incentivadaBeneficio = brNum(enelBen[1]);
 
@@ -1055,14 +1081,18 @@ export async function parseEnelGrupoBFatura(file: File, password?: string): Prom
 // History columns by position: Mes/Ano | Consumo Ponta | Fora Ponta | Reservado | Demanda
 // | ... | Total. Numbers are dot-decimal (15140.6). Often incentivada (Res.77/04 = ACL).
 export async function parseEdpSpFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch {
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseEdpSpFromLines(lines);
+}
+
+/** Pure parse of EDP SP lines — testable without pdfjs. */
+export function parseEdpSpFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   const allText = lines.map(l => l.text).join('\n');
   if (!/EDP\s*SP|EDP\s+S[ÃA]O\s+PAULO|EDP SP DISTRIB/i.test(allText)) {
     result.notThisDistributor = true;
@@ -1070,6 +1100,10 @@ export async function parseEdpSpFatura(file: File, password?: string): Promise<P
     return result;
   }
   result.distributorSig = 'EDP SP';
+  // UC = nº da instalação após o nome do cliente na linha do período de medição
+  // ("<CLIENTE> | 0151372625 | <unidade> : 01/09/2025 a 30/09/2025").
+  const edpUc = allText.match(/\|\s*(\d{9,12})\s*\|[^|\n]*\d{2}\/\d{2}\/\d{4}\s+a\s+\d{2}\/\d{2}\/\d{4}/i);
+  if (edpUc) result.ucNumero = edpUc[1];
   const isACL = /RES\.?\s*77|incentiv|\bLivre\b/i.test(allText);
   const grp = allText.match(/\bA([1-4])\b/);
   const isVerde = /VERDE/i.test(allText), isAzul = /AZUL/i.test(allText);
