@@ -569,10 +569,15 @@ export function NewProject() {
                 return sig === 'COPEL-DIS' ? 'COPEL Distribuição (PR)'
                   : sig === 'CEMIG-D' ? 'CEMIG Distribuição (MG)'
                   : sig?.startsWith('EQUATORIAL') ? `Equatorial (${sig.split(' ')[1]})`
+                  : sig === 'COELBA' ? 'Neoenergia Coelba (BA)'
+                  : sig === 'COSERN' ? 'Neoenergia Cosern (RN)'
+                  : sig?.toUpperCase().startsWith('NEOENERGIA') ? sig
                   : sig === 'LIGHT SESA' ? 'Light (RJ)'
-                  : sig?.startsWith('ENEL') ? `Enel (${sig.split(' ')[1]})`
+                  : sig?.startsWith('ENEL') ? `Enel (${sig.split(' ')[1] || 'RJ'})`
                   : sig === 'EDP SP' ? 'EDP São Paulo'
-                  : 'Energisa Mato Grosso do Sul';
+                  : sig ? sig                                  // sig conhecido mas não mapeado: mostra a sigla
+                  : 'Energisa Mato Grosso do Sul';             // só a Energisa não seta distributorSig
+
               })()
             }</strong>
           </div>
