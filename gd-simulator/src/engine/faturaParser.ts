@@ -1050,14 +1050,18 @@ export async function parseAnyFatura(file: File, password?: string): Promise<Par
 const numFlex = (s: string) => /^\d+\.\d{1,2}$/.test(s) ? parseFloat(s) : brNum(s);
 
 export async function parseEnelGrupoBFatura(file: File, password?: string): Promise<ParsedFatura> {
-  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   let lines: PdfLine[];
   try {
     lines = await extractLines(file, password);
   } catch {
-    result.errors.push('Falha ao ler o PDF.');
-    return result;
+    return { ok: false, errors: ['Falha ao ler o PDF.'], warnings: [], history: [] };
   }
+  return parseEnelGrupoBFromLines(lines);
+}
+
+/** Pure parse of Enel CE / Coelce Grupo B lines — testable without pdfjs. */
+export function parseEnelGrupoBFromLines(lines: PdfLine[]): ParsedFatura {
+  const result: ParsedFatura = { ok: false, errors: [], warnings: [], history: [] };
   const allText = lines.map(l => l.text).join('\n');
   const isCE = /Companhia\s+Energ[ée]tica\s+do\s+Cear[áa]/i.test(allText) || /COELCE/i.test(allText)
     || (/enel/i.test(allText) && /CEAR[ÁA]|FORTALEZA/i.test(allText));
