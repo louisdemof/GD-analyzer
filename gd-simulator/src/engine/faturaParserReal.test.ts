@@ -48,26 +48,31 @@ describe('Energisa MS — Superfrio CGD (Campo Grande, A4 Verde) — bug do merg
   });
 });
 
-describe('Equatorial GO — Superfrio GYN Tomadas (optante B) — bug do token de ano "MAI / 26"', () => {
+describe('Equatorial GO — Superfrio GYN Tomadas (optante B)', () => {
   const r = parseEquatorialFromLines(asLines(eqTomadas));
-  it('reconhece 13 meses de histórico', () => {
-    expect(r.history.length).toBe(13);
+  it('classifica como optante B / Grupo B — NÃO "Cativo"', () => {
+    expect(r.classificacao).toMatch(/optante|Grupo B/i);
+    expect(r.classificacao).not.toMatch(/Cativo/i);
   });
-  it('o ano NÃO vaza como demanda (era demandaPonta=26)', () => {
-    // demanda ponta real do Tomadas fica entre 3–8 kW; se o ano "26" vazasse, apareceria 25/26.
-    expect(Math.max(...r.history.map(m => m.demandaPonta))).toBeLessThan(20);
+  it('12 meses (a linha-âncora vazia mais antiga é removida)', () => {
+    expect(r.history.length).toBe(12);
   });
-  it('consumo fora ponta do mês recente é plausível (~672), não o valor deslocado', () => {
+  it('optante B: postos somados num único consumo, sem demanda; ano não vaza', () => {
     const rec = byIso(r.history, '2026-04');
-    expect(round(rec.consumoForaPonta)).toBe(672);
-    expect(round(rec.consumoPonta)).toBe(129);
+    expect(round(rec.consumoForaPonta)).toBe(1116); // 672 + 129 (ponta) + 315 (reservado)
+    expect(rec.consumoPonta).toBe(0);
+    expect(Math.max(...r.history.map(m => m.demandaPonta))).toBe(0);
   });
 });
 
 describe('Equatorial GO — Superfrio GYN Armazém (Grupo A, ACL)', () => {
   const r = parseEquatorialFromLines(asLines(eqArm));
-  it('13 meses; consumo do armazém na casa das centenas de MWh', () => {
-    expect(r.history.length).toBe(13);
+  it('classifica como A4 VERDE ACL (Cliente Livre)', () => {
+    expect(r.classificacao).toMatch(/A4/);
+    expect(r.classificacao).toMatch(/ACL|Livre/i);
+  });
+  it('12 meses; consumo do armazém na casa das centenas de MWh', () => {
+    expect(r.history.length).toBe(12);
     const mai = byIso(r.history, '2026-05');
     expect(round(mai.consumoForaPonta)).toBe(151809);
     expect(round(mai.consumoPonta)).toBe(12718);

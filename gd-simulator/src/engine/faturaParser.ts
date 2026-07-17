@@ -612,8 +612,14 @@ export function parseEquatorialFromLines(lines: PdfLine[]): ParsedFatura {
   const isAzul = /AZ/.test(codeStr) || /azul/i.test(allText);
   const isVerde = /V[DE]/.test(codeStr) || /verde/i.test(allText);
   const isACL = /\bLV/.test(codeStr) || /livre/i.test(allText);
-  result.classificacao = [grpStr, isAzul ? 'AZUL' : isVerde ? 'VERDE' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
-    .filter(Boolean).join(' — ') || undefined;
+  // Optante B: conexão física em Grupo A faturada como Grupo B (posto único, sem demanda) —
+  // classificação "A OPT B3 … OPTANTE_B". O motor deve tratar como Grupo B.
+  const isOptanteB = /\bOPT\s*B[123]?\b|OPTANTE[\s_]*B/i.test(allText);
+  const bCls = allText.match(/\bB[123]\b/);
+  result.classificacao = isOptanteB
+    ? `${bCls ? bCls[0] : 'B'} optante — Grupo B (posto único)`
+    : ([grpStr, isAzul ? 'AZUL' : isVerde ? 'VERDE' : null, isACL ? 'Cliente Livre (ACL)' : 'Cativo']
+        .filter(Boolean).join(' — ') || undefined);
 
   // UC number (nova numeração padronizada REN 1095/24, formato pontuado) → nome/id da UC.
   const ucm = allText.match(/\d\.\d{3}\.\d{3}\.\d{3}-\d{2}/);
@@ -692,6 +698,19 @@ export function parseEquatorialFromLines(lines: PdfLine[]): ParsedFatura {
       result.classificacao = (clsB ? clsB[0].replace(/\s*\|.*/, '').trim() : 'B3') + ' — Grupo B';
     }
   }
+
+  // Optante B fatura como Grupo B (posto único): soma ponta + fora ponta + reservado num
+  // único consumo (foraPonta) — senão o motor bila só o FP e subconta o total.
+  if (isOptanteB) {
+    for (const h of result.history) {
+      h.consumoForaPonta = (h.consumoForaPonta || 0) + (h.consumoPonta || 0) + (h.consumoReservado || 0);
+      h.consumoPonta = 0; h.consumoReservado = 0; h.demandaPonta = 0; h.demandaForaPonta = 0;
+    }
+  }
+  // Remove linhas totalmente zeradas (o mês-âncora mais antigo às vezes sai vazio) — evita o
+  // falso alerta de "consumo fora-ponta zero".
+  result.history = result.history.filter(h =>
+    (h.consumoForaPonta || 0) > 0 || (h.consumoPonta || 0) > 0 || (h.consumoReservado || 0) > 0);
 
   result.history.sort((a, b) => a.monthIso.localeCompare(b.monthIso));
 

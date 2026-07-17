@@ -43,17 +43,25 @@ describe('deriveTariffGroup — Grupo B vs Grupo A', () => {
 
 describe('analyzeFaturaSet — dedup de UC renumerada (REN 1095/24, março/abril)', () => {
   const ENDERECO = 'RUA 209 Q 482 L 21 SN 72890000';
-  const marco = fatura({ ucNumero: undefined, ucEndereco: ENDERECO, refMes: '03/2026',
+  // Renumeração REAL: mesmo endereço, DOIS números distintos (antigo → novo).
+  const marco = fatura({ ucNumero: '1990207-1', ucEndereco: ENDERECO, refMes: '03/2026',
     history: [row('2026-02', 6000), row('2026-03', 6200)] });
   const abril = fatura({ ucNumero: '3.619.041.012-06', ucEndereco: ENDERECO, refMes: '04/2026',
     history: [row('2026-03', 6200), row('2026-04', 6400)] });
+  // Nº ausente em alguns meses (formato antigo não extraído) NÃO é renumeração.
+  const semNum = fatura({ ucNumero: undefined, ucEndereco: ENDERECO, refMes: '02/2026',
+    history: [row('2026-01', 5800), row('2026-02', 6000)] });
 
   it('duas faturas do MESMO endereço com números diferentes → 1 UC', () => {
     expect(analyzeFaturaSet([marco, abril]).ucCount).toBe(1);
   });
-  it('emite aviso de renumeração REN 1095/24', () => {
+  it('emite aviso de renumeração quando há 2 números reais distintos', () => {
     const warns = analyzeFaturaSet([marco, abril]).warnings.join(' ');
     expect(warns).toMatch(/renumerada|1095/i);
+  });
+  it('NÃO emite falso alarme quando o nº só falta em algumas faturas (1 número real)', () => {
+    const warns = analyzeFaturaSet([abril, semNum]).warnings.join(' ');
+    expect(warns).not.toMatch(/renumerada|1095/i);
   });
 });
 

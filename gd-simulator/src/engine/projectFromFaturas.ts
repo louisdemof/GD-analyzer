@@ -258,11 +258,13 @@ export function analyzeFaturaSet(parsedList: ParsedFatura[]): FaturaSetAnalysis 
   if (!monthly) {
     for (const g of groups.values()) {
       if (g.length < 2) continue;
-      const nums = new Set(g.map(x => x.ucNumero || '(legado)'));
-      if (nums.size > 1) {
+      // Só é renumeração se há 2+ números de UC REAIS distintos no mesmo endereço. Número
+      // ausente em alguns meses (formato antigo pré-REN 1095 que o parser não extrai) NÃO
+      // conta — senão dispara falso alarme quando o nº só falta em algumas faturas.
+      const realNums = [...new Set(g.map(x => x.ucNumero).filter((n): n is string => !!n))];
+      if (realNums.length > 1) {
         const kept = g.reduce((a, b) => (latestMonth(b) > latestMonth(a) ? b : a));
-        const meses = g.map(x => x.refMes).filter(Boolean).join(' + ') || `${g.length} faturas`;
-        warnings.push(`🔄 UC renumerada — REN 1095/24 (${shortAddr(kept.ucEndereco)}): o nº da UC mudou entre as faturas (${meses}); consolidadas em 1 UC — nº atual ${kept.ucNumero || '—'}.`);
+        warnings.push(`🔄 UC renumerada — REN 1095/24 (${shortAddr(kept.ucEndereco)}): o nº mudou entre as faturas (${realNums.join(' → ')}); consolidadas em 1 UC — nº atual ${kept.ucNumero || '—'}.`);
       }
     }
   }
