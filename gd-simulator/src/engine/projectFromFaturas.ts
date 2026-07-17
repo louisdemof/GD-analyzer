@@ -17,11 +17,19 @@ import { computeDerivedTariffs } from './tariff';
 import { aneelToDistributor, type ANEELDistributor } from '../data/aneelService';
 import bundledTariffs from '../data/aneel-tariffs.json';
 
+// Alguns rótulos que os parsers usam diferem do sigAgente da ANEEL. Ex.: Enel São Paulo é a
+// antiga "ELETROPAULO" na base regulatória — sem este alias, uma fatura Enel-SP não acha a
+// tarifa e cai no fallback (Energisa), usando tarifas erradas em silêncio.
+const SIG_ALIAS: Record<string, string> = {
+  'ENEL SP': 'ELETROPAULO',
+};
+
 // Build a distributor from the bundled ANEEL snapshot by SigAgente (e.g. 'COPEL-DIS').
 // Used when faturas come from a distributor whose tariffs we have in ANEEL data rather
 // than derived from the bill itself.
 function distributorFromBundle(sig: string): Distributor | null {
-  const src = (bundledTariffs.distributors as ANEELDistributor[]).find(d => d.sigAgente === sig);
+  const wanted = SIG_ALIAS[sig] || sig;
+  const src = (bundledTariffs.distributors as ANEELDistributor[]).find(d => d.sigAgente === wanted);
   return src ? aneelToDistributor(src) : null;
 }
 
