@@ -511,7 +511,7 @@ export function ProjectEditor() {
                       onClick={() => updateProject(project.id, {
                         marketType: mt,
                         aclBaseline: mt === 'ACL'
-                          ? (project.aclBaseline ?? { energyPriceSemImp: 0.300, energyIndexation: 'FIXO', tusdDiscountConsumo: 0, tusdDiscountConsumoPT: 0, tusdDiscountDemanda: 0 })
+                          ? (project.aclBaseline ?? { energyPriceSemImp: 0.300, energyIndexation: 'FIXO', tusdDiscountConsumo: 0, tusdDiscountConsumoPT: 0, tusdDiscountDemanda: 0, encargosCceeRsMWh: 15, gestaoVarejistaRsMWh: 5 })
                           : project.aclBaseline,
                       })}
                       className={`text-left px-3 py-2 rounded-lg border transition-colors ${active ? 'border-teal-500 bg-teal-50' : 'border-slate-300 bg-white hover:border-teal-400'}`}
@@ -593,6 +593,49 @@ export function ProjectEditor() {
                       A energia ACL é tributada (PIS/COFINS+ICMS) e os descontos de TUSD reduzem o cenário atual.
                       Ao adotar GD (cativo) o cliente perde o desconto de demanda — refletido na economia.
                     </p>
+
+                    {/* Custos adicionais de estar no mercado livre (além de energia + TUSD) */}
+                    {(() => {
+                      const enc = acl.encargosCceeRsMWh ?? 15;
+                      const ges = acl.gestaoVarejistaRsMWh ?? 5;
+                      return (
+                        <div className="col-span-2 md:col-span-3 border-t border-slate-200 pt-3 mt-1">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-xs font-semibold text-slate-700">Custos adicionais do Mercado Livre (R$/MWh)</span>
+                            <span className="text-xs font-bold text-teal-700">Total adicional: R$ {(enc + ges).toFixed(0)}/MWh</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mt-2">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Encargos CCEE (R$/MWh)</label>
+                              <input type="number" step="1" value={enc}
+                                onChange={e => set({ encargosCceeRsMWh: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-1">Gestão varejista (R$/MWh)</label>
+                              <input type="number" step="1" value={ges}
+                                onChange={e => set({ gestaoVarejistaRsMWh: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                            </div>
+                          </div>
+                          <details className="mt-2 text-[11px] text-slate-500">
+                            <summary className="cursor-pointer select-none text-slate-600 font-medium">O que compõe estes custos?</summary>
+                            <div className="mt-1.5 space-y-1 pl-1">
+                              <p><strong>Encargos CCEE (~R$15/MWh)</strong> — pagos via a comercializadora, com base no consumo:</p>
+                              <ul className="list-disc pl-5">
+                                <li><strong>ESS</strong> (Encargos de Serviço do Sistema) — ~R$4/MWh, volátil (R$1–9)</li>
+                                <li><strong>EER</strong> (Energia de Reserva) — ~R$5/MWh</li>
+                                <li><strong>ERCAP</strong> (Reserva de Capacidade) — ~R$1,5/MWh</li>
+                                <li><strong>Angra 1 e 2</strong> (rateio nuclear, novo desde 2026) — ~R$3/MWh</li>
+                                <li><strong>Liquidação/exposição PLD</strong> (se bem contratado) — ~R$1,5/MWh</li>
+                              </ul>
+                              <p className="mt-1"><strong>Gestão varejista (~R$5/MWh)</strong> — margem/gestão da comercializadora; embute a Contribuição Associativa CCEE (R$672/mês por agente) diluída. No modelo <em>representado</em> não há linha fixa separada.</p>
+                              <p className="mt-1 text-slate-400">Só afeta o cenário ATUAL (ACL). Ao migrar para GD (cativo) esses custos deixam de existir — por isso entram na economia. Troque pelos valores da nota da comercializadora (CEMIG) quando tiver.</p>
+                            </div>
+                          </details>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}

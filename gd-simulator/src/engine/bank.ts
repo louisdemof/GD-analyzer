@@ -194,7 +194,14 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
     const dCons = aclOn ? aclDiscCons(m) : 0;
     // Ponta pode ter desconto de TUSD diferente do fora-ponta (incentivada Verde / COPEL).
     const dConsPT = aclOn ? (incDisc ? incDisc.consumoPT : (aclBaseline?.tusdDiscountConsumoPT ?? dCons)) : 0;
-    const teAcl = aclOn ? aclEnergyAllIn(yearIdx) : 0;
+    // Custos adicionais do ACL (encargos CCEE + gestão varejista), R$/MWh → R$/kWh, adder
+    // líquido sobre a energia consumida (escala com o consumo via os T_x_eff abaixo). Escalona
+    // junto com a energia. Só no SEM (baseline atual); o COM é cativo.
+    const aclAdderPerKWh = aclOn
+      ? ((aclBaseline?.encargosCceeRsMWh ?? 0) + (aclBaseline?.gestaoVarejistaRsMWh ?? 0)) / 1000
+        * Math.pow(1 + (aclBaseline?.energyEscalationPct ?? 0), yearIdx)
+      : 0;
+    const teAcl = aclOn ? aclEnergyAllIn(yearIdx) + aclAdderPerKWh : 0;
     // TUSD com benefício (desconto na base, impostos sobre a cheia) + energia ACL (já com impostos).
     const T_AFP_eff = aclOn ? tusdAposBeneficio(T_AFP_TUSD, dCons) + teAcl : T_AFP;
     const T_APT_eff = aclOn ? tusdAposBeneficio(T_APT_TUSD, dConsPT) + teAcl : T_APT;

@@ -156,3 +156,27 @@ describe('SEM invoice decomposition (ACL split)', () => {
     expect(Math.abs(comDem - 500 * T_A_DEMANDA)).toBeLessThan(1e-3);
   });
 });
+
+// Custos adicionais do ACL (encargos CCEE + gestão varejista) — adder líquido R$/MWh no SEM.
+describe('Custos adicionais ACL (encargos CCEE + gestão)', () => {
+  const months = 12;
+  const callWith = (encRsMWh: number, gesRsMWh: number) => simulateUCBank({
+    uc: mkUC(true, months), distributor: dist, generation: new Array(months).fill(0),
+    rateio: mkRateio(months), includeCS3Credits: false, batCreditsPerMonth: new Array(months).fill(0),
+    icmsExempt: true, pisCofinsExempt: true, competitorDiscount: 0,
+    aclBaseline: { ...acl, encargosCceeRsMWh: encRsMWh, gestaoVarejistaRsMWh: gesRsMWh },
+    isSEM: true, contractMonths: months, tariffEscalationDistributor: 0,
+  });
+  const total = (r: ReturnType<typeof simulateUCBank>) => r.monthlyDetails.reduce((s, d) => s + d.costRede, 0);
+
+  it('20 R$/MWh (15+5) sobe o custo SEM em 0,02 R$/kWh × consumo faturado', () => {
+    const semAdder = total(callWith(0, 0));
+    const comAdder = total(callWith(15, 5));
+    // consumo 12m = (100.000 FP + 20.000 PT) × 12 = 1.440.000 kWh; adder 0,02 R$/kWh
+    expect(comAdder - semAdder).toBeCloseTo(1_440_000 * 0.02, 0);
+  });
+  it('sem os campos (0/0) não altera o custo', () => {
+    expect(total(callWith(0, 0))).toBeGreaterThan(0);
+    expect(total(callWith(15, 5)) - total(callWith(0, 0))).toBeGreaterThan(0);
+  });
+});

@@ -148,6 +148,11 @@ export interface ACLBaseline {
   // (1,65% PIS + 7,6% COFINS). A TUSD usa a alíquota efetiva da distribuidora (≈6,5–7,7%),
   // por isso a energia tem gross-up próprio. Ref.: Energês "Entendendo a Fatura 4".
   energyPisCofinsPct?: number;      // default 0.0925
+  // Custos adicionais de estar no mercado livre (ACL), em R$/MWh sobre a energia consumida.
+  // Só afetam o SEM (baseline atual do cliente); o COM é GD no cativo. Somados como adder líquido
+  // à energia (sem novo gross-up). Prefill ao criar/marcar projeto ACL: 15 + 5 = 20 R$/MWh.
+  encargosCceeRsMWh?: number;       // ESS + EER + ERCAP + Angra 1/2 + liquidação (CCEE). Default 15.
+  gestaoVarejistaRsMWh?: number;    // margem/gestão da comercializadora varejista. Default 5.
 }
 
 // Commercial pipeline stage of a project (deal tracking on the dashboard).

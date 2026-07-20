@@ -343,6 +343,8 @@ export function buildProjectFromFaturas(parsedList: ParsedFatura[], clientName: 
       tusdDiscountConsumoPT: 0,
       tusdDiscountDemanda: 0,
       incentivadaLevel: level,
+      encargosCceeRsMWh: 15,     // ESS+EER+ERCAP+Angra+liquidação (default de mercado)
+      gestaoVarejistaRsMWh: 5,   // gestão da comercializadora varejista
     } : undefined,
     scenarios: {
       icmsExempt: true,
