@@ -112,3 +112,20 @@ describe('engine regression — OPTIMIZED rateio (client-facing case)', () => {
     }, 20000); // heavy client-facing case (optimiser + full sim) — generous timeout
   }
 });
+
+// Consumo estendido: além do histórico (24m) o consumo NÃO pode zerar enquanto o custo continua
+// (bug do "Consumo (kWh) = 0 após Jan/30" no Resumo Mensal — o display lia os arrays crus).
+describe('consumo estendido ao horizonte (Resumo Mensal)', () => {
+  const r = runSimulation(buildDemo(sf5yData, 'sf-5y-consumo'));
+  it('tem mais de 24 meses e o consumo do mês 30 é > 0 (extrapolado, não zero)', () => {
+    expect(r.months.length).toBeGreaterThan(30);
+    expect(r.months[30].consumo).toBeGreaterThan(0);
+  });
+  it('consumo do mês 30 ≈ mesmo mês sazonal do histórico (cíclico + growth)', () => {
+    const seasonal = r.months[30 % 12].consumo;
+    expect(r.months[30].consumo).toBeGreaterThan(seasonal * 0.9);
+  });
+  it('nenhum mês tem consumo 0 (todos extrapolados)', () => {
+    expect(r.months.every(m => m.consumo > 0)).toBe(true);
+  });
+});
