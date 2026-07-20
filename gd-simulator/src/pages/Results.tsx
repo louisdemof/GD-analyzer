@@ -392,7 +392,7 @@ export function Results() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
-        {tab === 'resumo' && <CostWaterfall months={result.months} ucs={project.ucs} />}
+        {tab === 'resumo' && <CostWaterfall months={result.months} />}
         {tab === 'detalhe-impostos' && <TaxBreakdownPanel project={project} result={result} />}
         {tab === 'mensal' && <MonthlyChart months={result.months} ppaEndMonthIndices={ppaEndIndices(project)} />}
         {tab === 'geracao' && <GenerationAggregator project={project} result={result} />}

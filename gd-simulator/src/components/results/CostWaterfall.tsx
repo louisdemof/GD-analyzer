@@ -1,26 +1,17 @@
-import type { ConsumptionUnit, MonthlyResult } from '../../engine/types';
+import type { MonthlyResult } from '../../engine/types';
 
 interface Props {
   months: MonthlyResult[];
-  ucs: ConsumptionUnit[];
 }
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 }
 
-function consumoMes(ucs: ConsumptionUnit[], m: number): number {
-  let sum = 0;
-  for (const uc of ucs) {
-    sum += (uc.consumptionFP[m] ?? 0)
-      + (uc.consumptionPT[m] ?? 0)
-      + (uc.consumptionReservado?.[m] ?? 0);
-  }
-  return sum;
-}
-
-export function CostWaterfall({ months, ucs }: Props) {
-  const monthlyConsumo = months.map(m => consumoMes(ucs, m.monthIndex));
+export function CostWaterfall({ months }: Props) {
+  // Consumo vem do resultado (JÁ estendido ao horizonte) — não dos arrays crus de 24m das UCs,
+  // que zeravam após o histórico enquanto o custo continuava.
+  const monthlyConsumo = months.map(m => m.consumo ?? 0);
   const totals = {
     consumo: monthlyConsumo.reduce((a, v) => a + v, 0),
     generation: months.reduce((a, m) => a + m.generation, 0),

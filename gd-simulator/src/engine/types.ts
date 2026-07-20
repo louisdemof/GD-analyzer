@@ -338,6 +338,7 @@ export interface AttributionResult {
 export interface MonthlyResult {
   monthIndex: number;
   label: string;          // e.g. "Jun/26"
+  consumo: number;        // kWh consumidos no mês (soma das UCs, JÁ estendido ao horizonte)
   generation: number;     // kWh injected
   ppaCost: number;        // R$ PPA paid to Helexia
   // Per scenario

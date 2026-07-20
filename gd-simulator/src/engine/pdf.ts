@@ -400,15 +400,9 @@ function SummaryPage({ project, result }: { project: Project; result: Simulation
       ...(() => {
         const years = Math.ceil(cm / 12);
         let acum = 0;
-        const consumoForMonth = (mi: number) => {
-          let sum = 0;
-          for (const uc of project.ucs) {
-            sum += (uc.consumptionFP[mi] ?? 0)
-              + (uc.consumptionPT[mi] ?? 0)
-              + (uc.consumptionReservado?.[mi] ?? 0);
-          }
-          return sum;
-        };
+        // Consumo do resultado (JÁ estendido ao horizonte); os arrays crus das UCs têm só o
+        // histórico (24m) e zeravam o consumo após isso enquanto o custo continuava.
+        const consumoForMonth = (mi: number) => result.months[mi]?.consumo ?? 0;
         return Array.from({ length: years }, (_, y) => {
           const start = y * 12;
           const end = Math.min(start + 12, cm);

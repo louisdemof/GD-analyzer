@@ -423,9 +423,15 @@ export function runSimulation(project: Project): SimulationResult {
     // totalCost (also absorbs BAT-the-UC's captive bill, which isn't itemised here).
     const semTusdFpCost = Math.max(0, semTotalCost - semTusdPtCost - semTeFpCost - semTePtCost - semDemandaCost);
 
+    // Consumo do mês = soma das UCs JÁ ESTENDIDAS ao horizonte (não os arrays crus de 24m) —
+    // senão o consumo exibido zera após o histórico enquanto o custo (SEM/COM) continua.
+    const consumoMes = extendedProject.ucs.reduce((s, uc) => uc.id === 'bat' ? s
+      : s + (uc.consumptionFP[m] ?? 0) + (uc.consumptionPT[m] ?? 0) + (uc.consumptionReservado?.[m] ?? 0), 0);
+
     months.push({
       monthIndex: m,
       label: formatMonthLabel(project.plant.contractStartMonth, m),
+      consumo: consumoMes,
       generation: gen,
       ppaCost,
       sem: { totalCost: semTotalCost, tusdFpCost: semTusdFpCost, tusdPtCost: semTusdPtCost, teFpCost: semTeFpCost, tePtCost: semTePtCost, demandaCost: semDemandaCost },
