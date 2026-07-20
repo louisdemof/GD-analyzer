@@ -158,7 +158,9 @@ export function MonthlyChart({ months, ppaEndMonthIndices }: Props) {
 
             <Tooltip
               formatter={(value, name) => [
-                `R$ ${Math.abs(value as number).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
+                // NÃO usar Math.abs: a Economia Acumulada pode ser NEGATIVA (payback) e o abs
+                // fazia ela aparecer positiva no gráfico enquanto a tabela mostrava negativo.
+                `R$ ${(value as number).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
                 name,
               ]}
             />
