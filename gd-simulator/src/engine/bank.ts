@@ -365,7 +365,7 @@ export function simulateUCBank(params: BankSimParams): BankSimResult {
       const discount = (isSEM && competitorDiscount > 0) ? competitorDiscount : 0;
       const effectiveT_B = aclOn && T_B_eff_acl != null ? T_B_eff_acl : T_B3 * (1 - discount);
       const effectiveT_BRSV = aclOn && T_B_eff_acl != null
-        ? tusdAposBeneficio(T_B3 > 0 ? T_BRSV * (T_B3_TUSD / T_B3) : T_B3_TUSD, aclDiscCons(m)) + aclEnergyAllIn(yearIdx)
+        ? tusdAposBeneficio(T_B3 > 0 ? T_BRSV * (T_B3_TUSD / T_B3) : T_B3_TUSD, aclDiscCons(m)) + teAcl // teAcl inclui o adder ACL
         : T_BRSV * (1 - discount);
 
       costRede = residualFP * effectiveT_B + residualRSV * effectiveT_BRSV;

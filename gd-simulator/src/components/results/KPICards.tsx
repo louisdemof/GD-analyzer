@@ -356,7 +356,11 @@ export function KPICards({ summary, months, project, result }: Props) {
                     {isACL ? (
                       <>
                         <div className="text-xs text-slate-600 uppercase font-semibold mt-1">Energia ACL</div>
-                        <InvoiceLine label="Energia ACL (TE)" value={scopeData.teFp + scopeData.tePt} note="Comercializadora" />
+                        {(() => {
+                          const adder = (project?.aclBaseline?.encargosCceeRsMWh ?? 0) + (project?.aclBaseline?.gestaoVarejistaRsMWh ?? 0);
+                          return <InvoiceLine label="Energia ACL (TE)" value={scopeData.teFp + scopeData.tePt}
+                            note={adder > 0 ? `Comercializadora + encargos CCEE/gestão (R$${adder.toFixed(0)}/MWh)` : 'Comercializadora'} />;
+                        })()}
                         <div className="text-xs text-slate-600 uppercase font-semibold mt-3">{distName}</div>
                         <InvoiceLine label="TUSD Fora Ponta" value={scopeData.tusdFp} />
                         {scopeData.tusdPt > 0 && <InvoiceLine label="TUSD Ponta" value={scopeData.tusdPt} />}

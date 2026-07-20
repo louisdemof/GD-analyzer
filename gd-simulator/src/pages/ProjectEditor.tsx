@@ -70,6 +70,20 @@ export function ProjectEditor() {
   }, [cloudEnabled, id]);
   const isViewer = myRole === 'viewer';
 
+  // Backfill dos custos adicionais ACL (encargos CCEE + gestão) em projetos ACL antigos que
+  // não tinham os campos — senão o adder fica 0 e não aparece na linha de energia dos resultados.
+  useEffect(() => {
+    if (isViewer || !project || project.marketType !== 'ACL' || !project.aclBaseline) return;
+    const a = project.aclBaseline;
+    if (a.encargosCceeRsMWh === undefined || a.gestaoVarejistaRsMWh === undefined) {
+      updateProject(project.id, { aclBaseline: {
+        ...a,
+        encargosCceeRsMWh: a.encargosCceeRsMWh ?? 15,
+        gestaoVarejistaRsMWh: a.gestaoVarejistaRsMWh ?? 5,
+      } });
+    }
+  }, [project?.id, project?.marketType, isViewer]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Concurrent-edit guard: poll the cloud's logical timestamp; if it's newer than the
   // copy we hold, someone else saved a change → warn (avoid silently working on a stale base).
   const [conflict, setConflict] = useState(false);
